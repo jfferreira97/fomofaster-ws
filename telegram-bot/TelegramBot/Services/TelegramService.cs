@@ -116,6 +116,8 @@ public class TelegramService : ITelegramService
         string fullMessage;
         string obfuscatedMessage;
 
+        var chainLabel = (chain ?? Chain.SOL).ToString();
+
         if (!string.IsNullOrEmpty(contractAddress))
         {
             string dexScreenerUrl = (chain ?? Chain.SOL) switch
@@ -130,7 +132,7 @@ public class TelegramService : ITelegramService
             fullMessage = $@"{processedMessage}
 
 📝 Contract: `{contractAddress}`
-🔗 [DEXScreener]({dexScreenerUrl})";
+🔗 {chainLabel} | [DEXScreener]({dexScreenerUrl})";
 
             var redactedCa = contractAddress.Length > 4
                 ? contractAddress[..2] + new string('*', contractAddress.Length - 4) + contractAddress[^2..]
@@ -138,17 +140,19 @@ public class TelegramService : ITelegramService
             obfuscatedMessage = $@"{BuildObfuscatedText(notification.Message, traderHandle, ticker, marketCap)}
 
 📝 Contract: `{redactedCa}`
-🔗 [DEXScreener](https://dexscreener.com)
+🔗 [{chainLabel} | DEXScreener](https://dexscreener.com)
 
 To get full details: /subscribe";
         }
         else
         {
-            fullMessage = processedMessage;
+            fullMessage = $@"{processedMessage}
+
+🔗 [{chainLabel} | DEXScreener](https://dexscreener.com)";
             obfuscatedMessage = $@"{BuildObfuscatedText(notification.Message, traderHandle, ticker, marketCap)}
 
 📝 Contract: `{new string('*', 44)}`
-🔗 [DEXScreener](https://dexscreener.com)
+🔗 [{chainLabel} | DEXScreener](https://dexscreener.com)
 
 To get full details: /subscribe";
         }
