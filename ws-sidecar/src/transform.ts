@@ -5,6 +5,7 @@ export interface StructuredNotificationRequest {
   contractAddress: string;
   networkId: number;
   side: string;
+  wsType: string;
   usdAmount: number;
   marketCap?: number;
   comment?: string;
@@ -56,6 +57,7 @@ export function transformFrame(payload: Record<string, unknown>): StructuredNoti
       contractAddress,
       networkId,
       side: type,
+      wsType: type,
       usdAmount: payload.usdAmount as number,
       marketCap: payload.marketCap as number | undefined,
       price: payload.price as number | undefined,
@@ -77,6 +79,7 @@ export function transformFrame(payload: Record<string, unknown>): StructuredNoti
       contractAddress,
       networkId,
       side: thesisSide,
+      wsType: type,
       usdAmount: authorTrade.usdValue as number,
       marketCap: payload.marketCap as number | undefined,
       createdAt,
