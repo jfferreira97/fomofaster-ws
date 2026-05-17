@@ -1,0 +1,19 @@
+{
+  "name": "ws-sidecar",
+  "version": "1.0.0",
+  "description": "Playwright WS sidecar — intercepts fomo.family trade events and forwards to fomofaster backend",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "ts-node src/index.ts",
+    "build": "tsc",
+    "start:built": "node dist/index.js"
+  },
+  "dependencies": {
+    "playwright": "^1.44.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  }
+}

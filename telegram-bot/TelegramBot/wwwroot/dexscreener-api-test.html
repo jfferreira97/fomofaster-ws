@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DexScreener API Tester</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #0e1621;
+            color: #ffffff;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #00d4ff;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: #8a96a0;
+            margin-bottom: 30px;
+        }
+
+        .input-section {
+            background-color: #17212b;
+            padding: 24px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .input-group {
+            margin-bottom: 16px;
+        }
+
+        .input-group:last-child {
+            margin-bottom: 0;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #8a96a0;
+            margin-bottom: 6px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 10px 12px;
+            background-color: #0e1621;
+            border: 1px solid #2d3748;
+            border-radius: 6px;
+            color: #ffffff;
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #00d4ff;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background-color: #00d4ff;
+            color: #0e1621;
+        }
+
+        .btn-primary:hover {
+            background-color: #00b8e6;
+        }
+
+        .btn-secondary {
+            background-color: #2d3748;
+            color: #ffffff;
+        }
+
+        .btn-secondary:hover {
+            background-color: #3d4758;
+        }
+
+        .response-section {
+            background-color: #17212b;
+            padding: 24px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .response-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .response-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #8a96a0;
+        }
+
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-success {
+            background-color: #10b981;
+            color: #ffffff;
+        }
+
+        .status-error {
+            background-color: #ef4444;
+            color: #ffffff;
+        }
+
+        .status-loading {
+            background-color: #f59e0b;
+            color: #ffffff;
+        }
+
+        #responseBox {
+            width: 100%;
+            min-height: 400px;
+            max-height: 600px;
+            overflow-y: auto;
+            background-color: #0e1621;
+            border: 1px solid #2d3748;
+            border-radius: 6px;
+            padding: 16px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: #00d4ff;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .info-box {
+            background-color: #17212b;
+            padding: 16px;
+            border-radius: 8px;
+            border-left: 3px solid #00d4ff;
+            font-size: 13px;
+            color: #8a96a0;
+            line-height: 1.6;
+        }
+
+        .info-box strong {
+            color: #ffffff;
+        }
+
+        .highlight {
+            background-color: #2d3748;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0e1621;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #2d3748;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3d4758;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 DexScreener API Tester</h1>
+        <p class="subtitle">Test DexScreener API for token lookups (No API key needed - it's free!)</p>
+
+        <div class="input-section">
+            <div class="input-group">
+                <label for="ticker">Token Ticker / Symbol</label>
+                <input type="text" id="ticker" placeholder="e.g., BONK, WIF, FOMO" value="">
+            </div>
+
+            <div class="input-group">
+                <label for="apiKey">API Key (Optional - leave blank, DexScreener is public)</label>
+                <input type="text" id="apiKey" placeholder="Not needed for DexScreener" disabled>
+            </div>
+
+            <div class="button-group">
+                <button class="btn-primary" onclick="searchDexScreener()">🔍 Search DexScreener</button>
+                <button class="btn-secondary" onclick="clearResponse()">Clear</button>
+            </div>
+        </div>
+
+        <div class="response-section">
+            <div class="response-header">
+                <span class="response-title">API Response</span>
+                <span id="statusBadge" class="status-badge" style="display: none;"></span>
+            </div>
+            <div id="responseBox">Ready to search... Type a ticker and hit Search!</div>
+        </div>
+
+        <div class="info-box">
+            <strong>💡 How to use:</strong><br>
+            1. Enter a token ticker (e.g., <span class="highlight">BONK</span>, <span class="highlight">WIF</span>, <span class="highlight">FOMO</span>)<br>
+            2. Click "Search DexScreener" - no API key needed!<br>
+            3. <strong>Open Console (F12 → Console tab)</strong> - all responses are logged there!<br>
+            4. Check the response box below for formatted results<br><br>
+            <strong>📊 Response Fields:</strong><br>
+            • <span class="highlight">pairs[].baseToken.address</span> = Contract Address (CA)<br>
+            • <span class="highlight">pairs[].marketCap</span> = Market Cap in USD<br>
+            • <span class="highlight">pairs[].liquidity.usd</span> = Liquidity<br>
+            • <span class="highlight">pairs[].volume.h24</span> = 24h Volume<br><br>
+            <strong>🔍 Console Logging:</strong> Full JSON response + individual pair details logged to browser console
+        </div>
+    </div>
+
+    <script>
+        const responseBox = document.getElementById('responseBox');
+        const statusBadge = document.getElementById('statusBadge');
+
+        function updateStatus(text, type) {
+            statusBadge.textContent = text;
+            statusBadge.className = 'status-badge status-' + type;
+            statusBadge.style.display = 'inline-block';
+        }
+
+        function clearResponse() {
+            responseBox.textContent = 'Ready to search... Type a ticker and hit Search!';
+            statusBadge.style.display = 'none';
+        }
+
+        async function searchDexScreener() {
+            const ticker = document.getElementById('ticker').value.trim();
+
+            if (!ticker) {
+                responseBox.textContent = '⚠️ Error: Please enter a ticker symbol';
+                updateStatus('ERROR', 'error');
+                return;
+            }
+
+            updateStatus('LOADING...', 'loading');
+            responseBox.textContent = `Searching for "${ticker}" on DexScreener...\n\n`;
+
+            try {
+                const url = `https://api.dexscreener.com/latest/dex/search?q=${encodeURIComponent(ticker)}`;
+
+                responseBox.textContent += `📡 Request URL:\n${url}\n\n`;
+                responseBox.textContent += `⏳ Fetching data...\n\n`;
+
+                const startTime = Date.now();
+                const response = await fetch(url);
+                const duration = Date.now() - startTime;
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusCode}`);
+                }
+
+                const data = await response.json();
+
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                console.log('📊 RAW JSON RESPONSE:');
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                console.log(JSON.stringify(data, null, 2));
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+                // Format and display response
+                let output = `✅ Success! (${duration}ms)\n\n`;
+                output += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+                if (data.pairs && data.pairs.length > 0) {
+                    output += `📊 Found ${data.pairs.length} pair(s):\n\n`;
+
+                    // Sort by liquidity to show most legit pairs first
+                    const sortedPairs = data.pairs.sort((a, b) => {
+                        const aLiq = a.liquidity?.usd || 0;
+                        const bLiq = b.liquidity?.usd || 0;
+                        return bLiq - aLiq;
+                    });
+
+                    sortedPairs.forEach((pair, index) => {
+                        output += `╔═══ Pair #${index + 1} ═══════════════════════════\n`;
+                        output += `║ Symbol: ${pair.baseToken?.symbol || 'N/A'}\n`;
+                        output += `║ Name: ${pair.baseToken?.name || 'N/A'}\n`;
+                        output += `║\n`;
+                        output += `║ 🎯 CONTRACT ADDRESS:\n`;
+                        output += `║    ${pair.baseToken?.address || 'N/A'}\n`;
+                        output += `║\n`;
+                        output += `║ 💰 Market Cap: $${(pair.marketCap || 0).toLocaleString()}\n`;
+                        output += `║ 💧 Liquidity: $${(pair.liquidity?.usd || 0).toLocaleString()}\n`;
+                        output += `║ 📈 24h Volume: $${(pair.volume?.h24 || 0).toLocaleString()}\n`;
+                        output += `║ 💵 Price USD: $${pair.priceUsd || 'N/A'}\n`;
+                        output += `║\n`;
+                        output += `║ 🔗 Chain: ${pair.chainId || 'N/A'}\n`;
+                        output += `║ 🏦 DEX: ${pair.dexId || 'N/A'}\n`;
+                        output += `║ 📍 Pair Address: ${pair.pairAddress || 'N/A'}\n`;
+                        output += `╚════════════════════════════════════════\n\n`;
+                    });
+                } else {
+                    output += `⚠️ No pairs found for ticker "${ticker}"\n\n`;
+                }
+
+                output += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+                output += `📋 Full JSON Response:\n\n`;
+                output += JSON.stringify(data, null, 2);
+
+                responseBox.textContent = output;
+                updateStatus('SUCCESS', 'success');
+
+            } catch (error) {
+                responseBox.textContent = `❌ Error: ${error.message}\n\n`;
+                responseBox.textContent += `Stack trace:\n${error.stack}`;
+                updateStatus('ERROR', 'error');
+                console.error('DexScreener API Error:', error);
+            }
+        }
+
+        // Allow Enter key to trigger search
+        document.getElementById('ticker').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchDexScreener();
+            }
+        });
+    </script>
+</body>
+</html>

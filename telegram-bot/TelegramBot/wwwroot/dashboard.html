@@ -1,0 +1,2253 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FOMOFASTER Alerts - Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #0e1621;
+            color: #ffffff;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .header {
+            background-color: #17212b;
+            padding: 12px 20px;
+            border-bottom: 1px solid #0e1621;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-title {
+            font-size: 16px;
+            font-weight: 500;
+            color: #ffffff;
+        }
+
+        .header-subtitle {
+            font-size: 14px;
+            color: #8a96a0;
+            margin-top: 2px;
+        }
+
+        .chat-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background-color: #0e1621;
+        }
+
+        .message-bubble {
+            max-width: 80%;
+            margin-bottom: 12px;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message-content {
+            background-color: #182533;
+            border-radius: 12px;
+            padding: 8px 12px;
+            position: relative;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+
+        .message-content.edited {
+            background-color: #1f3042;
+        }
+
+        .message-text {
+            font-size: 15px;
+            line-height: 1.35;
+            color: #e8e9ea;
+            word-wrap: break-word;
+        }
+
+        .message-meta {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            font-size: 12px;
+            color: #6c7883;
+            margin-top: 4px;
+        }
+
+        .message-time {
+            font-size: 12px;
+            color: #6c7883;
+        }
+
+        .message-ticker {
+            display: inline;
+            background-color: transparent;
+            color: inherit;
+            padding: 0;
+            border-radius: 0;
+            font-size: inherit;
+            font-weight: normal;
+            margin-right: 0;
+        }
+
+        .message-trader {
+            color: #5ca8e2;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .message-trader:hover {
+            text-decoration: underline;
+        }
+
+        .contract-address {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 6px;
+            padding: 6px 8px;
+            background-color: #0e1621;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #8a96a0;
+        }
+
+        .contract-address-text {
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            color: #5ca8e2;
+            word-break: break-all;
+        }
+
+        .contract-icon {
+            width: 16px;
+            height: 16px;
+            background-color: #2b5278;
+            border-radius: 4px;
+            display: inline-block;
+        }
+
+        .dex-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            color: #5ca8e2;
+            text-decoration: none;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
+        .dex-link:hover {
+            text-decoration: underline;
+        }
+
+        .recipient-count {
+            font-size: 11px;
+            color: #6c7883;
+            margin-top: 4px;
+        }
+
+        .message-metadata {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            color: #6c7883;
+            margin-top: 6px;
+            padding-top: 6px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .edited-badge {
+            color: #5ca8e2;
+            font-weight: 500;
+        }
+
+        .edit-ca-btn {
+            color: #5ca8e2;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .edit-ca-btn:hover {
+            text-decoration: underline;
+        }
+
+        .edit-ca-form {
+            margin-top: 8px;
+            padding: 8px;
+            background-color: #0e1621;
+            border-radius: 6px;
+            display: none;
+        }
+
+        .edit-ca-form.active {
+            display: block;
+        }
+
+        .edit-ca-form input,
+        .edit-ca-form select {
+            width: 100%;
+            padding: 6px 8px;
+            margin: 4px 0;
+            background-color: #182533;
+            border: 1px solid #2b5278;
+            border-radius: 4px;
+            color: #e8e9ea;
+            font-size: 12px;
+        }
+
+        .edit-ca-form input:focus,
+        .edit-ca-form select:focus {
+            outline: none;
+            border-color: #5ca8e2;
+        }
+
+        .edit-ca-form-buttons {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .edit-ca-form button {
+            flex: 1;
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .edit-ca-form .btn-submit {
+            background-color: #5ca8e2;
+            color: #ffffff;
+        }
+
+        .edit-ca-form .btn-submit:hover {
+            background-color: #4a8bbf;
+        }
+
+        .edit-ca-form .btn-cancel {
+            background-color: #2b5278;
+            color: #e8e9ea;
+        }
+
+        .edit-ca-form .btn-cancel:hover {
+            background-color: #3d6a99;
+        }
+
+        .buy-indicator {
+            color: #4caf50;
+        }
+
+        .sell-indicator {
+            color: #f44336;
+        }
+
+        .deposit-indicator {
+            color: #f0a500;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6c7883;
+            font-size: 14px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c7883;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .refresh-indicator {
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            background-color: #2b5278;
+            color: #5ca8e2;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0e1621;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #2b5278;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3d6a99;
+        }
+
+        /* Tab Navigation */
+        .tabs {
+            display: flex;
+            background-color: #17212b;
+            border-bottom: 1px solid #0e1621;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #8a96a0;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            background-color: #1a2633;
+            color: #ffffff;
+        }
+
+        .tab.active {
+            color: #ffffff;
+            border-bottom-color: #5288c1;
+        }
+
+        .tab-content {
+            display: none;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .tab-content.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Settings Page */
+        .settings-container {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .settings-section {
+            background-color: #182533;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .settings-section-title {
+            font-size: 18px;
+            font-weight: 500;
+            margin-bottom: 16px;
+            color: #ffffff;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 14px;
+            color: #8a96a0;
+            margin-bottom: 6px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 10px 12px;
+            background-color: #0e1621;
+            border: 1px solid #2b5278;
+            border-radius: 6px;
+            color: #ffffff;
+            font-size: 14px;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #5288c1;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background-color: #5288c1;
+            color: #ffffff;
+        }
+
+        .btn-primary:hover {
+            background-color: #4a7bb0;
+        }
+
+        .btn-danger {
+            background-color: #d9534f;
+            color: #ffffff;
+        }
+
+        .btn-danger:hover {
+            background-color: #c9302c;
+        }
+
+        .btn-secondary {
+            background-color: #2b5278;
+            color: #ffffff;
+        }
+
+        .btn-secondary:hover {
+            background-color: #3d6a99;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #2b5278;
+        }
+
+        th {
+            font-size: 13px;
+            color: #8a96a0;
+            font-weight: 500;
+        }
+
+        td {
+            font-size: 14px;
+            color: #e8e9ea;
+        }
+
+        tr:hover {
+            background-color: #1a2633;
+        }
+
+        .token-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+        }
+
+        .modal-content {
+            background-color: #182533;
+            margin: 10% auto;
+            padding: 24px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 500;
+            margin-bottom: 16px;
+            color: #ffffff;
+        }
+
+        .modal-close {
+            color: #8a96a0;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .modal-close:hover {
+            color: #ffffff;
+        }
+
+        .recipients-tooltip-container {
+            position: relative;
+            display: inline-block;
+            cursor: pointer;
+        }
+
+        .recipients-tooltip-container:hover {
+            color: #5ba0d0;
+        }
+
+        .recipients-tooltip {
+            display: none;
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            margin-bottom: 8px;
+            background-color: #17212b;
+            border: 1px solid #2b5278;
+            border-radius: 8px;
+            padding: 8px 12px;
+            min-width: 200px;
+            max-width: 300px;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        }
+
+        .recipients-tooltip-container:hover .recipients-tooltip {
+            display: block;
+        }
+
+        .recipients-tooltip-title {
+            font-weight: 600;
+            font-size: 12px;
+            color: #8a96a0;
+            margin-bottom: 6px;
+            border-bottom: 1px solid #2b5278;
+            padding-bottom: 4px;
+        }
+
+        .recipients-tooltip-item {
+            font-size: 13px;
+            color: #e8e9ea;
+            padding: 3px 0;
+        }
+
+        .recipients-tooltip-loading {
+            font-size: 13px;
+            color: #8a96a0;
+            font-style: italic;
+        }
+
+        .recipients-tooltip-arrow {
+            position: absolute;
+            top: 100%;
+            left: 20px;
+            width: 0;
+            height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 6px solid #2b5278;
+        }
+        .lookup-diag {
+            margin-top: 8px;
+            border: 1px solid #2b3f52;
+            border-radius: 6px;
+            font-size: 11px;
+            overflow: hidden;
+        }
+
+        .lookup-diag-header {
+            padding: 5px 8px;
+            background: #1e2d3d;
+            color: #8ba8c0;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .lookup-diag-header:hover {
+            background: #243447;
+        }
+
+        .lookup-diag-body {
+            display: none;
+            padding: 6px 8px;
+            background: #17212b;
+        }
+
+        .lookup-diag.expanded .lookup-diag-body {
+            display: block;
+        }
+
+        .diag-section-label {
+            color: #5a7a94;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin: 4px 0 2px;
+        }
+
+        .diag-range {
+            border-top: 1px solid #2b3f52;
+            border-bottom: 1px solid #2b3f52;
+            padding: 4px 0;
+            margin: 4px 0;
+            color: #5a7a94;
+            font-size: 10px;
+        }
+
+        .diag-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            padding: 2px 0;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+
+        .diag-row:hover {
+            background: #1e2d3d;
+        }
+
+        .diag-row.passed .diag-ca { color: #4db87a; }
+        .diag-row.rejected .diag-ca { color: #8ba8c0; }
+
+        .diag-mc {
+            color: #a0b8cc;
+            min-width: 60px;
+        }
+
+        .diag-reason {
+            color: #e05a5a;
+            font-size: 10px;
+            flex: 1;
+        }
+
+        .diag-actions {
+            margin-left: auto;
+            display: flex;
+            gap: 4px;
+        }
+
+        .diag-btn {
+            background: #1e2d3d;
+            border: 1px solid #2b3f52;
+            color: #8ba8c0;
+            border-radius: 3px;
+            padding: 1px 5px;
+            font-size: 11px;
+            cursor: pointer;
+            line-height: 1.4;
+        }
+
+        .diag-btn:hover {
+            background: #2b3f52;
+            color: #fff;
+        }
+
+        .diag-btn-pin:hover {
+            border-color: #4db87a;
+            color: #4db87a;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div style="flex:1">
+                <div class="header-title">FOMOFASTER Alerts</div>
+                <div class="header-subtitle">bot</div>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center;">
+                <input id="notifIdInput" type="number" placeholder="Jump to ID..." style="width:130px;padding:5px 8px;background:#0e1621;border:1px solid #2b5278;border-radius:6px;color:#e8e9ea;font-size:13px;" onkeydown="if(event.key==='Enter')jumpToNotification()">
+                <button onclick="jumpToNotification()" style="padding:5px 12px;background:#2b5278;border:none;border-radius:6px;color:#e8e9ea;font-size:13px;cursor:pointer;">Go</button>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('notifications')">Notifications</div>
+            <div class="tab" onclick="switchTab('users')">Users</div>
+            <div class="tab" onclick="switchTab('payments')">Payments</div>
+            <div class="tab" onclick="switchTab('config')">Config</div>
+            <div class="tab" onclick="switchTab('settings')">Settings</div>
+        </div>
+
+        <!-- Notifications Tab -->
+        <div id="notifications-tab" class="tab-content active">
+            <div class="chat-area" id="chatArea">
+                <div class="loading" id="loading">Loading notifications...</div>
+            </div>
+        </div>
+
+        <!-- Users Tab -->
+        <div id="users-tab" class="tab-content">
+            <div class="chat-area" style="overflow-y: auto;">
+                <div class="settings-container">
+                    <!-- Message All Users Section -->
+                    <div class="settings-section">
+                        <div class="settings-section-title">Message All Users</div>
+                        <p style="color: #8a96a0; margin-bottom: 12px;">Send a plain text message to all active users</p>
+                        <div class="form-group">
+                            <label class="form-label">Message</label>
+                            <textarea id="broadcastMessageText" class="form-input" rows="4" placeholder="Enter your message to send to all users..."></textarea>
+                        </div>
+                        <button class="btn btn-primary" onclick="showBroadcastConfirm()">Send to All Users</button>
+                    </div>
+
+                    <!-- Active Users List Section -->
+                    <div class="settings-section">
+                        <div class="settings-section-title">Active Users</div>
+                        <div id="userCountBadge" style="color: #8a96a0; margin-bottom: 12px;">Loading...</div>
+                        <table id="usersTable">
+                            <thead>
+                                <tr>
+                                    <th>Chat ID</th>
+                                    <th>Username</th>
+                                    <th>First Name</th>
+                                    <th>Traders Tracking</th>
+                                    <th>Auto-Follow New</th>
+                                    <th>Hidden Access</th>
+                                    <th>Active</th>
+                                    <th>Joined At</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody">
+                                <tr><td colspan="9" style="text-align: center; color: #8a96a0;">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Payments Tab -->
+        <div id="payments-tab" class="tab-content">
+            <div class="chat-area" style="overflow-y: auto;">
+                <div class="settings-container">
+                    <div class="settings-section">
+                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                            <div class="settings-section-title" style="margin-bottom:0;">Payment Records</div>
+                            <select id="paymentsFilter" onchange="renderPaymentsTable()" style="padding:6px 10px;background:#0e1621;border:1px solid #2b5278;border-radius:6px;color:#e8e9ea;font-size:13px;">
+                                <option value="all">All</option>
+                                <option value="pending">Pending</option>
+                                <option value="active">Active</option>
+                                <option value="expired_request">Expired Request</option>
+                                <option value="expired_sub">Expired Sub</option>
+                                <option value="blocked">Blocked</option>
+                            </select>
+                            <button onclick="loadPayments()" class="btn btn-secondary" style="padding:6px 12px;font-size:13px;">Refresh</button>
+                            <button onclick="sweepPayments()" class="btn btn-danger" style="padding:6px 12px;font-size:13px;">💸 Sweep All</button>
+                        </div>
+                        <table id="paymentsTable">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th>Status</th>
+                                    <th>Wallet</th>
+                                    <th>Requested At</th>
+                                    <th>Payment Date</th>
+                                    <th>Expires</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="paymentsTableBody">
+                                <tr><td colspan="6" style="text-align:center;color:#8a96a0;">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Config Tab -->
+        <div id="config-tab" class="tab-content">
+            <div class="chat-area" style="overflow-y: auto;">
+                <div class="settings-container">
+                    <div class="settings-section">
+                        <div class="settings-section-title">App Config</div>
+                        <p style="color:#8a96a0;margin-bottom:12px;">Key-value settings stored in the database. Changes take effect immediately.</p>
+                        <table id="configTable">
+                            <thead>
+                                <tr>
+                                    <th>Key</th>
+                                    <th>Value</th>
+                                    <th>Description</th>
+                                    <th>Last Updated</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="configTableBody">
+                                <tr><td colspan="5" style="text-align:center;color:#8a96a0;">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div id="settings-tab" class="tab-content">
+            <div class="chat-area" style="overflow-y: auto;">
+                <div class="settings-container">
+                    <!-- Add Traders Section -->
+                    <div class="settings-section">
+                        <div class="settings-section-title">Add Traders</div>
+                        <div class="form-group">
+                            <label class="form-label">Trader Handles (one per line, @ optional)</label>
+                            <textarea id="traderHandles" class="form-input" rows="5" placeholder="0xuberM&#10;frankdegods&#10;@trader123"></textarea>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                            <span style="font-size: 13px; color: #8a96a0;">Visibility:</span>
+                            <div onclick="toggleHiddenMode()" style="cursor: pointer; display: flex; align-items: center; gap: 8px; user-select: none;">
+                                <div id="hiddenModeSlider" style="width: 44px; height: 24px; background: #2b5278; border-radius: 12px; position: relative; transition: background 0.2s;">
+                                    <div id="hiddenModeKnob" style="width: 18px; height: 18px; background: #fff; border-radius: 50%; position: absolute; top: 3px; left: 3px; transition: left 0.2s;"></div>
+                                </div>
+                                <span id="hiddenModeLabel" style="font-size: 13px; color: #8a96a0;">Public</span>
+                            </div>
+                            <input type="checkbox" id="hiddenModeToggle" style="display: none;">
+                        </div>
+                        <button class="btn btn-primary" onclick="addTraders()">Add Traders</button>
+                    </div>
+
+                    <!-- Known Tokens Section -->
+                    <div class="settings-section">
+                        <div class="settings-section-title">Known Tokens</div>
+                        <button class="btn btn-secondary" onclick="showAddTokenModal()" style="margin-bottom: 12px;">Add New Token</button>
+                        <table id="knownTokensTable">
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Contract Address</th>
+                                    <th>Min Market Cap</th>
+                                    <th>Chain</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="knownTokensBody">
+                                <tr><td colspan="5" style="text-align: center; color: #8a96a0;">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Test Notification Section -->
+                    <div class="settings-section">
+                        <div class="settings-section-title">Test Notification</div>
+                        <p style="color: #8a96a0; margin-bottom: 12px;">Send a test notification to the same endpoint that android-listener uses</p>
+                        <div class="form-group">
+                            <label class="form-label">Notification Message</label>
+                            <textarea id="testNotificationMessage" class="form-input" rows="3" placeholder="PUMP at $1.44b MC 🟢 @frankdegods bought $9,955.55"></textarea>
+                        </div>
+                        <button class="btn btn-primary" onclick="showTestNotificationConfirm()">Send Test Notification</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Token Modal -->
+    <div id="tokenModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeTokenModal()">&times;</span>
+            <div class="modal-title" id="tokenModalTitle">Add New Token</div>
+            <form id="tokenForm" onsubmit="saveToken(event)">
+                <input type="hidden" id="tokenId">
+                <div class="form-group">
+                    <label class="form-label">Symbol</label>
+                    <input type="text" id="tokenSymbol" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Contract Address</label>
+                    <input type="text" id="tokenContract" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Min Market Cap <span id="mcFormatted" style="color: #5288c1; margin-left: 8px;"></span></label>
+                    <input type="number" id="tokenMinMC" class="form-input" required step="1000" oninput="updateMCFormat()">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Chain (optional)</label>
+                    <select id="tokenChain" class="form-input">
+                        <option value="">None</option>
+                        <option value="SOL">Solana</option>
+                        <option value="BASE">Base</option>
+                        <option value="BNB">BNB Chain</option>
+                        <option value="MONAD">Monad</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Save Token</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeDeleteModal()">&times;</span>
+            <div class="modal-title">Confirm Delete</div>
+            <p style="color: #8a96a0; margin-bottom: 16px;">Type "delete" to confirm deletion of this token:</p>
+            <div class="form-group">
+                <input type="text" id="deleteConfirm" class="form-input" placeholder="Type 'delete'">
+            </div>
+            <button class="btn btn-danger" onclick="confirmDelete()">Delete Token</button>
+        </div>
+    </div>
+
+    <!-- Test Notification Confirmation Modal -->
+    <div id="testNotificationModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeTestNotificationModal()">&times;</span>
+            <div class="modal-title">Confirm Send Test Notification</div>
+            <p style="color: #8a96a0; margin-bottom: 16px;">This will send the test notification to all active Telegram users. Type "send" to confirm:</p>
+            <div class="form-group">
+                <input type="text" id="testNotificationConfirm" class="form-input" placeholder="Type 'send'">
+            </div>
+            <button class="btn btn-primary" onclick="confirmSendTestNotification()">Send Test Notification</button>
+        </div>
+    </div>
+
+    <!-- Send Message Modal -->
+    <div id="sendMessageModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeSendMessageModal()">&times;</span>
+            <div class="modal-title">Send Message to User</div>
+            <p id="sendMessageUserInfo" style="color: #8a96a0; margin-bottom: 16px;"></p>
+            <div class="form-group">
+                <label class="form-label">Message</label>
+                <textarea id="sendMessageText" class="form-input" rows="5" placeholder="Enter your message here..."></textarea>
+            </div>
+            <button class="btn btn-primary" onclick="confirmSendMessage()">Send Message</button>
+        </div>
+    </div>
+
+    <!-- Broadcast Message Confirmation Modal -->
+    <div id="broadcastModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeBroadcastModal()">&times;</span>
+            <div class="modal-title">Confirm Broadcast to All Users</div>
+            <p id="broadcastUserCount" style="color: #8a96a0; margin-bottom: 16px;"></p>
+            <p style="color: #8a96a0; margin-bottom: 16px;">This will send the message to ALL active users. Type "broadcast" to confirm:</p>
+            <div class="form-group">
+                <input type="text" id="broadcastConfirm" class="form-input" placeholder="Type 'broadcast'">
+            </div>
+            <button class="btn btn-primary" onclick="confirmBroadcast()">Send Broadcast</button>
+        </div>
+    </div>
+
+    <!-- SignalR Client Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+
+    <script>
+        const API_BASE = window.location.origin;
+        let isFirstLoad = true;
+        let displayedNotificationIds = new Set();
+
+        // Chain enum to DEXScreener URL mapping (single source of truth)
+        const CHAIN_TO_DEXSCREENER = {
+            'SOL': (ca) => `https://dexscreener.com/solana/${ca}`,
+            'BNB': (ca) => `https://dexscreener.com/bsc/${ca}`,
+            'BASE': (ca) => `https://dexscreener.com/base/${ca}`,
+            'MONAD': (ca) => `https://dexscreener.com/monad/${ca}`
+        };
+
+        function getDexScreenerUrl(chain, contractAddress) {
+            const urlBuilder = CHAIN_TO_DEXSCREENER[chain] || CHAIN_TO_DEXSCREENER['SOL'];
+            return urlBuilder(contractAddress);
+        }
+
+        // Initialize SignalR connection
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/dashboardHub")
+            .withAutomaticReconnect()
+            .build();
+
+        // Listen for new notifications from server
+        connection.on("ReceiveNotification", (notification) => {
+            console.log('📥 Received notification via SignalR:', notification);
+            displayNotification(notification);
+        });
+
+        // Listen for notification updates (when CA is edited)
+        connection.on("NotificationUpdated", (notification) => {
+            console.log('🔄 Notification updated via SignalR:', notification);
+            updateNotification(notification);
+        });
+
+        // Listen for new user joins
+        connection.on("UserJoined", (user) => {
+            console.log('👤 New user joined via SignalR:', user);
+            // Reload users table if on users tab
+            const usersTab = document.getElementById('users-tab');
+            if (usersTab && usersTab.classList.contains('active')) {
+                loadUsers();
+            }
+        });
+
+        // Start SignalR connection
+        async function startSignalR() {
+            try {
+                await connection.start();
+                console.log('✅ SignalR connected');
+            } catch (err) {
+                console.error('❌ SignalR connection error:', err);
+                setTimeout(startSignalR, 5000); // Retry after 5 seconds
+            }
+        }
+
+        // Load initial notifications from API
+        async function loadInitialNotifications() {
+            try {
+                const response = await fetch(`${API_BASE}/api/dashboard/notifications?limit=100`);
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    const chatArea = document.getElementById('chatArea');
+                    document.getElementById('loading')?.remove();
+                    isFirstLoad = false;
+
+                    if (data.notifications.length === 0) {
+                        chatArea.innerHTML = `
+                            <div class="empty-state">
+                                <div class="empty-state-icon">📭</div>
+                                <div>No notifications yet</div>
+                            </div>
+                        `;
+                        return;
+                    }
+
+                    // Display all existing notifications
+                    data.notifications.forEach(notification => {
+                        displayNotification(notification, false);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading initial notifications:', error);
+                document.getElementById('chatArea').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">⚠️</div>
+                        <div>Failed to load notifications</div>
+                    </div>
+                `;
+            }
+        }
+
+        function displayNotification(notification, showIndicator = true) {
+            // Skip if already displayed
+            if (displayedNotificationIds.has(notification.id)) {
+                return;
+            }
+
+            const chatArea = document.getElementById('chatArea');
+
+            // Remove empty state if it exists
+            const emptyState = chatArea.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+
+            // Create and add message element
+            const messageDiv = createMessageElement(notification);
+            chatArea.appendChild(messageDiv);
+            displayedNotificationIds.add(notification.id);
+
+            // Show indicator for real-time messages
+            if (showIndicator && !isFirstLoad) {
+                showRefreshIndicator(1);
+            }
+
+            // Scroll to bottom
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        function updateNotification(notification) {
+            // Find existing message bubble (maintains timeline position)
+            const messageBubble = document.querySelector(`[data-notification-id="${notification.id}"]`);
+            if (!messageBubble) {
+                console.warn('Message bubble not found for notification:', notification.id);
+                return;
+            }
+
+            // Get the message content div and add edited class for lighter blue styling
+            const messageContent = messageBubble.querySelector('.message-content');
+            if (messageContent && (notification.isManuallyEdited || notification.isSystemEdited)) {
+                messageContent.classList.add('edited');
+            }
+
+            // Update the message text section with new contract address info
+            const messageText = messageBubble.querySelector('.message-text');
+            if (messageText && notification.contractAddress) {
+                const dexScreenerUrl = getDexScreenerUrl(notification.chain, notification.contractAddress);
+                messageText.innerHTML = `
+                    ${formatMessage(notification.message, notification.ticker, notification.trader)}
+                    <br>📝 Contract: \`${notification.contractAddress}\`
+                    <br>🔗 <a href="${dexScreenerUrl}" target="_blank" class="message-trader">DEXScreener</a>
+                `;
+            }
+
+            // Update timestamp to show both original and edited times (Telegram fidelity)
+            const messageTime = messageBubble.querySelector('.message-time');
+            if (messageTime && (notification.isManuallyEdited || notification.isSystemEdited) && notification.editedAt) {
+                messageTime.textContent = `${formatTime(notification.sentAt)} (edited ${formatTime(notification.editedAt)})`;
+            }
+
+            // Update metadata section
+            const messageMetadata = messageBubble.querySelector('.message-metadata');
+            if (messageMetadata) {
+                let editBadge = '<span>• Not edited</span>';
+                if (notification.isManuallyEdited) {
+                    editBadge = `<span class="edited-badge">• Manually Edited ${notification.editedAt ? 'at ' + formatTime(notification.editedAt) : ''}</span>`;
+                } else if (notification.isSystemEdited) {
+                    editBadge = `<span class="edited-badge">• System Edited ${notification.editedAt ? 'at ' + formatTime(notification.editedAt) : ''}</span>`;
+                }
+                messageMetadata.innerHTML = `
+                    <span class="recipients-tooltip-container" onmouseenter="loadRecipients(${notification.id})" data-notification-id="${notification.id}">
+                        Sent to ${notification.recipientCount} of ${notification.totalUsers} users
+                        <div class="recipients-tooltip" id="recipients-tooltip-${notification.id}">
+                            <div class="recipients-tooltip-title">Recipients</div>
+                            <div class="recipients-tooltip-loading">Loading...</div>
+                            <div class="recipients-tooltip-arrow"></div>
+                        </div>
+                    </span>
+                    ${notification.contractAddressSource ? `<span>• CA: ${notification.contractAddressSource}${notification.wasRetried ? ' (retry)' : ''}</span>` : ''}
+                    ${(notification.timesCacheHit > 0 || notification.timesDexScreenerApiHit > 0 || notification.timesHeliusApiHit > 0) ? `<span>• Hits: Cache ${notification.timesCacheHit || 0}, DexScreener ${notification.timesDexScreenerApiHit || 0}, Helius ${notification.timesHeliusApiHit || 0}</span>` : ''}
+                    ${notification.lookupDuration ? `<span>• ${Math.round(notification.lookupDuration)}ms</span>` : ''}
+                    ${editBadge}
+                    <span class="edit-ca-btn" onclick="toggleEditForm(${notification.id})">• Edit CA</span>
+                `;
+            }
+
+            console.log('✅ Updated notification bubble in-place:', notification.id);
+        }
+
+        function createMessageElement(notification) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message-bubble';
+            messageDiv.dataset.notificationId = notification.id;
+
+            const isBuy = notification.message.toLowerCase().includes('bought');
+            const isSell = notification.message.toLowerCase().includes('sold');
+            const indicator = isBuy ? '🟢' : (isSell ? '🔴' : '');
+
+            // Add edited class for lighter blue styling
+            const editedClass = (notification.isManuallyEdited || notification.isSystemEdited) ? ' edited' : '';
+
+            let messageHtml = `
+                <div class="message-content${editedClass}">
+                    <div class="message-text">
+                        ${formatMessage(notification.message, notification.ticker, notification.trader)}
+                    </div>
+            `;
+
+            if (notification.contractAddress) {
+                const dexScreenerUrl = getDexScreenerUrl(notification.chain, notification.contractAddress);
+                messageHtml += `
+                        <br>📝 Contract: \`${notification.contractAddress}\`
+                        <br>🔗 <a href="${dexScreenerUrl}" target="_blank" class="message-trader">DEXScreener</a>
+                `;
+            }
+
+            if (notification.lookupDiagnostics) {
+                const diag = notification.lookupDiagnostics;
+                const candidates = diag.candidates || [];
+                const mcAtNoti = notification.marketCapAtNotification;
+                const hasCA = !!notification.contractAddress;
+                const inside = candidates.filter(c => !c.RejectionReason).sort((a, b) => a.MarketCap - b.MarketCap);
+                const outside = candidates.filter(c => c.RejectionReason).sort((a, b) => a.MarketCap - b.MarketCap);
+
+                const sourceLabel = diag.source || 'Unknown';
+                const headerLabel = hasCA
+                    ? `CA via ${sourceLabel} — ${candidates.length} candidate${candidates.length !== 1 ? 's' : ''} ▾`
+                    : `No CA — ${candidates.length} candidate${candidates.length !== 1 ? 's' : ''} from ${sourceLabel} ▾`;
+
+                let diagHtml = `<div class="lookup-diag${hasCA ? '' : ' expanded'}">`;
+                diagHtml += `<div class="lookup-diag-header" onclick="this.parentElement.classList.toggle('expanded')">${headerLabel}</div>`;
+                diagHtml += `<div class="lookup-diag-body">`;
+
+                if (hasCA && diag.resolvedCA) {
+                    const shortResolved = diag.resolvedCA.slice(0, 6) + '...' + diag.resolvedCA.slice(-4);
+                    diagHtml += `<div class="diag-section-label">RESOLVED</div>`;
+                    diagHtml += `<div class="diag-row passed">
+                        <span class="diag-ca" title="${diag.resolvedCA}">${shortResolved}</span>
+                        <span class="diag-mc">${diag.resolvedChain || ''}</span>
+                        <span class="diag-actions">
+                            <button class="diag-btn" onclick="navigator.clipboard.writeText('${diag.resolvedCA}')" title="Copy CA">&#x2398;</button>
+                        </span>
+                    </div>`;
+                }
+
+                if (inside.length > 0) {
+                    diagHtml += `<div class="diag-section-label">INSIDE tolerance</div>`;
+                    inside.forEach(c => {
+                        const shortCA = c.CA.slice(0, 6) + '...' + c.CA.slice(-4);
+                        diagHtml += `<div class="diag-row passed">
+                            <span class="diag-ca" title="${c.CA}">${shortCA}</span>
+                            <span class="diag-mc">$${formatMarketCap(c.MarketCap)}</span>
+                            <span class="diag-actions">
+                                <button class="diag-btn" onclick="navigator.clipboard.writeText('${c.CA}')" title="Copy CA">&#x2398;</button>
+                                <button class="diag-btn diag-btn-pin" onclick="applyCAFromDiag(${notification.id}, '${c.CA}')" title="Set as CA">&#x2713;</button>
+                            </span>
+                        </div>`;
+                    });
+                }
+
+                if (mcAtNoti) {
+                    const tol = getToleranceLabel(Number(mcAtNoti));
+                    const minMc = Number(mcAtNoti) / (1 + tol / 100);
+                    const maxMc = Number(mcAtNoti) * (1 + tol / 100);
+                    diagHtml += `<div class="diag-range">Range: $${formatMarketCap(minMc)} – $${formatMarketCap(maxMc)} (±${tol}% of $${formatMarketCap(Number(mcAtNoti))})</div>`;
+                }
+
+                if (outside.length > 0) {
+                    diagHtml += `<div class="diag-section-label">OUTSIDE / rejected</div>`;
+                    outside.forEach(c => {
+                        const shortCA = c.CA.slice(0, 6) + '...' + c.CA.slice(-4);
+                        diagHtml += `<div class="diag-row rejected">
+                            <span class="diag-ca" title="${c.CA}">${shortCA}</span>
+                            <span class="diag-mc">$${formatMarketCap(c.MarketCap)}</span>
+                            <span class="diag-reason">${c.RejectionReason}</span>
+                            <span class="diag-actions">
+                                <button class="diag-btn" onclick="navigator.clipboard.writeText('${c.CA}')" title="Copy CA">&#x2398;</button>
+                                <button class="diag-btn diag-btn-pin" onclick="applyCAFromDiag(${notification.id}, '${c.CA}')" title="Set as CA">&#x2713;</button>
+                            </span>
+                        </div>`;
+                    });
+                }
+
+                diagHtml += `</div></div>`;
+                messageHtml += diagHtml;
+            }
+
+            // Format timestamp: show both original and edited times (Telegram fidelity)
+            let timestampText = formatTime(notification.sentAt);
+            if ((notification.isManuallyEdited || notification.isSystemEdited) && notification.editedAt) {
+                timestampText = `${formatTime(notification.sentAt)} (edited ${formatTime(notification.editedAt)})`;
+            }
+
+            messageHtml += `
+                    <div class="message-meta">
+                        <span class="message-time">${timestampText}</span>
+                    </div>
+                </div>
+                <div class="message-metadata">
+                    <span class="recipients-tooltip-container" onmouseenter="loadRecipients(${notification.id})" data-notification-id="${notification.id}">
+                        Sent to ${notification.recipientCount} of ${notification.totalUsers} users
+                        <div class="recipients-tooltip" id="recipients-tooltip-${notification.id}">
+                            <div class="recipients-tooltip-title">Recipients</div>
+                            <div class="recipients-tooltip-loading">Loading...</div>
+                            <div class="recipients-tooltip-arrow"></div>
+                        </div>
+                    </span>
+                    ${notification.contractAddressSource ? `<span>• CA: ${notification.contractAddressSource}${notification.wasRetried ? ' (retry)' : ''}</span>` : ''}
+                    ${(notification.timesCacheHit > 0 || notification.timesDexScreenerApiHit > 0 || notification.timesHeliusApiHit > 0) ? `<span>• Hits: Cache ${notification.timesCacheHit || 0}, DexScreener ${notification.timesDexScreenerApiHit || 0}, Helius ${notification.timesHeliusApiHit || 0}</span>` : ''}
+                    ${notification.lookupDuration ? `<span>• ${Math.round(notification.lookupDuration)}ms</span>` : ''}
+                    ${notification.isManuallyEdited
+                        ? `<span class="edited-badge">• Manually Edited ${notification.editedAt ? 'at ' + formatTime(notification.editedAt) : ''}</span>`
+                        : notification.isSystemEdited
+                        ? `<span class="edited-badge">• System Edited ${notification.editedAt ? 'at ' + formatTime(notification.editedAt) : ''}</span>`
+                        : '<span>• Not edited</span>'}
+                    <span class="edit-ca-btn" onclick="toggleEditForm(${notification.id})">• Edit CA</span>
+                </div>
+                <div id="edit-form-${notification.id}" class="edit-ca-form">
+                    <input type="text" id="ca-input-${notification.id}" placeholder="Contract Address" />
+                    <select id="chain-select-${notification.id}">
+                        <option value="SOL">Solana (SOL)</option>
+                        <option value="BNB">BNB Chain (BNB)</option>
+                        <option value="BASE">Base (BASE)</option>
+                        <option value="MONAD">Monad (MONAD)</option>
+                    </select>
+                    <div class="edit-ca-form-buttons">
+                        <button class="btn-submit" onclick="submitEditCA(${notification.id})">Save</button>
+                        <button class="btn-cancel" onclick="toggleEditForm(${notification.id})">Cancel</button>
+                    </div>
+                </div>
+            `;
+
+            messageDiv.innerHTML = messageHtml;
+            return messageDiv;
+        }
+
+        // Cache to avoid fetching recipients multiple times
+        const recipientsCache = {};
+
+        async function loadRecipients(notificationId) {
+            // Check if already loaded
+            if (recipientsCache[notificationId]) {
+                return;
+            }
+
+            const tooltip = document.getElementById(`recipients-tooltip-${notificationId}`);
+            if (!tooltip) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/api/dashboard/notifications/${notificationId}/recipients`);
+                const data = await response.json();
+
+                if (data.status === 'success' && data.recipients) {
+                    recipientsCache[notificationId] = data.recipients;
+
+                    const recipientsHtml = data.recipients.length === 0
+                        ? '<div class="recipients-tooltip-loading">No recipients</div>'
+                        : data.recipients.map(r => {
+                            const displayName = r.username || r.firstName || `ChatID: ${r.chatId}`;
+                            return `<div class="recipients-tooltip-item">${displayName}</div>`;
+                        }).join('');
+
+                    tooltip.innerHTML = `
+                        <div class="recipients-tooltip-title">Recipients (${data.recipients.length})</div>
+                        ${recipientsHtml}
+                        <div class="recipients-tooltip-arrow"></div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading recipients:', error);
+                tooltip.innerHTML = `
+                    <div class="recipients-tooltip-title">Recipients</div>
+                    <div class="recipients-tooltip-loading">Error loading</div>
+                    <div class="recipients-tooltip-arrow"></div>
+                `;
+            }
+        }
+
+        function toggleEditForm(notificationId) {
+            const form = document.getElementById(`edit-form-${notificationId}`);
+            if (form) {
+                form.classList.toggle('active');
+            }
+        }
+
+        async function applyCAFromDiag(notificationId, ca) {
+            const input = document.getElementById(`ca-input-${notificationId}`);
+            const chainSelect = document.getElementById(`chain-select-${notificationId}`);
+            if (input && chainSelect) {
+                input.value = ca;
+            }
+            await submitEditCA(notificationId);
+        }
+
+        async function submitEditCA(notificationId) {
+            const caInput = document.getElementById(`ca-input-${notificationId}`);
+            const chainSelect = document.getElementById(`chain-select-${notificationId}`);
+
+            const contractAddress = caInput.value.trim();
+            const chain = chainSelect.value;
+
+            if (!contractAddress) {
+                alert('Please enter a contract address');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/api/dashboard/notifications/${notificationId}/edit-ca`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        contractAddress: contractAddress,
+                        chain: chain
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    // Close form
+                    toggleEditForm(notificationId);
+                    // Show success indicator
+                    showRefreshIndicator('Updated!');
+                    // Notification will auto-update via SignalR
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Error editing CA:', error);
+                alert('Failed to edit notification');
+            }
+        }
+
+        function formatMessage(message, ticker, trader) {
+            let formatted = message;
+
+            // Escape special regex characters
+            function escapeRegex(str) {
+                return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            }
+
+            // Highlight ticker
+            if (ticker) {
+                const escapedTicker = escapeRegex(ticker);
+                const tickerRegex = new RegExp(`\\b${escapedTicker}\\b`, 'gi');
+                formatted = formatted.replace(tickerRegex, `<span class="message-ticker">${ticker}</span>`);
+            }
+
+            // Highlight trader (with @ symbol)
+            if (trader) {
+                const escapedTrader = escapeRegex(trader);
+                const traderRegex = new RegExp(`@${escapedTrader}`, 'gi');
+                formatted = formatted.replace(traderRegex,
+                    `<a href="https://x.com/${trader}" target="_blank" class="message-trader">@${trader}</a>`);
+            }
+
+            // Highlight buy/sell/deposit
+            formatted = formatted.replace(/\bbought\b/gi, '<span class="buy-indicator">bought</span>');
+            formatted = formatted.replace(/\bsold\b/gi, '<span class="sell-indicator">sold</span>');
+            formatted = formatted.replace(/\bdeposited\b/gi, '<span class="deposit-indicator">deposited</span>');
+
+            return formatted;
+        }
+
+        function formatTime(sentAt) {
+            const date = new Date(sentAt);
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return `${hours}:${minutes}`;
+        }
+
+        function formatMarketCap(mc) {
+            if (mc >= 1_000_000) return (mc / 1_000_000).toFixed(1) + 'M';
+            if (mc >= 1_000) return Math.round(mc / 1_000) + 'k';
+            return Math.round(mc).toString();
+        }
+
+        function getToleranceLabel(mc) {
+            if (mc < 2_000_000) return 500;
+            if (mc < 10_000_000) return 300;
+            if (mc < 50_000_000) return 200;
+            return 100;
+        }
+
+        function showRefreshIndicator(count) {
+            const indicator = document.createElement('div');
+            indicator.className = 'refresh-indicator';
+            indicator.textContent = `New notification`;
+            document.body.appendChild(indicator);
+
+            setTimeout(() => {
+                indicator.remove();
+            }, 3000);
+        }
+
+        // Tab switching
+        function switchTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.getElementById(tabName + '-tab').classList.add('active');
+
+            // Load data based on tab
+            if (tabName === 'settings') {
+                loadKnownTokens();
+            } else if (tabName === 'users') {
+                loadUsers();
+            } else if (tabName === 'payments') {
+                loadPayments();
+            } else if (tabName === 'config') {
+                loadConfig();
+            }
+        }
+
+        // Add Traders
+        async function addTraders() {
+            const textarea = document.getElementById('traderHandles');
+            const handles = textarea.value.split('\n')
+                .map(h => h.trim())
+                .filter(h => h.length > 0);
+
+            if (handles.length === 0) {
+                alert('Please enter at least one trader handle');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/traders/bulk-add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ handles, isHidden: document.getElementById('hiddenModeToggle').checked })
+                });
+
+                const result = await response.json();
+                if (response.ok) {
+                    alert(`Successfully added ${result.added} trader(s)`);
+                    textarea.value = '';
+                } else {
+                    alert('Failed to add traders: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error adding traders:', error);
+                alert('Error adding traders');
+            }
+        }
+
+        // Known Tokens Management
+        let deleteTokenId = null;
+
+        async function loadKnownTokens() {
+            try {
+                const response = await fetch('/api/knowntokens');
+                const tokens = await response.json();
+
+                const tbody = document.getElementById('knownTokensBody');
+                if (tokens.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #8a96a0;">No known tokens</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = tokens.map(token => `
+                    <tr>
+                        <td>${token.symbol}</td>
+                        <td>${token.contractAddress.substring(0, 12)}...</td>
+                        <td>$${(token.minMarketCap / 1000000).toFixed(2)}M</td>
+                        <td>${token.chain || 'N/A'}</td>
+                        <td class="token-actions">
+                            <button class="btn btn-secondary" onclick="editToken(${token.id})">Edit</button>
+                            <button class="btn btn-danger" onclick="deleteToken(${token.id})">Delete</button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading known tokens:', error);
+            }
+        }
+
+        function formatMarketCap(value) {
+            if (!value || value == 0) return '';
+
+            if (value >= 1_000_000_000) {
+                return `($${(value / 1_000_000_000).toFixed(2)}b)`;
+            } else if (value >= 1_000_000) {
+                return `($${(value / 1_000_000).toFixed(2)}m)`;
+            } else if (value >= 1_000) {
+                return `($${(value / 1_000).toFixed(2)}k)`;
+            }
+            return `($${value})`;
+        }
+
+        function updateMCFormat() {
+            const input = document.getElementById('tokenMinMC');
+            const formatted = document.getElementById('mcFormatted');
+            formatted.textContent = formatMarketCap(parseInt(input.value));
+        }
+
+        function showAddTokenModal() {
+            document.getElementById('tokenModalTitle').textContent = 'Add New Token';
+            document.getElementById('tokenForm').reset();
+            document.getElementById('tokenId').value = '';
+            document.getElementById('mcFormatted').textContent = '';
+            document.getElementById('tokenModal').style.display = 'block';
+        }
+
+        async function editToken(id) {
+            try {
+                const response = await fetch(`/api/knowntokens/${id}`);
+                const token = await response.json();
+
+                document.getElementById('tokenModalTitle').textContent = 'Edit Token';
+                document.getElementById('tokenId').value = token.id;
+                document.getElementById('tokenSymbol').value = token.symbol;
+                document.getElementById('tokenContract').value = token.contractAddress;
+                document.getElementById('tokenMinMC').value = token.minMarketCap;
+                document.getElementById('tokenChain').value = token.chain || '';
+                updateMCFormat(); // Show formatted value
+                document.getElementById('tokenModal').style.display = 'block';
+            } catch (error) {
+                console.error('Error loading token:', error);
+                alert('Error loading token');
+            }
+        }
+
+        async function saveToken(event) {
+            event.preventDefault();
+
+            const id = document.getElementById('tokenId').value;
+            const token = {
+                Symbol: document.getElementById('tokenSymbol').value.toUpperCase(),
+                ContractAddress: document.getElementById('tokenContract').value,
+                MinMarketCap: parseInt(document.getElementById('tokenMinMC').value),
+                Chain: document.getElementById('tokenChain').value || null
+            };
+
+            try {
+                const url = id ? `/api/knowntokens/${id}` : '/api/knowntokens';
+                const method = id ? 'PUT' : 'POST';
+
+                console.log('Sending token:', token);
+
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(token)
+                });
+
+                if (response.ok) {
+                    closeTokenModal();
+                    loadKnownTokens();
+                    alert(id ? 'Token updated successfully' : 'Token added successfully');
+                } else {
+                    const errorText = await response.text();
+                    console.error('Server response:', errorText);
+                    try {
+                        const error = JSON.parse(errorText);
+                        alert('Error: ' + (error.message || JSON.stringify(error)));
+                    } catch {
+                        alert('Error ' + response.status + ': ' + errorText);
+                    }
+                }
+            } catch (error) {
+                console.error('Error saving token:', error);
+                alert('Error saving token');
+            }
+        }
+
+        function closeTokenModal() {
+            document.getElementById('tokenModal').style.display = 'none';
+        }
+
+        function deleteToken(id) {
+            deleteTokenId = id;
+            document.getElementById('deleteConfirm').value = '';
+            document.getElementById('deleteModal').style.display = 'block';
+        }
+
+        async function confirmDelete() {
+            const confirmText = document.getElementById('deleteConfirm').value;
+            if (confirmText.toLowerCase() !== 'delete') {
+                alert('Please type "delete" to confirm');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/knowntokens/${deleteTokenId}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    closeDeleteModal();
+                    loadKnownTokens();
+                    alert('Token deleted successfully');
+                } else {
+                    alert('Error deleting token');
+                }
+            } catch (error) {
+                console.error('Error deleting token:', error);
+                alert('Error deleting token');
+            }
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').style.display = 'none';
+            deleteTokenId = null;
+        }
+
+        // Test Notification Functions
+        function showTestNotificationConfirm() {
+            const message = document.getElementById('testNotificationMessage').value.trim();
+            if (!message) {
+                alert('Please enter a notification message');
+                return;
+            }
+            document.getElementById('testNotificationConfirm').value = '';
+            document.getElementById('testNotificationModal').style.display = 'block';
+        }
+
+        async function confirmSendTestNotification() {
+            const confirmText = document.getElementById('testNotificationConfirm').value;
+            if (confirmText.toLowerCase() !== 'send') {
+                alert('Please type "send" to confirm');
+                return;
+            }
+
+            const message = document.getElementById('testNotificationMessage').value.trim();
+
+            try {
+                const response = await fetch('/api/notifications', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ Message: message })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    closeTestNotificationModal();
+                    document.getElementById('testNotificationMessage').value = '';
+
+                    // Switch to notifications tab to see the result
+                    document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+                    document.querySelector('.tab:first-child').classList.add('active');
+                    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+                    document.getElementById('notifications-tab').classList.add('active');
+                } else {
+                    const error = await response.json();
+                    alert('Error sending test notification: ' + (error.message || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error sending test notification:', error);
+                alert('Error sending test notification');
+            }
+        }
+
+        function closeTestNotificationModal() {
+            document.getElementById('testNotificationModal').style.display = 'none';
+        }
+
+        // Users Management
+        let selectedUserChatId = null;
+        let selectedUserName = null;
+
+        async function loadUsers() {
+            try {
+                const response = await fetch('/api/users');
+                const data = await response.json();
+
+                const badge = document.getElementById('userCountBadge');
+                const tbody = document.getElementById('usersTableBody');
+
+                if (data.count === 0) {
+                    badge.textContent = 'No active users';
+                    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #8a96a0;">No users found</td></tr>';
+                    return;
+                }
+
+                badge.textContent = `Total: ${data.count} user${data.count !== 1 ? 's' : ''}`;
+
+                tbody.innerHTML = data.users.map(user => {
+                    const joinedDate = new Date(user.joinedAt).toLocaleString();
+                    const displayName = user.username || user.firstName || 'Unknown';
+                    const tradersTracking = `${user.trackingCount}/${user.totalTraders}`;
+                    const isActiveDisplay = user.isActive
+                        ? '<span style="color: #4ade80;">✓ Active</span>'
+                        : '<span style="color: #f87171;">✗ Inactive</span>';
+                    const autoFollowCheckbox = `<input type="checkbox" ${user.autoFollowNewTraders ? 'checked' : ''} onchange="toggleAutoFollow(${user.chatId}, this.checked)" style="cursor: pointer; width: 18px; height: 18px;">`;
+                    return `
+                        <tr>
+                            <td>${user.chatId}</td>
+                            <td>${user.username || 'N/A'}</td>
+                            <td>${user.firstName || 'N/A'}</td>
+                            <td>${tradersTracking}</td>
+                            <td style="text-align: center;">${autoFollowCheckbox}</td>
+                            <td style="text-align: center;"><input type="checkbox" ${user.hasHiddenTradersAccess ? 'checked' : ''} onchange="toggleHiddenAccess(${user.chatId}, this.checked)" style="cursor: pointer; width: 18px; height: 18px;" title="Hidden Traders Access"></td>
+                            <td>${isActiveDisplay}</td>
+                            <td>${joinedDate}</td>
+                            <td style="display: flex; gap: 6px; flex-wrap: wrap;">
+                                <button class="btn btn-secondary" onclick="showSendMessageModal(${user.chatId}, '${displayName}')">Send Message</button>
+                                <button class="btn btn-primary" onclick="followAllPublicTraders(${user.chatId}, '${displayName}')">Follow All Public</button>
+                                <button class="btn btn-secondary" onclick="followAllHiddenTraders(${user.chatId}, '${displayName}')">Follow All Hidden</button>
+                                <button class="btn btn-danger" onclick="unfollowAllTraders(${user.chatId}, '${displayName}')">Unfollow All</button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Error loading users:', error);
+                document.getElementById('userCountBadge').textContent = 'Error loading users';
+            }
+        }
+
+        function showSendMessageModal(chatId, userName) {
+            selectedUserChatId = chatId;
+            selectedUserName = userName;
+            document.getElementById('sendMessageUserInfo').textContent = `Sending to: ${userName} (Chat ID: ${chatId})`;
+            document.getElementById('sendMessageText').value = '';
+            document.getElementById('sendMessageModal').style.display = 'block';
+        }
+
+        async function confirmSendMessage() {
+            const message = document.getElementById('sendMessageText').value.trim();
+            if (!message) {
+                alert('Please enter a message');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/users/send-message', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chatId: selectedUserChatId,
+                        message: message
+                    })
+                });
+
+                const result = await response.json();
+                if (response.ok && result.status === 'success') {
+                    alert('Message sent successfully!');
+                    closeSendMessageModal();
+                } else {
+                    alert('Error sending message: ' + (result.message || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error sending message:', error);
+                alert('Error sending message');
+            }
+        }
+
+        function closeSendMessageModal() {
+            document.getElementById('sendMessageModal').style.display = 'none';
+            selectedUserChatId = null;
+            selectedUserName = null;
+        }
+
+        async function followAllTraders(chatId, userName) {
+            if (!confirm(`Make ${userName} follow all traders?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/users/${chatId}/follow-all`, {
+                    method: 'POST'
+                });
+
+                const result = await response.json();
+                if (response.ok && result.status === 'success') {
+                    alert(result.message);
+                    loadUsers(); // Reload to show updated tracking count
+                } else {
+                    alert('Error: ' + (result.message || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error making user follow all traders:', error);
+                alert('Error making user follow all traders');
+            }
+        }
+
+        async function unfollowAllTraders(chatId, userName) {
+            if (!confirm(`Make ${userName} unfollow all traders?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/users/${chatId}/unfollow-all`, {
+                    method: 'POST'
+                });
+
+                const result = await response.json();
+                if (response.ok && result.status === 'success') {
+                    alert(result.message);
+                    loadUsers(); // Reload to show updated tracking count
+                } else {
+                    alert('Error: ' + (result.message || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error making user unfollow all traders:', error);
+                alert('Error making user unfollow all traders');
+            }
+        }
+
+        async function toggleAutoFollow(chatId, autoFollow) {
+            try {
+                const response = await fetch(`/api/users/${chatId}/toggle-auto-follow`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ autoFollowNewTraders: autoFollow })
+                });
+
+                const result = await response.json();
+                if (response.ok && result.status === 'success') {
+                    console.log(`Auto-follow updated for chatId ${chatId}: ${autoFollow}`);
+                } else {
+                    alert('Error: ' + (result.message || 'Unknown error'));
+                    loadUsers(); // Reload to revert checkbox on error
+                }
+            } catch (error) {
+                console.error('Error toggling auto-follow:', error);
+                alert('Error toggling auto-follow');
+                loadUsers(); // Reload to revert checkbox on error
+            }
+        }
+
+        // Broadcast Message Functions
+        async function showBroadcastConfirm() {
+            const message = document.getElementById('broadcastMessageText').value.trim();
+            if (!message) {
+                alert('Please enter a message');
+                return;
+            }
+
+            // Get current user count
+            try {
+                const response = await fetch('/api/users');
+                const data = await response.json();
+                document.getElementById('broadcastUserCount').textContent = `This will send the message to ${data.count} active user${data.count !== 1 ? 's' : ''}.`;
+            } catch (error) {
+                console.error('Error getting user count:', error);
+            }
+
+            document.getElementById('broadcastConfirm').value = '';
+            document.getElementById('broadcastModal').style.display = 'block';
+        }
+
+        async function confirmBroadcast() {
+            const confirmText = document.getElementById('broadcastConfirm').value;
+            if (confirmText.toLowerCase() !== 'broadcast') {
+                alert('Please type "broadcast" to confirm');
+                return;
+            }
+
+            const message = document.getElementById('broadcastMessageText').value.trim();
+
+            try {
+                const response = await fetch('/api/users/broadcast-message', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: message })
+                });
+
+                const result = await response.json();
+                if (response.ok && result.status === 'success') {
+                    alert(`Broadcast sent successfully to ${result.sentCount} users!`);
+                    closeBroadcastModal();
+                    document.getElementById('broadcastMessageText').value = '';
+                } else {
+                    alert('Error sending broadcast: ' + (result.message || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error sending broadcast:', error);
+                alert('Error sending broadcast');
+            }
+        }
+
+        function closeBroadcastModal() {
+            document.getElementById('broadcastModal').style.display = 'none';
+        }
+
+        // Close modals when clicking outside
+        window.onclick = function(event) {
+            if (event.target == document.getElementById('tokenModal')) {
+                closeTokenModal();
+            }
+            if (event.target == document.getElementById('deleteModal')) {
+                closeDeleteModal();
+            }
+            if (event.target == document.getElementById('testNotificationModal')) {
+                closeTestNotificationModal();
+            }
+            if (event.target == document.getElementById('sendMessageModal')) {
+                closeSendMessageModal();
+            }
+            if (event.target == document.getElementById('broadcastModal')) {
+                closeBroadcastModal();
+            }
+        };
+
+        async function jumpToNotification() {
+            const id = document.getElementById('notifIdInput').value.trim();
+            if (!id) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/api/dashboard/notifications?id=${id}`);
+                const data = await response.json();
+
+                if (data.status === 'success' && data.notifications.length > 0) {
+                    const n = data.notifications[0];
+                    // If already in DOM, just scroll to it
+                    const existing = document.querySelector(`[data-notification-id="${n.id}"]`);
+                    if (existing) {
+                        existing.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        existing.style.outline = '2px solid #5ca8e2';
+                        setTimeout(() => existing.style.outline = '', 2000);
+                        return;
+                    }
+                    // Otherwise inject it
+                    const chatArea = document.getElementById('chatArea');
+                    const msgEl = createMessageElement(n);
+                    msgEl.style.outline = '2px solid #5ca8e2';
+                    chatArea.appendChild(msgEl);
+                    displayedNotificationIds.add(n.id);
+                    msgEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setTimeout(() => msgEl.style.outline = '', 2000);
+                } else {
+                    alert(`Notification #${id} not found`);
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Failed to fetch notification');
+            }
+        }
+
+        // Payments tab
+        let paymentsData = [];
+
+        async function loadPayments() {
+            try {
+                const res = await fetch('/api/dashboard/payments');
+                const data = await res.json();
+                paymentsData = data.payments || [];
+                renderPaymentsTable();
+            } catch (err) {
+                console.error('Failed to load payments', err);
+            }
+        }
+
+        function renderPaymentsTable() {
+            const filter = document.getElementById('paymentsFilter').value;
+            const tbody = document.getElementById('paymentsTableBody');
+            const rows = filter === 'all' ? paymentsData : paymentsData.filter(p => p.status === filter);
+
+            if (rows.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#8a96a0;">No records</td></tr>';
+                return;
+            }
+
+            const statusBadge = s => {
+                const map = {
+                    active: '<span style="background:#1a4a1a;color:#4db87a;padding:2px 8px;border-radius:10px;font-size:12px;">🟢 active</span>',
+                    pending: '<span style="background:#3d3010;color:#f0c040;padding:2px 8px;border-radius:10px;font-size:12px;">🟡 pending</span>',
+                    expired_request: '<span style="background:#4a1010;color:#e05a5a;padding:2px 8px;border-radius:10px;font-size:12px;">🔴 expired request</span>',
+                    expired_sub: '<span style="background:#4a1010;color:#e05a5a;padding:2px 8px;border-radius:10px;font-size:12px;">🔴 expired sub</span>',
+                    blocked: '<span style="background:#252525;color:#8a96a0;padding:2px 8px;border-radius:10px;font-size:12px;">⛔ blocked</span>',
+                };
+                return map[s] || s;
+            };
+
+            const fmt = d => d ? new Date(d).toISOString().slice(0, 16).replace('T', ' ') : '—';
+            const shortWallet = w => w ? w.slice(0, 6) + '...' + w.slice(-4) : '—';
+
+            tbody.innerHTML = rows.map(p => {
+                const userDisplay = (p.username ? `@${p.username}` : p.firstName || '') + `<br><span style="color:#6c7883;font-size:11px;">${p.chatId}</span>`;
+                return `<tr>
+                    <td>${userDisplay}</td>
+                    <td>${statusBadge(p.status)}</td>
+                    <td title="${p.wallet || ''}" style="font-family:monospace;font-size:12px;">${shortWallet(p.wallet)}</td>
+                    <td>${fmt(p.requestedAt)}</td>
+                    <td>${fmt(p.paymentDate)}</td>
+                    <td>${p.rnExpiresAt ? fmt(p.rnExpiresAt) : (p.expiresAt ? fmt(p.expiresAt) : '—')}</td>
+                    <td>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                            <button onclick="grantAccess(${p.chatId},false)" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;">Grant RN (30d)</button>
+                            <button onclick="grantAccess(${p.chatId},true)" class="btn btn-primary" style="padding:4px 8px;font-size:12px;">Grant RN4L</button>
+                            <button onclick="revokeAccess(${p.chatId})" class="btn btn-danger" style="padding:4px 8px;font-size:12px;">Revoke</button>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        async function grantAccess(chatId, isRN4L) {
+            if (!confirm(`Grant ${isRN4L ? 'lifetime (RN4L)' : '30-day RN'} access to ${chatId}?`)) return;
+            try {
+                const res = await fetch('/api/dashboard/payments/grant', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chatId, isRN4L })
+                });
+                if (res.ok) { await loadPayments(); }
+                else { alert('Failed to grant access'); }
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        async function revokeAccess(chatId) {
+            if (!confirm(`Revoke access for ${chatId}?`)) return;
+            try {
+                const res = await fetch('/api/dashboard/payments/revoke', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chatId })
+                });
+                if (res.ok) { await loadPayments(); }
+                else { alert('Failed to revoke access'); }
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        // Config tab
+        async function loadConfig() {
+            try {
+                const res = await fetch('/api/dashboard/config');
+                const data = await res.json();
+                const tbody = document.getElementById('configTableBody');
+                const fmt = d => d ? new Date(d).toISOString().slice(0, 16).replace('T', ' ') : '—';
+
+                tbody.innerHTML = data.configs.map(c => `
+                    <tr id="config-row-${c.id}">
+                        <td style="font-family:monospace;font-size:13px;">${c.key}</td>
+                        <td>
+                            <span id="config-val-${c.id}">${c.value || '<span style="color:#6c7883;">not set</span>'}</span>
+                            <input id="config-input-${c.id}" type="text" value="${c.value || ''}"
+                                style="display:none;width:100%;padding:4px 8px;background:#0e1621;border:1px solid #2b5278;border-radius:4px;color:#e8e9ea;font-size:13px;">
+                        </td>
+                        <td style="color:#8a96a0;font-size:13px;">${c.description || '—'}</td>
+                        <td style="font-size:12px;color:#6c7883;">${fmt(c.updatedAt)}</td>
+                        <td>
+                            <div style="display:flex;gap:6px;">
+                                <button onclick="editConfig(${c.id},'${c.key}')" id="config-edit-btn-${c.id}" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;">Edit</button>
+                                <button onclick="saveConfig(${c.id},'${c.key}')" id="config-save-btn-${c.id}" class="btn btn-primary" style="display:none;padding:4px 8px;font-size:12px;">Save</button>
+                                <button onclick="cancelConfig(${c.id},'${c.value||''}')" id="config-cancel-btn-${c.id}" class="btn btn-secondary" style="display:none;padding:4px 8px;font-size:12px;">Cancel</button>
+                            </div>
+                        </td>
+                    </tr>`).join('');
+            } catch (err) {
+                console.error('Failed to load config', err);
+            }
+        }
+
+        function editConfig(id, key) {
+            document.getElementById(`config-val-${id}`).style.display = 'none';
+            document.getElementById(`config-input-${id}`).style.display = 'block';
+            document.getElementById(`config-edit-btn-${id}`).style.display = 'none';
+            document.getElementById(`config-save-btn-${id}`).style.display = 'inline-block';
+            document.getElementById(`config-cancel-btn-${id}`).style.display = 'inline-block';
+        }
+
+        function cancelConfig(id, originalValue) {
+            document.getElementById(`config-input-${id}`).value = originalValue;
+            document.getElementById(`config-val-${id}`).style.display = 'inline';
+            document.getElementById(`config-input-${id}`).style.display = 'none';
+            document.getElementById(`config-edit-btn-${id}`).style.display = 'inline-block';
+            document.getElementById(`config-save-btn-${id}`).style.display = 'none';
+            document.getElementById(`config-cancel-btn-${id}`).style.display = 'none';
+        }
+
+        async function saveConfig(id, key) {
+            const value = document.getElementById(`config-input-${id}`).value.trim();
+            try {
+                const res = await fetch('/api/dashboard/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key, value, description: null })
+                });
+                if (res.ok) { await loadConfig(); }
+                else { alert('Failed to save config'); }
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        async function sweepPayments() {
+            if (!confirm('Sweep all confirmed payment wallets to treasury? This sends real SOL transactions.')) return;
+            try {
+                const res = await fetch('/api/dashboard/payments/sweep', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    const errMsg = data.errors?.length ? `\nErrors: ${data.errors.join(', ')}` : '';
+                    alert(`Swept ${data.swept} wallet(s).${errMsg}`);
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        // Hidden mode toggle for Add Traders
+        function toggleHiddenMode() {
+            const cb = document.getElementById('hiddenModeToggle');
+            const slider = document.getElementById('hiddenModeSlider');
+            const knob = document.getElementById('hiddenModeKnob');
+            const label = document.getElementById('hiddenModeLabel');
+            cb.checked = !cb.checked;
+            if (cb.checked) {
+                slider.style.background = '#5ca8e2';
+                knob.style.left = '23px';
+                label.textContent = 'Hidden';
+                label.style.color = '#5ca8e2';
+            } else {
+                slider.style.background = '#2b5278';
+                knob.style.left = '3px';
+                label.textContent = 'Public';
+                label.style.color = '#8a96a0';
+            }
+        }
+
+        async function toggleHiddenAccess(chatId, hasAccess) {
+            try {
+                const response = await fetch(`/api/users/${chatId}/toggle-hidden-access`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ hasHiddenTradersAccess: hasAccess })
+                });
+                const result = await response.json();
+                if (!response.ok || result.status !== 'success') {
+                    alert('Error: ' + (result.message || 'Unknown error'));
+                    loadUsers();
+                }
+            } catch (error) {
+                console.error('Error toggling hidden access:', error);
+                alert('Error toggling hidden access');
+                loadUsers();
+            }
+        }
+
+        async function followAllPublicTraders(chatId, userName) {
+            if (!confirm(`Make ${userName} follow all public traders?`)) return;
+            try {
+                const response = await fetch(`/api/users/${chatId}/follow-all-public`, { method: 'POST' });
+                const result = await response.json();
+                if (response.ok && result.status === 'success') {
+                    alert(result.message);
+                    loadUsers();
+                } else {
+                    alert('Error: ' + (result.message || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Error making user follow all public traders');
+            }
+        }
+
+        async function followAllHiddenTraders(chatId, userName) {
+            if (!confirm(`Make ${userName} follow all hidden traders?`)) return;
+            try {
+                const response = await fetch(`/api/users/${chatId}/follow-all-hidden`, { method: 'POST' });
+                const result = await response.json();
+                if (response.ok && result.status === 'success') {
+                    alert(result.message);
+                    loadUsers();
+                } else {
+                    alert('Error: ' + (result.message || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Error making user follow all hidden traders');
+            }
+        }
+        // Auto-refresh payments every 30s when tab is active
+        setInterval(() => {
+            const paymentsTab = document.getElementById('payments-tab');
+            if (paymentsTab && paymentsTab.classList.contains('active')) {
+                loadPayments();
+            }
+        }, 30000);
+
+        // Initialize dashboard: load existing notifications and start SignalR
+        (async function init() {
+            await loadInitialNotifications();
+            await startSignalR();
+        })();
+    </script>
+</body>
+</html>
