@@ -1,0 +1,20 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.db
+*.db-shm
+*.db-wal
+appsettings.*.json
+!appsettings.json
+
+# Node / sidecar
+ws-sidecar/node_modules/
+ws-sidecar/dist/
+ws-sidecar/chromium-profile/
+
+# Misc
+.DS_Store
+Thumbs.db
