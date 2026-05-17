@@ -123,17 +123,8 @@ namespace TelegramBot.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("ContractAddressSource")
-                        .HasColumnType("INTEGER");
-
                     b.Property<bool>("HasCA")
                         .HasColumnType("INTEGER");
-
-                    b.Property<string>("LookupDiagnostics")
-                        .HasColumnType("TEXT");
-
-                    b.Property<TimeSpan?>("LookupDuration")
-                        .HasColumnType("TEXT");
 
                     b.Property<decimal?>("MarketCapAtNotification")
                         .HasColumnType("TEXT");
@@ -149,15 +140,6 @@ namespace TelegramBot.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("TimesCacheHit")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("TimesDexScreenerApiHit")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("TimesHeliusApiHit")
-                        .HasColumnType("INTEGER");
-
                     b.Property<string>("TradeId")
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
@@ -171,9 +153,6 @@ namespace TelegramBot.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT")
                         .HasDefaultValue("Unknown");
-
-                    b.Property<bool>("WasRetried")
-                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 

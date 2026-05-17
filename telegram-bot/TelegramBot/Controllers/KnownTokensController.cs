@@ -57,9 +57,6 @@ public class KnownTokensController : ControllerBase
             _dbContext.KnownTokens.Add(knownToken);
             await _dbContext.SaveChangesAsync();
 
-            // Refresh the cache so new token is immediately available
-            NotificationsController.RefreshKnownTokensCache();
-
             _logger.LogInformation("Added known token: {Symbol} with contract {Contract}", knownToken.Symbol, knownToken.ContractAddress);
 
             return CreatedAtAction(nameof(GetById), new { id = knownToken.Id }, knownToken);
@@ -91,9 +88,6 @@ public class KnownTokensController : ControllerBase
 
             await _dbContext.SaveChangesAsync();
 
-            // Refresh the cache so updates are immediately reflected
-            NotificationsController.RefreshKnownTokensCache();
-
             _logger.LogInformation("Updated known token: {Symbol}", token.Symbol);
 
             return Ok(token);
@@ -120,9 +114,6 @@ public class KnownTokensController : ControllerBase
             _dbContext.KnownTokens.Remove(token);
             await _dbContext.SaveChangesAsync();
 
-            // Refresh the cache so deletions are immediately reflected
-            NotificationsController.RefreshKnownTokensCache();
-
             _logger.LogInformation("Deleted known token: {Symbol}", token.Symbol);
 
             return Ok(new { message = $"Deleted token {token.Symbol}" });
@@ -134,12 +125,4 @@ public class KnownTokensController : ControllerBase
         }
     }
 
-    // POST: api/knowntokens/refresh-cache
-    [HttpPost("refresh-cache")]
-    public IActionResult RefreshCache()
-    {
-        NotificationsController.RefreshKnownTokensCache();
-        _logger.LogInformation("Manually refreshed known tokens cache");
-        return Ok(new { message = "Cache refreshed successfully" });
-    }
 }

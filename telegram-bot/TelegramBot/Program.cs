@@ -46,12 +46,8 @@ builder.Services.AddCors(options =>
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ITraderService, TraderService>();
 builder.Services.AddSingleton<ITelegramService, TelegramService>();
-builder.Services.AddSingleton<ISolanaService, SolanaService>();
-builder.Services.AddSingleton<IDexScreenerService, DexScreenerService>();
-builder.Services.AddSingleton<ContractAddressRetryService>();
 builder.Services.AddSingleton<AppConfigService>();
 builder.Services.AddHostedService<TelegramBotPollingService>(); // Background polling service
-builder.Services.AddHostedService(provider => provider.GetRequiredService<ContractAddressRetryService>()); // CA retry service
 builder.Services.AddSingleton<PaymentPollerService>();
 builder.Services.AddHostedService(provider => provider.GetRequiredService<PaymentPollerService>()); // Solana payment polling + subscription expiry
 builder.Services.AddHttpClient(); // For Helius API calls and DexScreener API calls
@@ -59,11 +55,6 @@ builder.Services.AddHttpClient(); // For Helius API calls and DexScreener API ca
 // Configure settings from appsettings.json or environment variables
 builder.Services.Configure<TelegramSettings>(
     builder.Configuration.GetSection("Telegram"));
-builder.Services.Configure<HeliusSettings>(
-    builder.Configuration.GetSection("Helius"));
-builder.Services.Configure<DexScreenerFilterSettings>(
-    builder.Configuration.GetSection("DexScreenerFilter"));
-
 // Register Telegram Bot Client
 builder.Services.AddSingleton<Telegram.Bot.ITelegramBotClient>(sp =>
 {

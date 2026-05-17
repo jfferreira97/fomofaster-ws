@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TelegramBot.Data;
@@ -14,20 +13,17 @@ public class DashboardController : ControllerBase
     private readonly AppDbContext _dbContext;
     private readonly ILogger<DashboardController> _logger;
     private readonly ITelegramService _telegramService;
-    private readonly ISolanaService _solanaService;
     private readonly AppConfigService _appConfig;
 
     public DashboardController(
         AppDbContext dbContext,
         ILogger<DashboardController> logger,
         ITelegramService telegramService,
-        ISolanaService solanaService,
         AppConfigService appConfig)
     {
         _dbContext = dbContext;
         _logger = logger;
         _telegramService = telegramService;
-        _solanaService = solanaService;
         _appConfig = appConfig;
     }
 
@@ -84,21 +80,8 @@ public class DashboardController : ControllerBase
                         chain = n.Chain?.ToString(),
                         sentAt = n.SentAt,
                         recipientCount = sentData?.RecipientCount ?? 0,
-                        isManuallyEdited = sentData?.IsManuallyEdited ?? false,
-                        isSystemEdited = sentData?.IsSystemEdited ?? false,
-                        editedAt = sentData?.EditedAt,
                         totalUsers = totalUsers,
-                        // Tracking data
-                        contractAddressSource = n.ContractAddressSource?.ToString(),
-                        timesCacheHit = n.TimesCacheHit,
-                        timesDexScreenerApiHit = n.TimesDexScreenerApiHit,
-                        timesHeliusApiHit = n.TimesHeliusApiHit,
-                        lookupDuration = n.LookupDuration?.TotalMilliseconds,
-                        wasRetried = n.WasRetried,
-                        marketCapAtNotification = n.MarketCapAtNotification,
-                        lookupDiagnostics = n.LookupDiagnostics != null
-                            ? JsonSerializer.Deserialize<object>(n.LookupDiagnostics)
-                            : null
+                        marketCapAtNotification = n.MarketCapAtNotification
                     };
                 })
                 .OrderBy(n => n.sentAt) // Chronological order
@@ -153,58 +136,6 @@ public class DashboardController : ControllerBase
             {
                 status = "error",
                 message = "Failed to fetch recipients"
-            });
-        }
-    }
-
-    [HttpPost("notifications/{id}/edit-ca")]
-    public async Task<IActionResult> EditNotificationCA(
-        int id,
-        [FromBody] EditCARequest request)
-    {
-        try
-        {
-            // Validate request
-            if (string.IsNullOrEmpty(request.ContractAddress))
-            {
-                return BadRequest(new { status = "error", message = "Contract address is required" });
-            }
-
-            // Parse chain enum
-            if (!Enum.TryParse<Chain>(request.Chain, true, out var chain))
-            {
-                return BadRequest(new { status = "error", message = "Invalid chain. Must be SOL, BNB, or BASE" });
-            }
-
-            // Get notification to verify it exists
-            var notification = await _dbContext.Notifications.FindAsync(id);
-            if (notification == null)
-            {
-                return NotFound(new { status = "error", message = "Notification not found" });
-            }
-
-            // Add to cache if ticker exists
-            if (!string.IsNullOrEmpty(notification.Ticker))
-            {
-                _solanaService.AddToCache(notification.Ticker, request.ContractAddress);
-            }
-
-            // Edit all Telegram messages
-            await _telegramService.EditNotificationMessagesAsync(id, request.ContractAddress, chain);
-
-            return Ok(new
-            {
-                status = "success",
-                message = "Notification edited successfully"
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error editing notification CA");
-            return StatusCode(500, new
-            {
-                status = "error",
-                message = "Failed to edit notification"
             });
         }
     }
@@ -441,7 +372,6 @@ public class DashboardController : ControllerBase
     }
 }
 
-public record EditCARequest(string ContractAddress, string Chain);
 public record GrantAccessRequest(long ChatId, bool IsRN4L);
 public record RevokeAccessRequest(long ChatId);
 public record SetConfigRequest(string Key, string Value, string? Description);
