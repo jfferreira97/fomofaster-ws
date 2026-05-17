@@ -813,8 +813,9 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                             ? $"\n`{stat.ContractAddress}`"
                             : "";
 
+                        var chainStr = stat.Chain.HasValue ? $" - {stat.Chain.Value}" : "";
                         var depositPart = stat.DepositCount > 0 ? $", {stat.DepositCount} ➕" : "";
-                        lines.Add($"{medal} *{stat.Ticker}* - {stat.TotalTrades} trades ({stat.BuyCount} 🟢, {stat.SellCount} 🔴{depositPart}){caDisplay}");
+                        lines.Add($"{medal} *{stat.Ticker}*{chainStr} - {stat.TotalTrades} trades ({stat.BuyCount} 🟢, {stat.SellCount} 🔴{depositPart}){caDisplay}");
                     }
 
                     // Build header with chain filter info
