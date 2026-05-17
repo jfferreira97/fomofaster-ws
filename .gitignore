@@ -18,3 +18,4 @@ ws-sidecar/chromium-profile/
 # Misc
 .DS_Store
 Thumbs.db
+.claude/

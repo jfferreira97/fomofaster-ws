@@ -24,7 +24,7 @@ function markSeen(tradeId: string): boolean {
 
 export function transformFrame(payload: Record<string, unknown>): StructuredNotificationRequest | null {
   const type = payload.type as string;
-  const tradeId = (payload.id ?? payload.tradeId) as string;
+  const tradeId = (payload.tradeId ?? payload.id) as string;
 
   if (markSeen(tradeId)) {
     console.log(`[transform] duplicate tradeId ${tradeId}, skipping`);
