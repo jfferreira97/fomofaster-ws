@@ -68,26 +68,32 @@ public class NotificationsController : ControllerBase
                     _               => NotificationType.Unknown
                 };
 
-            var sideWord = req.Side switch
+            string message;
+            if (req.Comment != null)
             {
-                "swap_buy"      => "bought",
-                "swap_sell"     => "sold",
-                "swap_withdraw" => "deposited",
-                _               => "traded"
-            };
-
-            var emoji = req.Side switch
+                var mc = req.MarketCap.HasValue ? $" (${FormatMarketCap(req.MarketCap.Value)} MC)" : "";
+                message = $"💥 {req.Ticker} thesis by {req.Trader}:{mc}\n\n{req.Comment}\n\nCurrent ${req.Ticker} position by {req.Trader}: ${req.UsdAmount:N0}";
+            }
+            else
             {
-                "swap_buy"  => "🟢",
-                "swap_sell" => "🔴",
-                _           => "🟡"
-            };
+                var sideWord = req.Side switch
+                {
+                    "swap_buy"      => "bought",
+                    "swap_sell"     => "sold",
+                    "swap_withdraw" => "deposited",
+                    _               => "traded"
+                };
 
-            var amount = $"${req.UsdAmount:0.##}";
-            var mc = req.MarketCap.HasValue ? $" at ${FormatMarketCap(req.MarketCap.Value)} MC" : "";
-            var message = $"{req.Ticker}{mc} {emoji} {req.Trader} {sideWord} {amount}";
-            if (!string.IsNullOrEmpty(req.Comment))
-                message += $"\n\n{req.Comment}";
+                var emoji = req.Side switch
+                {
+                    "swap_buy"  => "🟢",
+                    "swap_sell" => "🔴",
+                    _           => "🟡"
+                };
+
+                var mc = req.MarketCap.HasValue ? $" at ${FormatMarketCap(req.MarketCap.Value)} MC" : "";
+                message = $"{req.Ticker}{mc} {emoji} {req.Trader} {sideWord} ${req.UsdAmount:0.##}";
+            }
 
             await _traderService.AddOrUpdateTraderAsync(req.Trader);
 
