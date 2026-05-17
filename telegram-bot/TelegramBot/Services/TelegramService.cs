@@ -52,7 +52,7 @@ public class TelegramService : ITelegramService
         return _botClient != null;
     }
 
-    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, string? contractAddress = null, Chain? chain = null, string? traderHandle = null, string? ticker = null, double? marketCap = null, NotificationType notificationType = NotificationType.Unknown, string? tradeId = null)
+    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, string? contractAddress = null, Chain? chain = null, string? traderHandle = null, string? ticker = null, double? marketCap = null, NotificationType notificationType = NotificationType.Unknown, string? fomoWsTradeId = null, string? fomoWsJson = null)
     {
         if (_botClient == null)
         {
@@ -168,13 +168,13 @@ To get full details: /subscribe";
             Message = notification.Message,
             Ticker = ticker,
             Trader = traderHandle,
-            HasCA = !string.IsNullOrEmpty(contractAddress),
             ContractAddress = contractAddress,
             Chain = chain,
             SentAt = DateTime.UtcNow,
             MarketCapAtNotification = marketCap.HasValue ? (decimal)marketCap.Value : null,
             Type = notificationType,
-            TradeId = tradeId
+            FomoWsTradeId = fomoWsTradeId,
+            FomoWsJson = fomoWsJson
         };
         dbContext.Notifications.Add(notificationRecord);
         await dbContext.SaveChangesAsync();
@@ -249,13 +249,14 @@ To get full details: /subscribe";
             message = notificationRecord.Message,
             ticker = notificationRecord.Ticker,
             trader = notificationRecord.Trader,
-            hasCA = notificationRecord.HasCA,
+
             contractAddress = notificationRecord.ContractAddress,
             chain = notificationRecord.Chain?.ToString(),
             sentAt = notificationRecord.SentAt,
             recipientCount = successCount,
             totalUsers = totalActiveUsers.Count,
-            marketCapAtNotification = notificationRecord.MarketCapAtNotification
+            marketCapAtNotification = notificationRecord.MarketCapAtNotification,
+            fomoWsJson = notificationRecord.FomoWsJson
         });
 
         _logger.LogInformation("✅ Notification sent to {Success}/{Total} users ({Failed} failed)",

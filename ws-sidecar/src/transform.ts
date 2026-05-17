@@ -9,6 +9,11 @@ export interface StructuredNotificationRequest {
   marketCap?: number;
   comment?: string;
   createdAt: string;
+  userId?: string;
+  displayName?: string;
+  profilePictureLink?: string;
+  price?: number;
+  equity?: number;
 }
 
 // In-memory LRU to skip redundant POSTs after WS reconnect replays
@@ -36,6 +41,12 @@ export function transformFrame(payload: Record<string, unknown>): StructuredNoti
   const contractAddress = payload.tokenAddress as string;
   const networkId = payload.networkId as number;
   const createdAt = payload.createdAt as string;
+  const userId = payload.userId as string | undefined;
+  const displayName = payload.displayName as string | undefined;
+  const profilePictureLink = payload.profilePictureLink as string | undefined;
+  const equity = payload.equity as number | undefined;
+
+  const wsMetadata = { userId, displayName, profilePictureLink, equity };
 
   if (type === 'swap_buy' || type === 'swap_sell' || type === 'swap_withdraw') {
     return {
@@ -47,7 +58,9 @@ export function transformFrame(payload: Record<string, unknown>): StructuredNoti
       side: type,
       usdAmount: payload.usdAmount as number,
       marketCap: payload.marketCap as number | undefined,
+      price: payload.price as number | undefined,
       createdAt,
+      ...wsMetadata,
     };
   }
 
@@ -68,6 +81,7 @@ export function transformFrame(payload: Record<string, unknown>): StructuredNoti
       marketCap: payload.marketCap as number | undefined,
       createdAt,
       comment: commentObj?.comment as string | undefined,
+      ...wsMetadata,
     };
   }
 

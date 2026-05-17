@@ -14,8 +14,6 @@ public class AppDbContext : DbContext
     public DbSet<UserTrader> UserTraders { get; set; }
     public DbSet<Notification> Notifications { get; set; }
     public DbSet<SentMessage> SentMessages { get; set; }
-    public DbSet<KnownToken> KnownTokens { get; set; }
-    public DbSet<CachedTokenAddress> CachedTokenAddresses { get; set; }
     public DbSet<PendingPayment> PendingPayments { get; set; }
     public DbSet<AppConfig> AppConfigs { get; set; }
 
@@ -73,15 +71,13 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Message).IsRequired();
             entity.Property(e => e.Ticker).HasMaxLength(50);
             entity.Property(e => e.Trader).HasMaxLength(100);
-            entity.Property(e => e.HasCA).IsRequired();
             entity.Property(e => e.ContractAddress).HasMaxLength(100);
-            entity.Property(e => e.Chain).HasConversion<string>(); // Store enum as string in SQLite
+            entity.Property(e => e.Chain).HasConversion<string>();
             entity.Property(e => e.Type).HasConversion<string>().HasDefaultValue(NotificationType.Unknown);
             entity.Property(e => e.SentAt).IsRequired();
 
-            entity.Property(e => e.TradeId).HasMaxLength(100);
-            // Unique among non-null values only — Android rows have TradeId=null and must not collide
-            entity.HasIndex(e => e.TradeId).IsUnique().HasFilter("\"TradeId\" IS NOT NULL");
+            entity.Property(e => e.FomoWsTradeId).HasMaxLength(100);
+            entity.HasIndex(e => e.FomoWsTradeId).IsUnique().HasFilter("\"FomoWsTradeId\" IS NOT NULL");
 
             // Index for cleanup queries (delete old notifications)
             entity.HasIndex(e => e.SentAt);
@@ -108,27 +104,6 @@ public class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.NotificationId)
                 .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<KnownToken>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => e.Symbol);
-            entity.Property(e => e.Symbol).IsRequired().HasMaxLength(50);
-            entity.Property(e => e.ContractAddress).IsRequired().HasMaxLength(100);
-            entity.Property(e => e.MinMarketCap).IsRequired();
-            entity.Property(e => e.Chain).HasConversion<string>(); // Store enum as string in SQLite
-        });
-
-        modelBuilder.Entity<CachedTokenAddress>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => e.Ticker).IsUnique(); // Fast ticker lookups
-            entity.HasIndex(e => e.ExpiresAt); // Fast cleanup queries
-            entity.Property(e => e.Ticker).IsRequired().HasMaxLength(50);
-            entity.Property(e => e.ContractAddress).IsRequired().HasMaxLength(100);
-            entity.Property(e => e.LastAccessed).IsRequired();
-            entity.Property(e => e.ExpiresAt).IsRequired();
         });
 
         modelBuilder.Entity<AppConfig>(entity =>

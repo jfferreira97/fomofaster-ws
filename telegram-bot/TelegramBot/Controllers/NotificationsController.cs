@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TelegramBot.Data;
@@ -42,10 +43,10 @@ public class NotificationsController : ControllerBase
             _logger.LogInformation("WS STRUCTURED NOTIFICATION: {Side} {Ticker} by @{Trader} (tradeId={TradeId})",
                 req.Side, req.Ticker, req.Trader, req.TradeId);
 
-            bool alreadyExists = await _dbContext.Notifications.AnyAsync(n => n.TradeId == req.TradeId);
+            bool alreadyExists = await _dbContext.Notifications.AnyAsync(n => n.FomoWsTradeId == req.TradeId);
             if (alreadyExists)
             {
-                _logger.LogInformation("Duplicate tradeId {TradeId}, skipping", req.TradeId);
+                _logger.LogInformation("Duplicate FomoWsTradeId {TradeId}, skipping", req.TradeId);
                 return Ok(new { accepted = false, reason = "duplicate" });
             }
 
@@ -97,6 +98,23 @@ public class NotificationsController : ControllerBase
 
             await _traderService.AddOrUpdateTraderAsync(req.Trader);
 
+            var fomoWsJson = JsonSerializer.Serialize(new
+            {
+                userId             = req.UserId,
+                displayName        = req.DisplayName,
+                userHandle         = req.Trader,
+                profilePictureLink = req.ProfilePictureLink,
+                usdAmount          = req.UsdAmount,
+                marketCap          = req.MarketCap,
+                price              = req.Price,
+                ticker             = req.Ticker,
+                tokenAddress       = req.ContractAddress,
+                networkId          = req.NetworkId,
+                equity             = req.Equity,
+                side               = req.Side,
+                createdAt          = req.CreatedAt
+            });
+
             await _telegramService.SendNotificationToAllUsersAsync(
                 new NotificationRequest { Message = message },
                 contractAddress: req.ContractAddress,
@@ -105,7 +123,8 @@ public class NotificationsController : ControllerBase
                 ticker: req.Ticker,
                 marketCap: req.MarketCap,
                 notificationType: notifType,
-                tradeId: req.TradeId
+                fomoWsTradeId: req.TradeId,
+                fomoWsJson: fomoWsJson
             );
 
             return Ok(new { accepted = true });

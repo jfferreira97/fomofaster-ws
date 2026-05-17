@@ -75,13 +75,13 @@ public class DashboardController : ControllerBase
                         message = n.Message,
                         ticker = n.Ticker,
                         trader = n.Trader,
-                        hasCA = n.HasCA,
                         contractAddress = n.ContractAddress,
                         chain = n.Chain?.ToString(),
                         sentAt = n.SentAt,
                         recipientCount = sentData?.RecipientCount ?? 0,
                         totalUsers = totalUsers,
-                        marketCapAtNotification = n.MarketCapAtNotification
+                        marketCapAtNotification = n.MarketCapAtNotification,
+                        fomoWsJson = n.FomoWsJson
                     };
                 })
                 .OrderBy(n => n.sentAt) // Chronological order

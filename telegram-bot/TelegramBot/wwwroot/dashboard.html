@@ -78,10 +78,6 @@
             box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
         }
 
-        .message-content.edited {
-            background-color: #1f3042;
-        }
-
         .message-text {
             font-size: 15px;
             line-height: 1.35;
@@ -181,85 +177,6 @@
             margin-top: 6px;
             padding-top: 6px;
             border-top: 1px solid rgba(255, 255, 255, 0.05);
-        }
-
-        .edited-badge {
-            color: #5ca8e2;
-            font-weight: 500;
-        }
-
-        .edit-ca-btn {
-            color: #5ca8e2;
-            cursor: pointer;
-            font-weight: 500;
-        }
-
-        .edit-ca-btn:hover {
-            text-decoration: underline;
-        }
-
-        .edit-ca-form {
-            margin-top: 8px;
-            padding: 8px;
-            background-color: #0e1621;
-            border-radius: 6px;
-            display: none;
-        }
-
-        .edit-ca-form.active {
-            display: block;
-        }
-
-        .edit-ca-form input,
-        .edit-ca-form select {
-            width: 100%;
-            padding: 6px 8px;
-            margin: 4px 0;
-            background-color: #182533;
-            border: 1px solid #2b5278;
-            border-radius: 4px;
-            color: #e8e9ea;
-            font-size: 12px;
-        }
-
-        .edit-ca-form input:focus,
-        .edit-ca-form select:focus {
-            outline: none;
-            border-color: #5ca8e2;
-        }
-
-        .edit-ca-form-buttons {
-            display: flex;
-            gap: 6px;
-            margin-top: 6px;
-        }
-
-        .edit-ca-form button {
-            flex: 1;
-            padding: 6px 12px;
-            border: none;
-            border-radius: 4px;
-            font-size: 12px;
-            cursor: pointer;
-            font-weight: 500;
-        }
-
-        .edit-ca-form .btn-submit {
-            background-color: #5ca8e2;
-            color: #ffffff;
-        }
-
-        .edit-ca-form .btn-submit:hover {
-            background-color: #4a8bbf;
-        }
-
-        .edit-ca-form .btn-cancel {
-            background-color: #2b5278;
-            color: #e8e9ea;
-        }
-
-        .edit-ca-form .btn-cancel:hover {
-            background-color: #3d6a99;
         }
 
         .buy-indicator {
@@ -589,105 +506,44 @@
             border-right: 6px solid transparent;
             border-top: 6px solid #2b5278;
         }
-        .lookup-diag {
-            margin-top: 8px;
+
+        .ws-json-collapse {
+            margin-top: 4px;
             border: 1px solid #2b3f52;
             border-radius: 6px;
             font-size: 11px;
             overflow: hidden;
         }
 
-        .lookup-diag-header {
-            padding: 5px 8px;
+        .ws-json-collapse-header {
+            padding: 4px 8px;
             background: #1e2d3d;
-            color: #8ba8c0;
+            color: #5ca8e2;
             cursor: pointer;
             user-select: none;
         }
 
-        .lookup-diag-header:hover {
+        .ws-json-collapse-header:hover {
             background: #243447;
         }
 
-        .lookup-diag-body {
+        .ws-json-collapse-body {
             display: none;
-            padding: 6px 8px;
-            background: #17212b;
+            padding: 8px;
+            background: #0e1621;
         }
 
-        .lookup-diag.expanded .lookup-diag-body {
+        .ws-json-collapse.expanded .ws-json-collapse-body {
             display: block;
         }
 
-        .diag-section-label {
-            color: #5a7a94;
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin: 4px 0 2px;
-        }
-
-        .diag-range {
-            border-top: 1px solid #2b3f52;
-            border-bottom: 1px solid #2b3f52;
-            padding: 4px 0;
-            margin: 4px 0;
-            color: #5a7a94;
-            font-size: 10px;
-        }
-
-        .diag-row {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            padding: 2px 0;
-            cursor: pointer;
-            border-radius: 3px;
-        }
-
-        .diag-row:hover {
-            background: #1e2d3d;
-        }
-
-        .diag-row.passed .diag-ca { color: #4db87a; }
-        .diag-row.rejected .diag-ca { color: #8ba8c0; }
-
-        .diag-mc {
-            color: #a0b8cc;
-            min-width: 60px;
-        }
-
-        .diag-reason {
-            color: #e05a5a;
-            font-size: 10px;
-            flex: 1;
-        }
-
-        .diag-actions {
-            margin-left: auto;
-            display: flex;
-            gap: 4px;
-        }
-
-        .diag-btn {
-            background: #1e2d3d;
-            border: 1px solid #2b3f52;
-            color: #8ba8c0;
-            border-radius: 3px;
-            padding: 1px 5px;
+        .ws-json-pre {
+            font-family: 'Courier New', monospace;
             font-size: 11px;
-            cursor: pointer;
-            line-height: 1.4;
-        }
-
-        .diag-btn:hover {
-            background: #2b3f52;
-            color: #fff;
-        }
-
-        .diag-btn-pin:hover {
-            border-color: #4db87a;
-            color: #4db87a;
+            color: #8cffa0;
+            white-space: pre-wrap;
+            word-break: break-all;
+            margin: 0;
         }
     </style>
 </head>
@@ -851,98 +707,8 @@
                         <button class="btn btn-primary" onclick="addTraders()">Add Traders</button>
                     </div>
 
-                    <!-- Known Tokens Section -->
-                    <div class="settings-section">
-                        <div class="settings-section-title">Known Tokens</div>
-                        <button class="btn btn-secondary" onclick="showAddTokenModal()" style="margin-bottom: 12px;">Add New Token</button>
-                        <table id="knownTokensTable">
-                            <thead>
-                                <tr>
-                                    <th>Symbol</th>
-                                    <th>Contract Address</th>
-                                    <th>Min Market Cap</th>
-                                    <th>Chain</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="knownTokensBody">
-                                <tr><td colspan="5" style="text-align: center; color: #8a96a0;">Loading...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <!-- Test Notification Section -->
-                    <div class="settings-section">
-                        <div class="settings-section-title">Test Notification</div>
-                        <p style="color: #8a96a0; margin-bottom: 12px;">Send a test notification to the same endpoint that android-listener uses</p>
-                        <div class="form-group">
-                            <label class="form-label">Notification Message</label>
-                            <textarea id="testNotificationMessage" class="form-input" rows="3" placeholder="PUMP at $1.44b MC 🟢 @frankdegods bought $9,955.55"></textarea>
-                        </div>
-                        <button class="btn btn-primary" onclick="showTestNotificationConfirm()">Send Test Notification</button>
-                    </div>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <!-- Add/Edit Token Modal -->
-    <div id="tokenModal" class="modal">
-        <div class="modal-content">
-            <span class="modal-close" onclick="closeTokenModal()">&times;</span>
-            <div class="modal-title" id="tokenModalTitle">Add New Token</div>
-            <form id="tokenForm" onsubmit="saveToken(event)">
-                <input type="hidden" id="tokenId">
-                <div class="form-group">
-                    <label class="form-label">Symbol</label>
-                    <input type="text" id="tokenSymbol" class="form-input" required>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Contract Address</label>
-                    <input type="text" id="tokenContract" class="form-input" required>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Min Market Cap <span id="mcFormatted" style="color: #5288c1; margin-left: 8px;"></span></label>
-                    <input type="number" id="tokenMinMC" class="form-input" required step="1000" oninput="updateMCFormat()">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Chain (optional)</label>
-                    <select id="tokenChain" class="form-input">
-                        <option value="">None</option>
-                        <option value="SOL">Solana</option>
-                        <option value="BASE">Base</option>
-                        <option value="BNB">BNB Chain</option>
-                        <option value="MONAD">Monad</option>
-                    </select>
-                </div>
-                <button type="submit" class="btn btn-primary">Save Token</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- Delete Confirmation Modal -->
-    <div id="deleteModal" class="modal">
-        <div class="modal-content">
-            <span class="modal-close" onclick="closeDeleteModal()">&times;</span>
-            <div class="modal-title">Confirm Delete</div>
-            <p style="color: #8a96a0; margin-bottom: 16px;">Type "delete" to confirm deletion of this token:</p>
-            <div class="form-group">
-                <input type="text" id="deleteConfirm" class="form-input" placeholder="Type 'delete'">
-            </div>
-            <button class="btn btn-danger" onclick="confirmDelete()">Delete Token</button>
-        </div>
-    </div>
-
-    <!-- Test Notification Confirmation Modal -->
-    <div id="testNotificationModal" class="modal">
-        <div class="modal-content">
-            <span class="modal-close" onclick="closeTestNotificationModal()">&times;</span>
-            <div class="modal-title">Confirm Send Test Notification</div>
-            <p style="color: #8a96a0; margin-bottom: 16px;">This will send the test notification to all active Telegram users. Type "send" to confirm:</p>
-            <div class="form-group">
-                <input type="text" id="testNotificationConfirm" class="form-input" placeholder="Type 'send'">
-            </div>
-            <button class="btn btn-primary" onclick="confirmSendTestNotification()">Send Test Notification</button>
         </div>
     </div>
 
@@ -1005,12 +771,6 @@
         connection.on("ReceiveNotification", (notification) => {
             console.log('📥 Received notification via SignalR:', notification);
             displayNotification(notification);
-        });
-
-        // Listen for notification updates (when CA is edited)
-        connection.on("NotificationUpdated", (notification) => {
-            console.log('🔄 Notification updated via SignalR:', notification);
-            updateNotification(notification);
         });
 
         // Listen for new user joins
@@ -1099,80 +859,13 @@
             chatArea.scrollTop = chatArea.scrollHeight;
         }
 
-        function updateNotification(notification) {
-            // Find existing message bubble (maintains timeline position)
-            const messageBubble = document.querySelector(`[data-notification-id="${notification.id}"]`);
-            if (!messageBubble) {
-                console.warn('Message bubble not found for notification:', notification.id);
-                return;
-            }
-
-            // Get the message content div and add edited class for lighter blue styling
-            const messageContent = messageBubble.querySelector('.message-content');
-            if (messageContent && (notification.isManuallyEdited || notification.isSystemEdited)) {
-                messageContent.classList.add('edited');
-            }
-
-            // Update the message text section with new contract address info
-            const messageText = messageBubble.querySelector('.message-text');
-            if (messageText && notification.contractAddress) {
-                const dexScreenerUrl = getDexScreenerUrl(notification.chain, notification.contractAddress);
-                messageText.innerHTML = `
-                    ${formatMessage(notification.message, notification.ticker, notification.trader)}
-                    <br>📝 Contract: \`${notification.contractAddress}\`
-                    <br>🔗 <a href="${dexScreenerUrl}" target="_blank" class="message-trader">DEXScreener</a>
-                `;
-            }
-
-            // Update timestamp to show both original and edited times (Telegram fidelity)
-            const messageTime = messageBubble.querySelector('.message-time');
-            if (messageTime && (notification.isManuallyEdited || notification.isSystemEdited) && notification.editedAt) {
-                messageTime.textContent = `${formatTime(notification.sentAt)} (edited ${formatTime(notification.editedAt)})`;
-            }
-
-            // Update metadata section
-            const messageMetadata = messageBubble.querySelector('.message-metadata');
-            if (messageMetadata) {
-                let editBadge = '<span>• Not edited</span>';
-                if (notification.isManuallyEdited) {
-                    editBadge = `<span class="edited-badge">• Manually Edited ${notification.editedAt ? 'at ' + formatTime(notification.editedAt) : ''}</span>`;
-                } else if (notification.isSystemEdited) {
-                    editBadge = `<span class="edited-badge">• System Edited ${notification.editedAt ? 'at ' + formatTime(notification.editedAt) : ''}</span>`;
-                }
-                messageMetadata.innerHTML = `
-                    <span class="recipients-tooltip-container" onmouseenter="loadRecipients(${notification.id})" data-notification-id="${notification.id}">
-                        Sent to ${notification.recipientCount} of ${notification.totalUsers} users
-                        <div class="recipients-tooltip" id="recipients-tooltip-${notification.id}">
-                            <div class="recipients-tooltip-title">Recipients</div>
-                            <div class="recipients-tooltip-loading">Loading...</div>
-                            <div class="recipients-tooltip-arrow"></div>
-                        </div>
-                    </span>
-                    ${notification.contractAddressSource ? `<span>• CA: ${notification.contractAddressSource}${notification.wasRetried ? ' (retry)' : ''}</span>` : ''}
-                    ${(notification.timesCacheHit > 0 || notification.timesDexScreenerApiHit > 0 || notification.timesHeliusApiHit > 0) ? `<span>• Hits: Cache ${notification.timesCacheHit || 0}, DexScreener ${notification.timesDexScreenerApiHit || 0}, Helius ${notification.timesHeliusApiHit || 0}</span>` : ''}
-                    ${notification.lookupDuration ? `<span>• ${Math.round(notification.lookupDuration)}ms</span>` : ''}
-                    ${editBadge}
-                    <span class="edit-ca-btn" onclick="toggleEditForm(${notification.id})">• Edit CA</span>
-                `;
-            }
-
-            console.log('✅ Updated notification bubble in-place:', notification.id);
-        }
-
         function createMessageElement(notification) {
             const messageDiv = document.createElement('div');
             messageDiv.className = 'message-bubble';
             messageDiv.dataset.notificationId = notification.id;
 
-            const isBuy = notification.message.toLowerCase().includes('bought');
-            const isSell = notification.message.toLowerCase().includes('sold');
-            const indicator = isBuy ? '🟢' : (isSell ? '🔴' : '');
-
-            // Add edited class for lighter blue styling
-            const editedClass = (notification.isManuallyEdited || notification.isSystemEdited) ? ' edited' : '';
-
             let messageHtml = `
-                <div class="message-content${editedClass}">
+                <div class="message-content">
                     <div class="message-text">
                         ${formatMessage(notification.message, notification.ticker, notification.trader)}
                     </div>
@@ -1186,86 +879,9 @@
                 `;
             }
 
-            if (notification.lookupDiagnostics) {
-                const diag = notification.lookupDiagnostics;
-                const candidates = diag.candidates || [];
-                const mcAtNoti = notification.marketCapAtNotification;
-                const hasCA = !!notification.contractAddress;
-                const inside = candidates.filter(c => !c.RejectionReason).sort((a, b) => a.MarketCap - b.MarketCap);
-                const outside = candidates.filter(c => c.RejectionReason).sort((a, b) => a.MarketCap - b.MarketCap);
-
-                const sourceLabel = diag.source || 'Unknown';
-                const headerLabel = hasCA
-                    ? `CA via ${sourceLabel} — ${candidates.length} candidate${candidates.length !== 1 ? 's' : ''} ▾`
-                    : `No CA — ${candidates.length} candidate${candidates.length !== 1 ? 's' : ''} from ${sourceLabel} ▾`;
-
-                let diagHtml = `<div class="lookup-diag${hasCA ? '' : ' expanded'}">`;
-                diagHtml += `<div class="lookup-diag-header" onclick="this.parentElement.classList.toggle('expanded')">${headerLabel}</div>`;
-                diagHtml += `<div class="lookup-diag-body">`;
-
-                if (hasCA && diag.resolvedCA) {
-                    const shortResolved = diag.resolvedCA.slice(0, 6) + '...' + diag.resolvedCA.slice(-4);
-                    diagHtml += `<div class="diag-section-label">RESOLVED</div>`;
-                    diagHtml += `<div class="diag-row passed">
-                        <span class="diag-ca" title="${diag.resolvedCA}">${shortResolved}</span>
-                        <span class="diag-mc">${diag.resolvedChain || ''}</span>
-                        <span class="diag-actions">
-                            <button class="diag-btn" onclick="navigator.clipboard.writeText('${diag.resolvedCA}')" title="Copy CA">&#x2398;</button>
-                        </span>
-                    </div>`;
-                }
-
-                if (inside.length > 0) {
-                    diagHtml += `<div class="diag-section-label">INSIDE tolerance</div>`;
-                    inside.forEach(c => {
-                        const shortCA = c.CA.slice(0, 6) + '...' + c.CA.slice(-4);
-                        diagHtml += `<div class="diag-row passed">
-                            <span class="diag-ca" title="${c.CA}">${shortCA}</span>
-                            <span class="diag-mc">$${formatMarketCap(c.MarketCap)}</span>
-                            <span class="diag-actions">
-                                <button class="diag-btn" onclick="navigator.clipboard.writeText('${c.CA}')" title="Copy CA">&#x2398;</button>
-                                <button class="diag-btn diag-btn-pin" onclick="applyCAFromDiag(${notification.id}, '${c.CA}')" title="Set as CA">&#x2713;</button>
-                            </span>
-                        </div>`;
-                    });
-                }
-
-                if (mcAtNoti) {
-                    const tol = getToleranceLabel(Number(mcAtNoti));
-                    const minMc = Number(mcAtNoti) / (1 + tol / 100);
-                    const maxMc = Number(mcAtNoti) * (1 + tol / 100);
-                    diagHtml += `<div class="diag-range">Range: $${formatMarketCap(minMc)} – $${formatMarketCap(maxMc)} (±${tol}% of $${formatMarketCap(Number(mcAtNoti))})</div>`;
-                }
-
-                if (outside.length > 0) {
-                    diagHtml += `<div class="diag-section-label">OUTSIDE / rejected</div>`;
-                    outside.forEach(c => {
-                        const shortCA = c.CA.slice(0, 6) + '...' + c.CA.slice(-4);
-                        diagHtml += `<div class="diag-row rejected">
-                            <span class="diag-ca" title="${c.CA}">${shortCA}</span>
-                            <span class="diag-mc">$${formatMarketCap(c.MarketCap)}</span>
-                            <span class="diag-reason">${c.RejectionReason}</span>
-                            <span class="diag-actions">
-                                <button class="diag-btn" onclick="navigator.clipboard.writeText('${c.CA}')" title="Copy CA">&#x2398;</button>
-                                <button class="diag-btn diag-btn-pin" onclick="applyCAFromDiag(${notification.id}, '${c.CA}')" title="Set as CA">&#x2713;</button>
-                            </span>
-                        </div>`;
-                    });
-                }
-
-                diagHtml += `</div></div>`;
-                messageHtml += diagHtml;
-            }
-
-            // Format timestamp: show both original and edited times (Telegram fidelity)
-            let timestampText = formatTime(notification.sentAt);
-            if ((notification.isManuallyEdited || notification.isSystemEdited) && notification.editedAt) {
-                timestampText = `${formatTime(notification.sentAt)} (edited ${formatTime(notification.editedAt)})`;
-            }
-
             messageHtml += `
                     <div class="message-meta">
-                        <span class="message-time">${timestampText}</span>
+                        <span class="message-time">${formatTime(notification.sentAt)}</span>
                     </div>
                 </div>
                 <div class="message-metadata">
@@ -1277,29 +893,14 @@
                             <div class="recipients-tooltip-arrow"></div>
                         </div>
                     </span>
-                    ${notification.contractAddressSource ? `<span>• CA: ${notification.contractAddressSource}${notification.wasRetried ? ' (retry)' : ''}</span>` : ''}
-                    ${(notification.timesCacheHit > 0 || notification.timesDexScreenerApiHit > 0 || notification.timesHeliusApiHit > 0) ? `<span>• Hits: Cache ${notification.timesCacheHit || 0}, DexScreener ${notification.timesDexScreenerApiHit || 0}, Helius ${notification.timesHeliusApiHit || 0}</span>` : ''}
-                    ${notification.lookupDuration ? `<span>• ${Math.round(notification.lookupDuration)}ms</span>` : ''}
-                    ${notification.isManuallyEdited
-                        ? `<span class="edited-badge">• Manually Edited ${notification.editedAt ? 'at ' + formatTime(notification.editedAt) : ''}</span>`
-                        : notification.isSystemEdited
-                        ? `<span class="edited-badge">• System Edited ${notification.editedAt ? 'at ' + formatTime(notification.editedAt) : ''}</span>`
-                        : '<span>• Not edited</span>'}
-                    <span class="edit-ca-btn" onclick="toggleEditForm(${notification.id})">• Edit CA</span>
                 </div>
-                <div id="edit-form-${notification.id}" class="edit-ca-form">
-                    <input type="text" id="ca-input-${notification.id}" placeholder="Contract Address" />
-                    <select id="chain-select-${notification.id}">
-                        <option value="SOL">Solana (SOL)</option>
-                        <option value="BNB">BNB Chain (BNB)</option>
-                        <option value="BASE">Base (BASE)</option>
-                        <option value="MONAD">Monad (MONAD)</option>
-                    </select>
-                    <div class="edit-ca-form-buttons">
-                        <button class="btn-submit" onclick="submitEditCA(${notification.id})">Save</button>
-                        <button class="btn-cancel" onclick="toggleEditForm(${notification.id})">Cancel</button>
+                ${notification.fomoWsJson ? `
+                <div class="ws-json-collapse">
+                    <div class="ws-json-collapse-header" onclick="this.parentElement.classList.toggle('expanded')">WS payload ▾</div>
+                    <div class="ws-json-collapse-body">
+                        <pre class="ws-json-pre">${JSON.stringify(JSON.parse(notification.fomoWsJson), null, 2)}</pre>
                     </div>
-                </div>
+                </div>` : ''}
             `;
 
             messageDiv.innerHTML = messageHtml;
@@ -1348,63 +949,6 @@
             }
         }
 
-        function toggleEditForm(notificationId) {
-            const form = document.getElementById(`edit-form-${notificationId}`);
-            if (form) {
-                form.classList.toggle('active');
-            }
-        }
-
-        async function applyCAFromDiag(notificationId, ca) {
-            const input = document.getElementById(`ca-input-${notificationId}`);
-            const chainSelect = document.getElementById(`chain-select-${notificationId}`);
-            if (input && chainSelect) {
-                input.value = ca;
-            }
-            await submitEditCA(notificationId);
-        }
-
-        async function submitEditCA(notificationId) {
-            const caInput = document.getElementById(`ca-input-${notificationId}`);
-            const chainSelect = document.getElementById(`chain-select-${notificationId}`);
-
-            const contractAddress = caInput.value.trim();
-            const chain = chainSelect.value;
-
-            if (!contractAddress) {
-                alert('Please enter a contract address');
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE}/api/dashboard/notifications/${notificationId}/edit-ca`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        contractAddress: contractAddress,
-                        chain: chain
-                    })
-                });
-
-                const data = await response.json();
-
-                if (data.status === 'success') {
-                    // Close form
-                    toggleEditForm(notificationId);
-                    // Show success indicator
-                    showRefreshIndicator('Updated!');
-                    // Notification will auto-update via SignalR
-                } else {
-                    alert('Error: ' + data.message);
-                }
-            } catch (error) {
-                console.error('Error editing CA:', error);
-                alert('Failed to edit notification');
-            }
-        }
-
         function formatMessage(message, ticker, trader) {
             let formatted = message;
 
@@ -1443,19 +987,6 @@
             return `${hours}:${minutes}`;
         }
 
-        function formatMarketCap(mc) {
-            if (mc >= 1_000_000) return (mc / 1_000_000).toFixed(1) + 'M';
-            if (mc >= 1_000) return Math.round(mc / 1_000) + 'k';
-            return Math.round(mc).toString();
-        }
-
-        function getToleranceLabel(mc) {
-            if (mc < 2_000_000) return 500;
-            if (mc < 10_000_000) return 300;
-            if (mc < 50_000_000) return 200;
-            return 100;
-        }
-
         function showRefreshIndicator(count) {
             const indicator = document.createElement('div');
             indicator.className = 'refresh-indicator';
@@ -1478,9 +1009,7 @@
             document.getElementById(tabName + '-tab').classList.add('active');
 
             // Load data based on tab
-            if (tabName === 'settings') {
-                loadKnownTokens();
-            } else if (tabName === 'users') {
+            if (tabName === 'users') {
                 loadUsers();
             } else if (tabName === 'payments') {
                 loadPayments();
@@ -1519,217 +1048,6 @@
                 console.error('Error adding traders:', error);
                 alert('Error adding traders');
             }
-        }
-
-        // Known Tokens Management
-        let deleteTokenId = null;
-
-        async function loadKnownTokens() {
-            try {
-                const response = await fetch('/api/knowntokens');
-                const tokens = await response.json();
-
-                const tbody = document.getElementById('knownTokensBody');
-                if (tokens.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #8a96a0;">No known tokens</td></tr>';
-                    return;
-                }
-
-                tbody.innerHTML = tokens.map(token => `
-                    <tr>
-                        <td>${token.symbol}</td>
-                        <td>${token.contractAddress.substring(0, 12)}...</td>
-                        <td>$${(token.minMarketCap / 1000000).toFixed(2)}M</td>
-                        <td>${token.chain || 'N/A'}</td>
-                        <td class="token-actions">
-                            <button class="btn btn-secondary" onclick="editToken(${token.id})">Edit</button>
-                            <button class="btn btn-danger" onclick="deleteToken(${token.id})">Delete</button>
-                        </td>
-                    </tr>
-                `).join('');
-            } catch (error) {
-                console.error('Error loading known tokens:', error);
-            }
-        }
-
-        function formatMarketCap(value) {
-            if (!value || value == 0) return '';
-
-            if (value >= 1_000_000_000) {
-                return `($${(value / 1_000_000_000).toFixed(2)}b)`;
-            } else if (value >= 1_000_000) {
-                return `($${(value / 1_000_000).toFixed(2)}m)`;
-            } else if (value >= 1_000) {
-                return `($${(value / 1_000).toFixed(2)}k)`;
-            }
-            return `($${value})`;
-        }
-
-        function updateMCFormat() {
-            const input = document.getElementById('tokenMinMC');
-            const formatted = document.getElementById('mcFormatted');
-            formatted.textContent = formatMarketCap(parseInt(input.value));
-        }
-
-        function showAddTokenModal() {
-            document.getElementById('tokenModalTitle').textContent = 'Add New Token';
-            document.getElementById('tokenForm').reset();
-            document.getElementById('tokenId').value = '';
-            document.getElementById('mcFormatted').textContent = '';
-            document.getElementById('tokenModal').style.display = 'block';
-        }
-
-        async function editToken(id) {
-            try {
-                const response = await fetch(`/api/knowntokens/${id}`);
-                const token = await response.json();
-
-                document.getElementById('tokenModalTitle').textContent = 'Edit Token';
-                document.getElementById('tokenId').value = token.id;
-                document.getElementById('tokenSymbol').value = token.symbol;
-                document.getElementById('tokenContract').value = token.contractAddress;
-                document.getElementById('tokenMinMC').value = token.minMarketCap;
-                document.getElementById('tokenChain').value = token.chain || '';
-                updateMCFormat(); // Show formatted value
-                document.getElementById('tokenModal').style.display = 'block';
-            } catch (error) {
-                console.error('Error loading token:', error);
-                alert('Error loading token');
-            }
-        }
-
-        async function saveToken(event) {
-            event.preventDefault();
-
-            const id = document.getElementById('tokenId').value;
-            const token = {
-                Symbol: document.getElementById('tokenSymbol').value.toUpperCase(),
-                ContractAddress: document.getElementById('tokenContract').value,
-                MinMarketCap: parseInt(document.getElementById('tokenMinMC').value),
-                Chain: document.getElementById('tokenChain').value || null
-            };
-
-            try {
-                const url = id ? `/api/knowntokens/${id}` : '/api/knowntokens';
-                const method = id ? 'PUT' : 'POST';
-
-                console.log('Sending token:', token);
-
-                const response = await fetch(url, {
-                    method,
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(token)
-                });
-
-                if (response.ok) {
-                    closeTokenModal();
-                    loadKnownTokens();
-                    alert(id ? 'Token updated successfully' : 'Token added successfully');
-                } else {
-                    const errorText = await response.text();
-                    console.error('Server response:', errorText);
-                    try {
-                        const error = JSON.parse(errorText);
-                        alert('Error: ' + (error.message || JSON.stringify(error)));
-                    } catch {
-                        alert('Error ' + response.status + ': ' + errorText);
-                    }
-                }
-            } catch (error) {
-                console.error('Error saving token:', error);
-                alert('Error saving token');
-            }
-        }
-
-        function closeTokenModal() {
-            document.getElementById('tokenModal').style.display = 'none';
-        }
-
-        function deleteToken(id) {
-            deleteTokenId = id;
-            document.getElementById('deleteConfirm').value = '';
-            document.getElementById('deleteModal').style.display = 'block';
-        }
-
-        async function confirmDelete() {
-            const confirmText = document.getElementById('deleteConfirm').value;
-            if (confirmText.toLowerCase() !== 'delete') {
-                alert('Please type "delete" to confirm');
-                return;
-            }
-
-            try {
-                const response = await fetch(`/api/knowntokens/${deleteTokenId}`, {
-                    method: 'DELETE'
-                });
-
-                if (response.ok) {
-                    closeDeleteModal();
-                    loadKnownTokens();
-                    alert('Token deleted successfully');
-                } else {
-                    alert('Error deleting token');
-                }
-            } catch (error) {
-                console.error('Error deleting token:', error);
-                alert('Error deleting token');
-            }
-        }
-
-        function closeDeleteModal() {
-            document.getElementById('deleteModal').style.display = 'none';
-            deleteTokenId = null;
-        }
-
-        // Test Notification Functions
-        function showTestNotificationConfirm() {
-            const message = document.getElementById('testNotificationMessage').value.trim();
-            if (!message) {
-                alert('Please enter a notification message');
-                return;
-            }
-            document.getElementById('testNotificationConfirm').value = '';
-            document.getElementById('testNotificationModal').style.display = 'block';
-        }
-
-        async function confirmSendTestNotification() {
-            const confirmText = document.getElementById('testNotificationConfirm').value;
-            if (confirmText.toLowerCase() !== 'send') {
-                alert('Please type "send" to confirm');
-                return;
-            }
-
-            const message = document.getElementById('testNotificationMessage').value.trim();
-
-            try {
-                const response = await fetch('/api/notifications', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ Message: message })
-                });
-
-                if (response.ok) {
-                    const result = await response.json();
-                    closeTestNotificationModal();
-                    document.getElementById('testNotificationMessage').value = '';
-
-                    // Switch to notifications tab to see the result
-                    document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
-                    document.querySelector('.tab:first-child').classList.add('active');
-                    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-                    document.getElementById('notifications-tab').classList.add('active');
-                } else {
-                    const error = await response.json();
-                    alert('Error sending test notification: ' + (error.message || 'Unknown error'));
-                }
-            } catch (error) {
-                console.error('Error sending test notification:', error);
-                alert('Error sending test notification');
-            }
-        }
-
-        function closeTestNotificationModal() {
-            document.getElementById('testNotificationModal').style.display = 'none';
         }
 
         // Users Management
@@ -1954,15 +1272,6 @@
 
         // Close modals when clicking outside
         window.onclick = function(event) {
-            if (event.target == document.getElementById('tokenModal')) {
-                closeTokenModal();
-            }
-            if (event.target == document.getElementById('deleteModal')) {
-                closeDeleteModal();
-            }
-            if (event.target == document.getElementById('testNotificationModal')) {
-                closeTestNotificationModal();
-            }
             if (event.target == document.getElementById('sendMessageModal')) {
                 closeSendMessageModal();
             }

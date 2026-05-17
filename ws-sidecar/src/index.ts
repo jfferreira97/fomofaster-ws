@@ -2,13 +2,15 @@ import { chromium } from 'playwright';
 import { attachWsInterceptor } from './ws-intercept';
 import { postStructured, heartbeat } from './client';
 
+const ts = () => `[${new Date().toISOString().replace('T', ' ').slice(0, 19)}]`;
+
 const HEADLESS = process.env.HEADLESS === 'true';
 const PROFILE_DIR = './chromium-profile';
 const FOMO_URL = 'https://fomo.family/';
 const HEARTBEAT_INTERVAL_MS = 30_000;
 
 async function run(): Promise<void> {
-  console.log('[main] launching browser (headless=%s)', HEADLESS);
+  console.log(`${ts()} [main] launching browser (headless=%s)`, HEADLESS);
 
   const context = await chromium.launchPersistentContext(PROFILE_DIR, {
     channel: 'chrome',
@@ -23,7 +25,7 @@ async function run(): Promise<void> {
 
   attachWsInterceptor(page, postStructured);
 
-  console.log('[main] navigating to', FOMO_URL);
+  console.log(`${ts()} [main] navigating to`, FOMO_URL);
   await page.goto(FOMO_URL, { waitUntil: 'domcontentloaded' });
 
   // On first run the session won't exist — give the user time to log in manually.
@@ -35,7 +37,7 @@ async function run(): Promise<void> {
     .catch(() => false);
 
   if (!loggedIn) {
-    console.error('[main] ❌ Login timed out after 5 minutes, exiting.');
+    console.error(`${ts()} [main] ❌ Login timed out after 5 minutes, exiting.`);
     process.exit(1);
   }
 
@@ -44,11 +46,11 @@ async function run(): Promise<void> {
     heartbeat().catch(() => {});
   }, HEARTBEAT_INTERVAL_MS);
 
-  console.log('[main] Sidecar running — intercepting WS trade events');
+  console.log(`${ts()} [main] Sidecar running — intercepting WS trade events`);
 
   // Keep process alive; reconnect on page crash
   page.on('crash', async () => {
-    console.warn('[main] Page crashed, reloading...');
+    console.warn(`${ts()} [main] Page crashed, reloading...`);
     clearInterval(hbInterval);
     await context.close().catch(() => {});
     // Restart from scratch after a short delay
@@ -60,6 +62,6 @@ async function run(): Promise<void> {
 }
 
 run().catch((err) => {
-  console.error('[main] Fatal error:', err);
+  console.error(`${ts()} [main] Fatal error:`, err);
   process.exit(1);
 });

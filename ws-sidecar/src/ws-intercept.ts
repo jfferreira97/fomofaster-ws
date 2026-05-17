@@ -1,5 +1,7 @@
 import fs from 'fs';
 import type { Page } from 'playwright';
+
+const ts = () => `[${new Date().toISOString().replace('T', ' ').slice(0, 19)}]`;
 import { transformFrame, type StructuredNotificationRequest } from './transform';
 
 const LOG_FILE = 'C:\\Users\\Administrator\\Desktop\\ws-payloads.txt';
@@ -18,7 +20,7 @@ export function attachWsInterceptor(
   onTrade: (req: StructuredNotificationRequest) => Promise<void>
 ): void {
   page.on('websocket', (ws) => {
-    console.log(`[intercept] WebSocket opened: ${ws.url()}`);
+    console.log(`${ts()} [intercept] WebSocket opened: ${ws.url()}`);
 
     ws.on('framereceived', (frame) => {
       const raw = typeof frame.payload === 'string' ? frame.payload : null;
@@ -42,11 +44,11 @@ export function attachWsInterceptor(
       const req = transformFrame(payload);
       if (req) {
         onTrade(req).catch((err) =>
-          console.error('[intercept] onTrade error:', err)
+          console.error(`${ts()} [intercept] onTrade error:`, err)
         );
       }
     });
 
-    ws.on('close', () => console.log('[intercept] WebSocket closed'));
+    ws.on('close', () => console.log(`${ts()} [intercept] WebSocket closed`));
   });
 }
