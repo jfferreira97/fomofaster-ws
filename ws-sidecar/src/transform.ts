@@ -65,6 +65,7 @@ export function transformFrame(payload: Record<string, unknown>): StructuredNoti
       networkId,
       side: thesisSide,
       usdAmount: authorTrade.usdValue as number,
+      marketCap: payload.marketCap as number | undefined,
       createdAt,
       comment: commentObj?.comment as string | undefined,
     };
