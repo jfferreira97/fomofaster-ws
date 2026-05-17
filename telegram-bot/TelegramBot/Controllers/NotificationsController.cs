@@ -27,6 +27,13 @@ public class NotificationsController : ControllerBase
         _logger = logger;
     }
 
+    private static string FormatMarketCap(double mc) => mc switch
+    {
+        >= 1_000_000_000 => $"{mc / 1_000_000_000:0.##}b",
+        >= 1_000_000     => $"{mc / 1_000_000:0.##}m",
+        _                => $"{mc / 1_000:0.##}k"
+    };
+
     [HttpPost("structured")]
     public async Task<IActionResult> ReceiveStructuredNotification([FromBody] StructuredNotificationRequest req)
     {
@@ -69,7 +76,16 @@ public class NotificationsController : ControllerBase
                 _               => "traded"
             };
 
-            var message = $"@{req.Trader} {sideWord} ${req.UsdAmount:N0} of ${req.Ticker}";
+            var emoji = req.Side switch
+            {
+                "swap_buy"  => "🟢",
+                "swap_sell" => "🔴",
+                _           => "🟡"
+            };
+
+            var amount = $"${req.UsdAmount:0.##}";
+            var mc = req.MarketCap.HasValue ? $" at ${FormatMarketCap(req.MarketCap.Value)} MC" : "";
+            var message = $"{req.Ticker}{mc} {emoji} {req.Trader} {sideWord} {amount}";
             if (!string.IsNullOrEmpty(req.Comment))
                 message += $"\n\n{req.Comment}";
 
