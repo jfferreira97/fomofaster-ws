@@ -13,7 +13,7 @@ public class PaymentPollerService : BackgroundService
     private readonly HttpClient _httpClient;
 
     private const string SolanaRpcUrl = "https://api.mainnet-beta.solana.com";
-    private const long RequiredLamports = 200_000_000; // 0.2 SOL
+    private const long LamportsPerSol = 1_000_000_000;
 
     // chatId → wallet public key for active pending payments (refreshed each poll cycle)
     public ConcurrentDictionary<long, string> PendingWalletCache { get; } = new();
@@ -54,6 +54,10 @@ public class PaymentPollerService : BackgroundService
     {
         using var scope = _serviceProvider.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var appConfig = scope.ServiceProvider.GetRequiredService<AppConfigService>();
+
+        var priceSol = await appConfig.GetSubscriptionPriceSolAsync();
+        var requiredLamports = (long)(priceSol * LamportsPerSol);
 
         var pending = await dbContext.PendingPayments
             .Where(p => !p.IsConfirmed && p.ExpiresAt > DateTime.UtcNow)
@@ -71,7 +75,7 @@ public class PaymentPollerService : BackgroundService
             try
             {
                 var balance = await GetSolanaBalanceAsync(payment.WalletPublicKey);
-                if (balance >= RequiredLamports)
+                if (balance >= requiredLamports)
                 {
                     payment.IsConfirmed = true;
                     payment.ConfirmedAt = DateTime.UtcNow;

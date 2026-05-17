@@ -11,7 +11,8 @@ public class AppConfigService
 
     private static readonly Dictionary<string, string> Defaults = new()
     {
-        ["TreasuryWalletAddress"] = "",
+        ["TreasuryWalletAddress"]  = "",
+        ["SubscriptionPriceSol"]   = "0.3",
     };
 
     public AppConfigService(IServiceProvider serviceProvider, ILogger<AppConfigService> logger)
@@ -71,6 +72,7 @@ public class AppConfigService
                     Description = key switch
                     {
                         "TreasuryWalletAddress" => "Solana wallet address to sweep payments into",
+                        "SubscriptionPriceSol"  => "SOL required for a 30-day subscription",
                         _ => null
                     },
                     UpdatedAt = DateTime.UtcNow
@@ -82,4 +84,10 @@ public class AppConfigService
     }
 
     public async Task<string?> GetTreasuryWalletAsync() => await GetAsync("TreasuryWalletAddress");
+
+    public async Task<decimal> GetSubscriptionPriceSolAsync()
+    {
+        var raw = await GetAsync("SubscriptionPriceSol");
+        return decimal.TryParse(raw, out var val) ? val : 0.3m;
+    }
 }
