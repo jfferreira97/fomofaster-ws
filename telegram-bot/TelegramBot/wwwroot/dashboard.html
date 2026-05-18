@@ -565,6 +565,7 @@
             <div class="tab active" onclick="switchTab('notifications')">Notifications</div>
             <div class="tab" onclick="switchTab('users')">Users</div>
             <div class="tab" onclick="switchTab('payments')">Payments</div>
+            <div class="tab" onclick="switchTab('milestones')">Milestones</div>
             <div class="tab" onclick="switchTab('config')">Config</div>
             <div class="tab" onclick="switchTab('settings')">Settings</div>
         </div>
@@ -651,6 +652,35 @@
                                 <tr><td colspan="6" style="text-align:center;color:#8a96a0;">Loading...</td></tr>
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Milestones Tab -->
+        <div id="milestones-tab" class="tab-content">
+            <div class="chat-area" style="overflow-y: auto;">
+                <div class="settings-container">
+                    <div class="settings-section">
+                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+                            <div class="settings-section-title" style="margin-bottom:0;">Profit Milestones</div>
+                            <span id="milestonesCount" style="color:#8a96a0;font-size:13px;"></span>
+                            <div style="margin-left:auto;display:flex;gap:6px;">
+                                <button onclick="setMilestonesView('entries')" id="ms-btn-entries" class="btn btn-primary" style="padding:6px 12px;font-size:13px;">Entries</button>
+                                <button onclick="setMilestonesView('traders')" id="ms-btn-traders" class="btn btn-secondary" style="padding:6px 12px;font-size:13px;">Traders</button>
+                                <button onclick="loadMilestones()" class="btn btn-secondary" style="padding:6px 12px;font-size:13px;">Refresh</button>
+                            </div>
+                        </div>
+                        <div id="ms-filters" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
+                            <input id="ms-f-trader" type="text" placeholder="Trader..." oninput="renderMilestonesView()"
+                                style="padding:5px 8px;background:#0e1621;border:1px solid #2b5278;border-radius:6px;color:#e8e9ea;font-size:13px;width:140px;">
+                            <input id="ms-f-ticker" type="text" placeholder="Ticker..." oninput="renderMilestonesView()"
+                                style="padding:5px 8px;background:#0e1621;border:1px solid #2b5278;border-radius:6px;color:#e8e9ea;font-size:13px;width:110px;">
+                            <input id="ms-f-tag" type="text" placeholder="Tag..." oninput="renderMilestonesView()"
+                                style="padding:5px 8px;background:#0e1621;border:1px solid #2b5278;border-radius:6px;color:#e8e9ea;font-size:13px;width:100px;">
+                            <span id="ms-filtered-count" style="color:#8a96a0;font-size:12px;"></span>
+                        </div>
+                        <div id="milestonesView"></div>
                     </div>
                 </div>
             </div>
@@ -883,13 +913,6 @@
                         </div>
                     </span>
                 </div>
-                ${notification.fomoWsJson ? `
-                <div class="ws-json-collapse">
-                    <div class="ws-json-collapse-header" onclick="this.parentElement.classList.toggle('expanded')">WS payload ▾</div>
-                    <div class="ws-json-collapse-body">
-                        <pre class="ws-json-pre">${JSON.stringify(JSON.parse(notification.fomoWsJson), null, 2)}</pre>
-                    </div>
-                </div>` : ''}
             `;
 
             messageDiv.innerHTML = messageHtml;
@@ -1002,6 +1025,8 @@
                 loadUsers();
             } else if (tabName === 'payments') {
                 loadPayments();
+            } else if (tabName === 'milestones') {
+                loadMilestones();
             } else if (tabName === 'config') {
                 loadConfig();
             }
@@ -1476,6 +1501,218 @@
                 alert('Error making user follow all traders');
             }
         }
+        // Milestones tab
+        let milestonesData = [];
+        let milestonesCurrentView = 'entries';
+        let msEntriesSort    = { col: 'receivedAt', dir: 'desc' };
+        let msTradersSort    = { col: 'totalPnl',   dir: 'desc' };
+        let msExpandedTraders = new Set();
+        let msTradersRendered = [];
+
+        async function loadMilestones() {
+            document.getElementById('milestonesView').innerHTML = '<p style="color:#8a96a0;">Loading...</p>';
+            try {
+                const res = await fetch('/api/ws-events/milestones?limit=1000');
+                const data = await res.json();
+                milestonesData = data.events || [];
+                document.getElementById('milestonesCount').textContent = `${milestonesData.length} events`;
+                renderMilestonesView();
+            } catch (err) {
+                console.error('Failed to load milestones', err);
+                document.getElementById('milestonesView').innerHTML = '<p style="color:#f44336;">Failed to load.</p>';
+            }
+        }
+
+        function setMilestonesView(view) {
+            milestonesCurrentView = view;
+            document.getElementById('ms-btn-entries').className = 'btn ' + (view === 'entries' ? 'btn-primary' : 'btn-secondary');
+            document.getElementById('ms-btn-traders').className = 'btn ' + (view === 'traders' ? 'btn-primary' : 'btn-secondary');
+            document.getElementById('ms-filters').style.display = view === 'entries' ? 'flex' : 'none';
+            renderMilestonesView();
+        }
+
+        function renderMilestonesView() {
+            if (milestonesCurrentView === 'entries') renderMilestonesEntries();
+            else renderMilestonesTraders();
+        }
+
+        function msFmtPnlUsd(v) {
+            if (v == null) return '—';
+            const n = Number(v);
+            const cls = n >= 0 ? 'buy-indicator' : 'sell-indicator';
+            const abs = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            return `<span class="${cls}">${n >= 0 ? '+' : '-'}$${abs}</span>`;
+        }
+        function msFmtPnlPct(v) {
+            if (v == null) return '—';
+            const n = Number(v);
+            const cls = n >= 0 ? 'buy-indicator' : 'sell-indicator';
+            return `<span class="${cls}">${n >= 0 ? '+' : ''}${n.toFixed(1)}%</span>`;
+        }
+        function msFmtUsd(v) {
+            if (v == null) return '—';
+            return '$' + Math.abs(Number(v)).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+        }
+        function msFmtTime(d) {
+            if (!d) return '—';
+            const dt = new Date(d);
+            return `<span style="color:#6c7883;font-size:12px;white-space:nowrap;">${dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})} ${dt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</span>`;
+        }
+        function msSortArrow(col, state) {
+            if (state.col !== col) return '<span style="color:#2b5278;margin-left:3px;">⇅</span>';
+            return state.dir === 'asc'
+                ? '<span style="color:#5ca8e2;margin-left:3px;">↑</span>'
+                : '<span style="color:#5ca8e2;margin-left:3px;">↓</span>';
+        }
+
+        // --- Entries view ---
+        function msToggleEntriesSort(col) {
+            msEntriesSort = msEntriesSort.col === col
+                ? { col, dir: msEntriesSort.dir === 'asc' ? 'desc' : 'asc' }
+                : { col, dir: 'desc' };
+            renderMilestonesEntries();
+        }
+
+        function renderMilestonesEntries() {
+            const container = document.getElementById('milestonesView');
+            const fTrader = (document.getElementById('ms-f-trader')?.value || '').toLowerCase();
+            const fTicker = (document.getElementById('ms-f-ticker')?.value || '').toLowerCase();
+            const fTag    = (document.getElementById('ms-f-tag')?.value    || '').toLowerCase();
+
+            let rows = milestonesData.filter(e => {
+                if (fTrader && !(e.userHandle||'').toLowerCase().includes(fTrader) && !(e.displayName||'').toLowerCase().includes(fTrader)) return false;
+                if (fTicker && !(e.ticker||'').toLowerCase().includes(fTicker)) return false;
+                if (fTag    && !(e.tag||'').toLowerCase().includes(fTag))       return false;
+                return true;
+            });
+
+            const { col, dir } = msEntriesSort;
+            const mult = dir === 'asc' ? 1 : -1;
+            rows.sort((a, b) => {
+                let av = a[col], bv = b[col];
+                if (av == null && bv == null) return 0;
+                if (av == null) return 1; if (bv == null) return -1;
+                if (typeof av === 'string') return mult * av.localeCompare(bv);
+                return mult * (Number(av) - Number(bv));
+            });
+
+            const countEl = document.getElementById('ms-filtered-count');
+            countEl.textContent = rows.length !== milestonesData.length ? `${rows.length} shown` : '';
+
+            if (!rows.length) { container.innerHTML = '<p style="color:#8a96a0;padding:20px 0;">No entries match.</p>'; return; }
+
+            const s = msEntriesSort;
+            const th = (lbl, c) => `<th style="cursor:pointer;user-select:none;" onclick="msToggleEntriesSort('${c}')">${lbl}${msSortArrow(c,s)}</th>`;
+            const tableRows = rows.map(e => {
+                const traderLink = e.userHandle
+                    ? `<a href="https://x.com/${e.userHandle}" target="_blank" class="message-trader">@${e.userHandle}</a>`
+                    : `<span style="color:#e8e9ea;">${e.displayName||'?'}</span>`;
+                const tag = e.tag ? `<span style="background:#1e3248;color:#5ca8e2;padding:2px 7px;border-radius:10px;font-size:11px;">${e.tag}</span>` : '—';
+                return `<tr>
+                    <td>${msFmtTime(e.receivedAt)}</td>
+                    <td>${traderLink}</td>
+                    <td style="font-weight:500;">${e.ticker||'—'}</td>
+                    <td>${tag}</td>
+                    <td>${msFmtPnlUsd(e.totalPnlUsd)}</td>
+                    <td>${msFmtPnlPct(e.totalPercentagePnl)}</td>
+                    <td style="color:#8a96a0;">${msFmtUsd(e.totalCostBasis)}</td>
+                    <td>${msFmtTime(e.entryTime)}</td>
+                </tr>`;
+            }).join('');
+            container.innerHTML = `<table><thead><tr>
+                ${th('Time','receivedAt')}${th('Trader','userHandle')}${th('Ticker','ticker')}${th('Tag','tag')}
+                ${th('PnL USD','totalPnlUsd')}${th('PnL %','totalPercentagePnl')}${th('Cost Basis','totalCostBasis')}${th('Entry','entryTime')}
+            </tr></thead><tbody>${tableRows}</tbody></table>`;
+        }
+
+        // --- Traders view ---
+        function msToggleTradersSort(col) {
+            msTradersSort = msTradersSort.col === col
+                ? { col, dir: msTradersSort.dir === 'asc' ? 'desc' : 'asc' }
+                : { col, dir: 'desc' };
+            renderMilestonesTraders();
+        }
+
+        function msTradersToggle(idx) {
+            const key = msTradersRendered[idx]?.key;
+            if (!key) return;
+            if (msExpandedTraders.has(key)) msExpandedTraders.delete(key);
+            else msExpandedTraders.add(key);
+            renderMilestonesTraders();
+        }
+
+        function renderMilestonesTraders() {
+            const container = document.getElementById('milestonesView');
+            if (!milestonesData.length) { container.innerHTML = '<p style="color:#8a96a0;padding:20px 0;">No milestone events yet.</p>'; return; }
+
+            const map = {};
+            milestonesData.forEach(e => {
+                const key = e.userHandle || e.displayName || 'Unknown';
+                if (!map[key]) map[key] = { key, handle: e.userHandle, displayName: e.displayName, milestoneCount: 0, totalPnl: 0, pcts: [], tickers: new Set(), entries: [] };
+                const t = map[key];
+                t.milestoneCount++;
+                t.entries.push(e);
+                if (e.totalPnlUsd != null) t.totalPnl += Number(e.totalPnlUsd);
+                if (e.totalPercentagePnl != null) t.pcts.push(Number(e.totalPercentagePnl));
+                if (e.ticker) t.tickers.add(e.ticker);
+            });
+            const traders = Object.values(map).map(t => ({
+                ...t,
+                bestPct: t.pcts.length ? Math.max(...t.pcts) : null,
+                avgPct:  t.pcts.length ? t.pcts.reduce((a,b) => a+b, 0) / t.pcts.length : null,
+            }));
+
+            const { col, dir } = msTradersSort;
+            const mult = dir === 'asc' ? 1 : -1;
+            traders.sort((a, b) => {
+                let av = a[col], bv = b[col];
+                if (av == null && bv == null) return 0;
+                if (av == null) return 1; if (bv == null) return -1;
+                return mult * (Number(av) - Number(bv));
+            });
+
+            msTradersRendered = traders;
+
+            const s = msTradersSort;
+            const th = (lbl, c) => `<th style="cursor:pointer;user-select:none;" onclick="msToggleTradersSort('${c}')">${lbl}${msSortArrow(c,s)}</th>`;
+
+            let tableRows = '';
+            traders.forEach((t, i) => {
+                const isExpanded = msExpandedTraders.has(t.key);
+                const rankColor  = i === 0 ? '#f5c518' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#6c7883';
+                const arrow      = `<span style="color:#5ca8e2;margin-right:8px;font-size:11px;">${isExpanded ? '▼' : '▶'}</span>`;
+                const trader     = t.handle
+                    ? `${arrow}<a href="https://x.com/${t.handle}" target="_blank" class="message-trader" onclick="event.stopPropagation()">@${t.handle}</a>`
+                    : `${arrow}<span style="color:#e8e9ea;">${t.displayName||'?'}</span>`;
+                tableRows += `<tr style="cursor:pointer;" onclick="msTradersToggle(${i})">
+                    <td style="color:${rankColor};font-weight:600;">${i+1}</td>
+                    <td>${trader}</td>
+                    <td style="color:#8a96a0;">${t.milestoneCount}</td>
+                    <td>${msFmtPnlUsd(t.totalPnl)}</td>
+                    <td>${msFmtPnlPct(t.bestPct)}</td>
+                    <td>${msFmtPnlPct(t.avgPct)}</td>
+                </tr>`;
+                if (isExpanded) {
+                    const sorted = [...t.entries].sort((a, b) => new Date(b.receivedAt) - new Date(a.receivedAt));
+                    sorted.forEach(e => {
+                        tableRows += `<tr style="background:#0c1520;">
+                            <td></td>
+                            <td style="padding-left:28px;">${msFmtTime(e.receivedAt)}</td>
+                            <td style="font-weight:500;color:#e8e9ea;">${e.ticker||'—'}</td>
+                            <td>${msFmtPnlUsd(e.totalPnlUsd)}</td>
+                            <td>${msFmtPnlPct(e.totalPercentagePnl)}</td>
+                            <td style="color:#8a96a0;">${msFmtUsd(e.totalCostBasis)}</td>
+                        </tr>`;
+                    });
+                }
+            });
+
+            container.innerHTML = `<table><thead><tr>
+                <th>#</th><th>Trader</th>
+                ${th('Milestones','milestoneCount')}${th('Total PnL USD','totalPnl')}${th('Best PnL %','bestPct')}${th('Avg PnL %','avgPct')}
+            </tr></thead><tbody>${tableRows}</tbody></table>`;
+        }
+
         // Auto-refresh payments every 30s when tab is active
         setInterval(() => {
             const paymentsTab = document.getElementById('payments-tab');

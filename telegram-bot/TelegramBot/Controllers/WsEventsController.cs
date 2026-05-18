@@ -19,6 +19,33 @@ public class WsEventsController : ControllerBase
         _logger = logger;
     }
 
+    [HttpGet("milestones")]
+    public async Task<IActionResult> GetMilestones([FromQuery] int limit = 1000)
+    {
+        var events = await _db.WsEvents
+            .Where(e => e.Type == "user_trade_profit_milestone")
+            .OrderByDescending(e => e.ReceivedAt)
+            .Take(limit)
+            .Select(e => new {
+                id               = e.Id,
+                receivedAt       = e.ReceivedAt,
+                userHandle       = e.UserHandle,
+                displayName      = e.DisplayName,
+                ticker           = e.Ticker,
+                tag              = e.Tag,
+                totalPnlUsd      = e.TotalPnlUsd,
+                totalPercentagePnl = e.TotalPercentagePnl,
+                totalCostBasis   = e.TotalCostBasis,
+                entryTime        = e.EntryTime,
+                showAbsolutePnl  = e.ShowAbsolutePnl,
+                tradeId          = e.TradeId,
+                rawJson          = e.RawJson
+            })
+            .ToListAsync();
+
+        return Ok(new { events });
+    }
+
     [HttpPost]
     public async Task<IActionResult> Post([FromBody] JsonElement payload)
     {
