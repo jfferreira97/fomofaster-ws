@@ -26,4 +26,5 @@ public class WsEvent
     public DateTime? EntryTime { get; set; }
     public bool? ShowAbsolutePnl { get; set; }
     public string RawJson { get; set; } = string.Empty;
+    public bool Handled { get; set; } = false;
 }

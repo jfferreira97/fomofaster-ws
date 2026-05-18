@@ -1,6 +1,7 @@
 export type FomoWebsocketPayload = Record<string, unknown>;
 
 export interface StructuredNotificationRequest {
+  wsId: string;
   tradeId: string;
   trader: string;
   ticker: string;
@@ -32,10 +33,11 @@ function markSeen(tradeId: string): boolean {
 
 export function transformFrame(payload: FomoWebsocketPayload): StructuredNotificationRequest | null {
   const type = payload.type as string;
+  const wsId = payload.id as string;
   const tradeId = (payload.tradeId ?? payload.id) as string;
 
-  if (markSeen(tradeId)) {
-    console.log(`[transform] duplicate tradeId ${tradeId}, skipping`);
+  if (markSeen(wsId)) {
+    console.log(`[transform] duplicate wsId ${wsId}, skipping`);
     return null;
   }
 
@@ -51,8 +53,9 @@ export function transformFrame(payload: FomoWebsocketPayload): StructuredNotific
 
   const wsMetadata = { userId, displayName, profilePictureLink, equity };
 
-  if (type === 'swap_buy' || type === 'swap_sell' || type === 'swap_withdraw') {
+  if (type === 'swap_buy' || type === 'swap_sell' || type === 'swap_withdraw' || type === 'transfer_out') {
     return {
+      wsId,
       tradeId,
       trader,
       ticker,
@@ -75,6 +78,7 @@ export function transformFrame(payload: FomoWebsocketPayload): StructuredNotific
     const thesisSide = authorTrade.closedAt == null ? 'swap_buy' : 'swap_sell';
 
     return {
+      wsId,
       tradeId,
       trader,
       ticker,

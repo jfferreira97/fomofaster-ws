@@ -2,6 +2,7 @@ namespace TelegramBot.Models;
 
 public class StructuredNotificationRequest
 {
+    public required string WsId { get; set; }
     public required string TradeId { get; set; }
     public required string Trader { get; set; }
     public required string Ticker { get; set; }

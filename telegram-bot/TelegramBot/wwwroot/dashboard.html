@@ -566,6 +566,7 @@
             <div class="tab" onclick="switchTab('users')">Users</div>
             <div class="tab" onclick="switchTab('payments')">Payments</div>
             <div class="tab" onclick="switchTab('milestones')">Milestones</div>
+            <div class="tab" onclick="switchTab('unhandled')">Unhandled</div>
             <div class="tab" onclick="switchTab('config')">Config</div>
             <div class="tab" onclick="switchTab('settings')">Settings</div>
         </div>
@@ -681,6 +682,22 @@
                             <span id="ms-filtered-count" style="color:#8a96a0;font-size:12px;"></span>
                         </div>
                         <div id="milestonesView"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Unhandled Tab -->
+        <div id="unhandled-tab" class="tab-content">
+            <div class="chat-area" style="overflow-y: auto;">
+                <div class="settings-container">
+                    <div class="settings-section">
+                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+                            <div class="settings-section-title" style="margin-bottom:0;">Unhandled WS Events</div>
+                            <span id="unhandledCount" style="color:#8a96a0;font-size:13px;"></span>
+                            <button onclick="loadUnhandled()" class="btn btn-secondary" style="margin-left:auto;padding:6px 12px;font-size:13px;">Refresh</button>
+                        </div>
+                        <div id="unhandledView"><p style="color:#8a96a0;">Loading...</p></div>
                     </div>
                 </div>
             </div>
@@ -1027,6 +1044,8 @@
                 loadPayments();
             } else if (tabName === 'milestones') {
                 loadMilestones();
+            } else if (tabName === 'unhandled') {
+                loadUnhandled();
             } else if (tabName === 'config') {
                 loadConfig();
             }
@@ -1711,6 +1730,75 @@
                 <th>#</th><th>Trader</th>
                 ${th('Milestones','milestoneCount')}${th('Total PnL USD','totalPnl')}${th('Best PnL %','bestPct')}${th('Avg PnL %','avgPct')}
             </tr></thead><tbody>${tableRows}</tbody></table>`;
+        }
+
+        // Unhandled tab
+        async function loadUnhandled() {
+            document.getElementById('unhandledView').innerHTML = '<p style="color:#8a96a0;">Loading...</p>';
+            try {
+                const res = await fetch('/api/ws-events/unhandled?limit=200');
+                const data = await res.json();
+                const events = data.events || [];
+                document.getElementById('unhandledCount').textContent = `${events.length} events`;
+                renderUnhandled(events);
+            } catch (err) {
+                document.getElementById('unhandledView').innerHTML = '<p style="color:#f44336;">Failed to load.</p>';
+            }
+        }
+
+        async function markHandled(id, btn) {
+            btn.disabled = true;
+            btn.textContent = '...';
+            try {
+                await fetch(`/api/ws-events/${id}/mark-handled`, { method: 'POST' });
+                const row = btn.closest('tr');
+                const next = row.nextElementSibling;
+                // remove both the summary row and its raw json expand row
+                if (next && next.dataset.expandFor == id) next.remove();
+                row.remove();
+                const countEl = document.getElementById('unhandledCount');
+                const cur = parseInt(countEl.textContent) || 0;
+                countEl.textContent = `${Math.max(0, cur - 1)} events`;
+            } catch {
+                btn.disabled = false;
+                btn.textContent = 'Handle';
+            }
+        }
+
+        function toggleUnhandledJson(id) {
+            const row = document.getElementById(`uh-json-${id}`);
+            if (row) row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+        }
+
+        function renderUnhandled(events) {
+            const container = document.getElementById('unhandledView');
+            if (!events.length) {
+                container.innerHTML = '<p style="color:#4ade80;padding:20px 0;">All clear — no unhandled events.</p>';
+                return;
+            }
+            let rows = '';
+            events.forEach(e => {
+                const trader = e.userHandle ? `@${e.userHandle}` : (e.displayName || '—');
+                const typeBadge = `<span style="background:#1e2d3d;color:#5ca8e2;padding:2px 8px;border-radius:10px;font-size:11px;font-family:monospace;">${e.type}</span>`;
+                const amt = e.usdAmount != null ? `$${Number(e.usdAmount).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})}` : '—';
+                const time = msFmtTime(e.receivedAt);
+                rows += `<tr style="cursor:pointer;" onclick="toggleUnhandledJson(${e.id})">
+                    <td>${time}</td>
+                    <td>${typeBadge}</td>
+                    <td style="color:#5ca8e2;">${trader}</td>
+                    <td style="font-weight:500;">${e.ticker || '—'}</td>
+                    <td style="color:#8a96a0;">${amt}</td>
+                    <td><button class="btn btn-secondary" style="padding:3px 10px;font-size:12px;" onclick="event.stopPropagation();markHandled(${e.id},this)">Handle</button></td>
+                </tr>
+                <tr id="uh-json-${e.id}" data-expand-for="${e.id}" style="display:none;background:#0c1520;">
+                    <td colspan="6" style="padding:8px 12px;">
+                        <pre style="font-family:'Courier New',monospace;font-size:11px;color:#8cffa0;white-space:pre-wrap;word-break:break-all;margin:0;">${JSON.stringify(JSON.parse(e.rawJson), null, 2)}</pre>
+                    </td>
+                </tr>`;
+            });
+            container.innerHTML = `<table><thead><tr>
+                <th>Time</th><th>Type</th><th>Trader</th><th>Ticker</th><th>Amount</th><th>Action</th>
+            </tr></thead><tbody>${rows}</tbody></table>`;
         }
 
         // Auto-refresh payments every 30s when tab is active

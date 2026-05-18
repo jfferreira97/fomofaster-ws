@@ -39,13 +39,13 @@ public class NotificationsController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("WS STRUCTURED NOTIFICATION: {Side} {Ticker} by @{Trader} (tradeId={TradeId})",
-                req.Side, req.Ticker, req.Trader, req.TradeId);
+            _logger.LogInformation("WS STRUCTURED NOTIFICATION: {Side} {Ticker} by @{Trader} (wsId={WsId} tradeId={TradeId})",
+                req.Side, req.Ticker, req.Trader, req.WsId, req.TradeId);
 
-            bool alreadyExists = await _dbContext.Notifications.AnyAsync(n => n.FomoWsTradeId == req.TradeId);
-            if (alreadyExists)
+            var wsEvent = await _dbContext.WsEvents.FirstOrDefaultAsync(e => e.WsId == req.WsId);
+            if (wsEvent?.Handled == true)
             {
-                _logger.LogInformation("Duplicate FomoWsTradeId {TradeId}, skipping", req.TradeId);
+                _logger.LogInformation("WsEvent {WsId} already handled, skipping", req.WsId);
                 return Ok(new { accepted = false, reason = "duplicate" });
             }
 
@@ -64,7 +64,8 @@ public class NotificationsController : ControllerBase
                 {
                     "swap_buy"      => NotificationType.Buy,
                     "swap_sell"     => NotificationType.Sell,
-                    "swap_withdraw" => NotificationType.Deposit,
+                    "swap_withdraw" => NotificationType.Sell,
+                    "transfer_out"  => NotificationType.Sell,
                     _               => NotificationType.Unknown
                 };
 
@@ -74,22 +75,24 @@ public class NotificationsController : ControllerBase
                 var mc = req.MarketCap.HasValue ? $" (${FormatMarketCap(req.MarketCap.Value)} MC)" : "";
                 message = $"💥 {req.Ticker} thesis by {req.Trader}:{mc}\n\n{req.Comment}\n\nCurrent ${req.Ticker} position by {req.Trader}: ${req.UsdAmount:N0}";
             }
+            else if (req.Side == "transfer_out" || req.Side == "swap_withdraw")
+            {
+                var mc = req.MarketCap.HasValue ? $" at ${FormatMarketCap(req.MarketCap.Value)} MC" : "";
+                var still = req.Equity.HasValue && req.Equity.Value > 0
+                    ? $" (still holding ${req.Equity.Value:N0})"
+                    : "";
+                message = $"{req.Ticker}{mc} 🔴 @{req.Trader} withdrew ${req.UsdAmount:N0}{still}";
+            }
             else
             {
                 var sideWord = req.Side switch
                 {
-                    "swap_buy"      => "bought",
-                    "swap_sell"     => "sold",
-                    "swap_withdraw" => "deposited",
-                    _               => "traded"
+                    "swap_buy"  => "bought",
+                    "swap_sell" => "sold",
+                    _           => "traded"
                 };
 
-                var emoji = req.Side switch
-                {
-                    "swap_buy"  => "🟢",
-                    "swap_sell" => "🔴",
-                    _           => "🟡"
-                };
+                var emoji = req.Side == "swap_buy" ? "🟢" : "🔴";
 
                 var mc = req.MarketCap.HasValue ? $" at ${FormatMarketCap(req.MarketCap.Value)} MC" : "";
                 message = $"{req.Ticker}{mc} {emoji} {req.Trader} {sideWord} ${req.UsdAmount:0.##}";
@@ -107,6 +110,12 @@ public class NotificationsController : ControllerBase
                 notificationType: notifType,
                 fomoWsTradeId: req.TradeId
             );
+
+            if (wsEvent != null)
+            {
+                wsEvent.Handled = true;
+                await _dbContext.SaveChangesAsync();
+            }
 
             return Ok(new { accepted = true });
         }

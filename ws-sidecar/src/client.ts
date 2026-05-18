@@ -14,9 +14,9 @@ export async function postStructured(req: StructuredNotificationRequest): Promis
     });
     const body = await res.json() as { accepted: boolean; reason?: string };
     if (body.accepted) {
-      console.log(`${ts()} [client] ✅ accepted tradeId=${req.tradeId} (${req.wsType} ${req.ticker} @${req.trader})`);
+      console.log(`${ts()} [client] ✅ accepted wsId=${req.wsId} (${req.wsType} ${req.ticker} @${req.trader})`);
     } else {
-      console.log(`${ts()} [client] skipped tradeId=${req.tradeId}: ${body.reason}`);
+      console.log(`${ts()} [client] skipped wsId=${req.wsId}: ${body.reason}`);
     }
   } catch (err) {
     console.error(`${ts()} [client] ❌ POST failed for tradeId=${req.tradeId}:`, err);
