@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types.Enums;
@@ -45,11 +45,6 @@ public class TraderService : ITraderService
         return await _dbContext.Traders.OrderBy(t => t.Id).ToListAsync();
     }
 
-    public async Task<List<Trader>> GetPublicTradersAsync()
-    {
-        return await _dbContext.Traders.Where(t => !t.IsHidden).OrderBy(t => t.Id).ToListAsync();
-    }
-
     public async Task<List<Trader>> GetTradersByUserIdAsync(int userId)
     {
         return await _dbContext.UserTraders
@@ -60,27 +55,7 @@ public class TraderService : ITraderService
             .ToListAsync();
     }
 
-    public async Task<List<Trader>> GetPublicTradersByUserIdAsync(int userId)
-    {
-        return await _dbContext.UserTraders
-            .Where(ut => ut.UserId == userId)
-            .Include(ut => ut.Trader)
-            .Where(ut => !ut.Trader.IsHidden)
-            .Select(ut => ut.Trader)
-            .OrderBy(t => t.Id)
-            .ToListAsync();
-    }
-
-    public async Task<bool> SetTraderHiddenAsync(int traderId, bool isHidden)
-    {
-        var trader = await _dbContext.Traders.FindAsync(traderId);
-        if (trader == null) return false;
-        trader.IsHidden = isHidden;
-        await _dbContext.SaveChangesAsync();
-        return true;
-    }
-
-    public async Task<Trader> AddOrUpdateTraderAsync(string handle, bool isHidden = false)
+    public async Task<Trader> AddOrUpdateTraderAsync(string handle)
     {
         var trader = await GetTraderByHandleIgnoreCaseAsync(handle);
         var isNewTrader = trader == null;
@@ -92,11 +67,10 @@ public class TraderService : ITraderService
                 Handle = handle,
                 FirstSeenAt = DateTime.UtcNow,
                 LastSeenAt = DateTime.UtcNow,
-                IsHidden = isHidden
             };
 
             _dbContext.Traders.Add(trader);
-            _logger.LogInformation("New trader added: Handle={Handle}, IsHidden={IsHidden}", handle, isHidden);
+            _logger.LogInformation("New trader added: Handle={Handle}", handle);
         }
         else
         {
@@ -134,14 +108,10 @@ public class TraderService : ITraderService
         {
             try
             {
-                // Skip hidden trader broadcast for users without access
-                if (trader.IsHidden && !user.HasHiddenTradersAccess)
-                    continue;
-
                 string message;
                 var escapedHandle = trader.Handle.Replace("_", "\\_");
 
-                if (user.AutoFollowNewTraders && (!trader.IsHidden || user.HasHiddenTradersAccess))
+                if (user.AutoFollowNewTraders)
                 {
                     await FollowTraderAsync(user.Id, trader.Id);
 
@@ -185,15 +155,6 @@ Use /autofollow on if you want to opt in to auto-following new traders.";
 
         if (existing != null)
             return false;
-
-        // Block following hidden traders without access
-        var trader = await _dbContext.Traders.FindAsync(traderId);
-        if (trader?.IsHidden == true)
-        {
-            var user = await _dbContext.Users.FindAsync(userId);
-            if (user == null || !user.HasHiddenTradersAccess)
-                return false;
-        }
 
         var userTrader = new UserTrader
         {
@@ -285,38 +246,6 @@ Use /autofollow on if you want to opt in to auto-following new traders.";
         }
 
         _logger.LogInformation("User {UserId} followed {Count} traders (all)", userId, followedCount);
-        return followedCount;
-    }
-
-    public async Task<int> FollowAllPublicTradersAsync(int userId)
-    {
-        var publicTraders = await GetPublicTradersAsync();
-        var followedCount = 0;
-
-        foreach (var trader in publicTraders)
-        {
-            var success = await FollowTraderAsync(userId, trader.Id);
-            if (success)
-                followedCount++;
-        }
-
-        _logger.LogInformation("User {UserId} followed {Count} public traders", userId, followedCount);
-        return followedCount;
-    }
-
-    public async Task<int> FollowAllHiddenTradersAsync(int userId)
-    {
-        var hiddenTraders = await _dbContext.Traders.Where(t => t.IsHidden).OrderBy(t => t.Id).ToListAsync();
-        var followedCount = 0;
-
-        foreach (var trader in hiddenTraders)
-        {
-            var success = await FollowTraderAsync(userId, trader.Id);
-            if (success)
-                followedCount++;
-        }
-
-        _logger.LogInformation("User {UserId} followed {Count} hidden traders", userId, followedCount);
         return followedCount;
     }
 

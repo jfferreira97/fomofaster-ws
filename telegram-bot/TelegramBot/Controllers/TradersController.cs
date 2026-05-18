@@ -84,7 +84,7 @@ public class TradersController : ControllerBase
             foreach (var handle in request.Handles)
             {
                 var cleanHandle = handle.TrimStart('@');
-                await _traderService.AddOrUpdateTraderAsync(cleanHandle, request.IsHidden);
+                await _traderService.AddOrUpdateTraderAsync(cleanHandle);
                 added.Add(cleanHandle);
             }
 
@@ -93,24 +93,6 @@ public class TradersController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error bulk adding traders");
-            return StatusCode(500, new { status = "error", message = ex.Message });
-        }
-    }
-
-    [HttpPost("{traderId}/toggle-hidden")]
-    public async Task<IActionResult> ToggleHidden(int traderId, [FromBody] ToggleHiddenRequest request)
-    {
-        try
-        {
-            var success = await _traderService.SetTraderHiddenAsync(traderId, request.IsHidden);
-            if (!success)
-                return NotFound(new { status = "error", message = "Trader not found" });
-
-            return Ok(new { status = "success" });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error toggling hidden for trader {TraderId}", traderId);
             return StatusCode(500, new { status = "error", message = ex.Message });
         }
     }
@@ -154,5 +136,4 @@ public class TradersController : ControllerBase
 }
 
 public record FollowRequest(long ChatId, int TraderId);
-public record BulkAddTradersRequest(string[] Handles, bool IsHidden = false);
-public record ToggleHiddenRequest(bool IsHidden);
+public record BulkAddTradersRequest(string[] Handles);

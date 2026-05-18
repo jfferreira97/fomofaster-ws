@@ -12,5 +12,4 @@ public class User
     public bool IsRegisteredNurse { get; set; }
     public bool IsRN4L { get; set; }
     public DateTime? RNExpiresAt { get; set; }
-    public bool HasHiddenTradersAccess { get; set; } = false;
 }

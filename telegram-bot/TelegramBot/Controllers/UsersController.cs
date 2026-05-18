@@ -51,7 +51,6 @@ public class UsersController : ControllerBase
                     joinedAt = u.JoinedAt,
                     isActive = u.IsActive,
                     autoFollowNewTraders = u.AutoFollowNewTraders,
-                    hasHiddenTradersAccess = u.HasHiddenTradersAccess,
                     trackingCount = userTraderCounts.GetValueOrDefault(u.Id, 0),
                     totalTraders = totalTraders
                 })
@@ -312,32 +311,6 @@ public class UsersController : ControllerBase
         }
     }
 
-    [HttpPost("{chatId}/toggle-hidden-access")]
-    public async Task<IActionResult> ToggleHiddenAccess(long chatId, [FromBody] ToggleHiddenAccessRequest request)
-    {
-        try
-        {
-            var user = await _userService.GetUserByChatIdAsync(chatId);
-            if (user == null)
-                return NotFound(new { status = "error", message = "User not found" });
-
-            user.HasHiddenTradersAccess = request.HasHiddenTradersAccess;
-            await _dbContext.SaveChangesAsync();
-
-            return Ok(new
-            {
-                status = "success",
-                message = $"Hidden traders access set to {request.HasHiddenTradersAccess}",
-                hasHiddenTradersAccess = user.HasHiddenTradersAccess
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error toggling hidden access for user {ChatId}", chatId);
-            return StatusCode(500, new { status = "error", message = ex.Message });
-        }
-    }
-
     [HttpPost("{chatId}/follow-all-public")]
     public async Task<IActionResult> FollowAllPublicTraders(long chatId)
     {
@@ -348,44 +321,18 @@ public class UsersController : ControllerBase
                 return NotFound(new { status = "error", message = "User not found" });
 
             var traderService = HttpContext.RequestServices.GetRequiredService<ITraderService>();
-            var followedCount = await traderService.FollowAllPublicTradersAsync(user.Id);
+            var followedCount = await traderService.FollowAllTradersAsync(user.Id);
 
             return Ok(new
             {
                 status = "success",
-                message = $"User now following {followedCount} new public traders",
+                message = $"User now following {followedCount} new traders",
                 newFollows = followedCount
             });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error making user {ChatId} follow all public traders", chatId);
-            return StatusCode(500, new { status = "error", message = ex.Message });
-        }
-    }
-
-    [HttpPost("{chatId}/follow-all-hidden")]
-    public async Task<IActionResult> FollowAllHiddenTraders(long chatId)
-    {
-        try
-        {
-            var user = await _userService.GetUserByChatIdAsync(chatId);
-            if (user == null)
-                return NotFound(new { status = "error", message = "User not found" });
-
-            var traderService = HttpContext.RequestServices.GetRequiredService<ITraderService>();
-            var followedCount = await traderService.FollowAllHiddenTradersAsync(user.Id);
-
-            return Ok(new
-            {
-                status = "success",
-                message = $"User now following {followedCount} new hidden traders",
-                newFollows = followedCount
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error making user {ChatId} follow all hidden traders", chatId);
+            _logger.LogError(ex, "Error making user {ChatId} follow all traders", chatId);
             return StatusCode(500, new { status = "error", message = ex.Message });
         }
     }
@@ -395,4 +342,3 @@ public record AddUserRequest(long ChatId, string? Username, string? FirstName);
 public record SendMessageRequest(long ChatId, string Message);
 public record BroadcastMessageRequest(string Message);
 public record ToggleAutoFollowRequest(bool AutoFollowNewTraders);
-public record ToggleHiddenAccessRequest(bool HasHiddenTradersAccess);

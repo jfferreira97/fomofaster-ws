@@ -258,9 +258,6 @@ namespace TelegramBot.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
-                    b.Property<bool>("IsHidden")
-                        .HasColumnType("INTEGER");
-
                     b.Property<DateTime>("LastSeenAt")
                         .HasColumnType("TEXT");
 
@@ -286,9 +283,6 @@ namespace TelegramBot.Migrations
 
                     b.Property<string>("FirstName")
                         .HasColumnType("TEXT");
-
-                    b.Property<bool>("HasHiddenTradersAccess")
-                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("INTEGER");

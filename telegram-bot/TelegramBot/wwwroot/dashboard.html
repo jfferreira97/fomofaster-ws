@@ -603,14 +603,13 @@
                                     <th>First Name</th>
                                     <th>Traders Tracking</th>
                                     <th>Auto-Follow New</th>
-                                    <th>Hidden Access</th>
                                     <th>Active</th>
                                     <th>Joined At</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="usersTableBody">
-                                <tr><td colspan="9" style="text-align: center; color: #8a96a0;">Loading...</td></tr>
+                                <tr><td colspan="8" style="text-align: center; color: #8a96a0;">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -693,16 +692,6 @@
                         <div class="form-group">
                             <label class="form-label">Trader Handles (one per line, @ optional)</label>
                             <textarea id="traderHandles" class="form-input" rows="5" placeholder="0xuberM&#10;frankdegods&#10;@trader123"></textarea>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
-                            <span style="font-size: 13px; color: #8a96a0;">Visibility:</span>
-                            <div onclick="toggleHiddenMode()" style="cursor: pointer; display: flex; align-items: center; gap: 8px; user-select: none;">
-                                <div id="hiddenModeSlider" style="width: 44px; height: 24px; background: #2b5278; border-radius: 12px; position: relative; transition: background 0.2s;">
-                                    <div id="hiddenModeKnob" style="width: 18px; height: 18px; background: #fff; border-radius: 50%; position: absolute; top: 3px; left: 3px; transition: left 0.2s;"></div>
-                                </div>
-                                <span id="hiddenModeLabel" style="font-size: 13px; color: #8a96a0;">Public</span>
-                            </div>
-                            <input type="checkbox" id="hiddenModeToggle" style="display: none;">
                         </div>
                         <button class="btn btn-primary" onclick="addTraders()">Add Traders</button>
                     </div>
@@ -1034,7 +1023,7 @@
                 const response = await fetch('/api/traders/bulk-add', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ handles, isHidden: document.getElementById('hiddenModeToggle').checked })
+                    body: JSON.stringify({ handles })
                 });
 
                 const result = await response.json();
@@ -1085,13 +1074,11 @@
                             <td>${user.firstName || 'N/A'}</td>
                             <td>${tradersTracking}</td>
                             <td style="text-align: center;">${autoFollowCheckbox}</td>
-                            <td style="text-align: center;"><input type="checkbox" ${user.hasHiddenTradersAccess ? 'checked' : ''} onchange="toggleHiddenAccess(${user.chatId}, this.checked)" style="cursor: pointer; width: 18px; height: 18px;" title="Hidden Traders Access"></td>
                             <td>${isActiveDisplay}</td>
                             <td>${joinedDate}</td>
                             <td style="display: flex; gap: 6px; flex-wrap: wrap;">
                                 <button class="btn btn-secondary" onclick="showSendMessageModal(${user.chatId}, '${displayName}')">Send Message</button>
-                                <button class="btn btn-primary" onclick="followAllPublicTraders(${user.chatId}, '${displayName}')">Follow All Public</button>
-                                <button class="btn btn-secondary" onclick="followAllHiddenTraders(${user.chatId}, '${displayName}')">Follow All Hidden</button>
+                                <button class="btn btn-primary" onclick="followAllPublicTraders(${user.chatId}, '${displayName}')">Follow All</button>
                                 <button class="btn btn-danger" onclick="unfollowAllTraders(${user.chatId}, '${displayName}')">Unfollow All</button>
                             </td>
                         </tr>
@@ -1474,47 +1461,8 @@
             } catch (err) { alert('Error: ' + err.message); }
         }
 
-        // Hidden mode toggle for Add Traders
-        function toggleHiddenMode() {
-            const cb = document.getElementById('hiddenModeToggle');
-            const slider = document.getElementById('hiddenModeSlider');
-            const knob = document.getElementById('hiddenModeKnob');
-            const label = document.getElementById('hiddenModeLabel');
-            cb.checked = !cb.checked;
-            if (cb.checked) {
-                slider.style.background = '#5ca8e2';
-                knob.style.left = '23px';
-                label.textContent = 'Hidden';
-                label.style.color = '#5ca8e2';
-            } else {
-                slider.style.background = '#2b5278';
-                knob.style.left = '3px';
-                label.textContent = 'Public';
-                label.style.color = '#8a96a0';
-            }
-        }
-
-        async function toggleHiddenAccess(chatId, hasAccess) {
-            try {
-                const response = await fetch(`/api/users/${chatId}/toggle-hidden-access`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ hasHiddenTradersAccess: hasAccess })
-                });
-                const result = await response.json();
-                if (!response.ok || result.status !== 'success') {
-                    alert('Error: ' + (result.message || 'Unknown error'));
-                    loadUsers();
-                }
-            } catch (error) {
-                console.error('Error toggling hidden access:', error);
-                alert('Error toggling hidden access');
-                loadUsers();
-            }
-        }
-
         async function followAllPublicTraders(chatId, userName) {
-            if (!confirm(`Make ${userName} follow all public traders?`)) return;
+            if (!confirm(`Make ${userName} follow all traders?`)) return;
             try {
                 const response = await fetch(`/api/users/${chatId}/follow-all-public`, { method: 'POST' });
                 const result = await response.json();
@@ -1525,23 +1473,7 @@
                     alert('Error: ' + (result.message || 'Unknown error'));
                 }
             } catch (error) {
-                alert('Error making user follow all public traders');
-            }
-        }
-
-        async function followAllHiddenTraders(chatId, userName) {
-            if (!confirm(`Make ${userName} follow all hidden traders?`)) return;
-            try {
-                const response = await fetch(`/api/users/${chatId}/follow-all-hidden`, { method: 'POST' });
-                const result = await response.json();
-                if (response.ok && result.status === 'success') {
-                    alert(result.message);
-                    loadUsers();
-                } else {
-                    alert('Error: ' + (result.message || 'Unknown error'));
-                }
-            } catch (error) {
-                alert('Error making user follow all hidden traders');
+                alert('Error making user follow all traders');
             }
         }
         // Auto-refresh payments every 30s when tab is active

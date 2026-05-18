@@ -196,7 +196,7 @@ public class TelegramBotPollingService : BackgroundService
                     message.From?.FirstName
                 );
 
-                await traderService.FollowAllPublicTradersAsync(newUser.Id);
+                await traderService.FollowAllTradersAsync(newUser.Id);
                 var allTradersCount = await traderService.GetAllTradersAsync();
 
                 await _botClient.SendTextMessageAsync(
@@ -266,9 +266,7 @@ You'll only receive notifications from traders you follow!",
                     break;
                 }
 
-                var allTraders = user.HasHiddenTradersAccess
-                    ? await traderService.GetAllTradersAsync()
-                    : await traderService.GetPublicTradersAsync();
+                var allTraders = await traderService.GetAllTradersAsync();
 
                 if (allTraders.Count == 0)
                 {
@@ -314,9 +312,7 @@ Use /follow 1,2,3 or /follow trader1,trader2 to follow traders.";
                     break;
                 }
 
-                var followedTraders = userForMyTraders.HasHiddenTradersAccess
-                    ? await traderService.GetTradersByUserIdAsync(userForMyTraders.Id)
-                    : await traderService.GetPublicTradersByUserIdAsync(userForMyTraders.Id);
+                var followedTraders = await traderService.GetTradersByUserIdAsync(userForMyTraders.Id);
 
                 if (followedTraders.Count == 0)
                 {
@@ -376,12 +372,8 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                 // Handle /follow all
                 if (followInput.Equals("all", StringComparison.OrdinalIgnoreCase))
                 {
-                    var followedCount = userForFollow.HasHiddenTradersAccess
-                        ? await traderService.FollowAllTradersAsync(userForFollow.Id)
-                        : await traderService.FollowAllPublicTradersAsync(userForFollow.Id);
-                    var allTradersForFollow = userForFollow.HasHiddenTradersAccess
-                        ? await traderService.GetAllTradersAsync()
-                        : await traderService.GetPublicTradersAsync();
+                    var followedCount = await traderService.FollowAllTradersAsync(userForFollow.Id);
+                    var allTradersForFollow = await traderService.GetAllTradersAsync();
 
                     if (allTradersForFollow.Count == 0)
                     {
