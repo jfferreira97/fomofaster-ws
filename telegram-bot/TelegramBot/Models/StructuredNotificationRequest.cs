@@ -9,6 +9,7 @@ public class StructuredNotificationRequest
     public required string ContractAddress { get; set; }
     public required int NetworkId { get; set; }
     public required string Side { get; set; }
+    public required string WsType { get; set; }
     public required double UsdAmount { get; set; }
     public double? MarketCap { get; set; }
     public string? Comment { get; set; }

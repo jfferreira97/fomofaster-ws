@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using TelegramBot.Data;
 using TelegramBot.Models;
 using TelegramBot.Services;
@@ -13,17 +14,20 @@ public class NotificationsController : ControllerBase
     private readonly ITelegramService _telegramService;
     private readonly ITraderService _traderService;
     private readonly AppDbContext _dbContext;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<NotificationsController> _logger;
 
     public NotificationsController(
         ITelegramService telegramService,
         ITraderService traderService,
         AppDbContext dbContext,
+        IHttpClientFactory httpClientFactory,
         ILogger<NotificationsController> logger)
     {
         _telegramService = telegramService;
         _traderService = traderService;
         _dbContext = dbContext;
+        _httpClientFactory = httpClientFactory;
         _logger = logger;
     }
 
@@ -33,6 +37,41 @@ public class NotificationsController : ControllerBase
         >= 1_000_000     => $"{mc / 1_000_000:0.##}m",
         _                => $"{mc / 1_000:0.##}k"
     };
+
+    private async Task<double?> FetchMarketCapAsync(string contractAddress)
+    {
+        try
+        {
+            var client = _httpClientFactory.CreateClient();
+            var url = $"https://api.dexscreener.com/latest/dex/tokens/{contractAddress}";
+            var json = await client.GetStringAsync(url);
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("pairs", out var pairs) || pairs.ValueKind != JsonValueKind.Array)
+                return null;
+
+            double? best = null;
+            double bestLiquidity = -1;
+            foreach (var pair in pairs.EnumerateArray())
+            {
+                var liq = pair.TryGetProperty("liquidity", out var liqEl)
+                    && liqEl.TryGetProperty("usd", out var liqUsd)
+                    && liqUsd.ValueKind == JsonValueKind.Number
+                    ? liqUsd.GetDouble() : 0;
+
+                if (pair.TryGetProperty("marketCap", out var mc) && mc.ValueKind == JsonValueKind.Number && liq > bestLiquidity)
+                {
+                    best = mc.GetDouble();
+                    bestLiquidity = liq;
+                }
+            }
+            return best;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "DexScreener fetch failed for {ContractAddress}", contractAddress);
+            return null;
+        }
+    }
 
     [HttpPost("structured")]
     public async Task<IActionResult> ReceiveStructuredNotification([FromBody] StructuredNotificationRequest req)
@@ -58,26 +97,28 @@ public class NotificationsController : ControllerBase
                 _          => null
             };
 
-            var notifType = req.Comment != null
-                ? NotificationType.Thesis
-                : req.Side switch
-                {
-                    "swap_buy"      => NotificationType.Buy,
-                    "swap_sell"     => NotificationType.Sell,
-                    "swap_withdraw" => NotificationType.Sell,
-                    "transfer_out"  => NotificationType.Sell,
-                    _               => NotificationType.Unknown
-                };
+            var notifType = req.WsType switch
+            {
+                "thesis"        => NotificationType.Thesis,
+                "swap_buy"      => NotificationType.Buy,
+                "swap_sell"     => NotificationType.Sell,
+                "swap_withdraw" => NotificationType.Sell,
+                "transfer_out"  => NotificationType.Sell,
+                _               => NotificationType.Unknown
+            };
 
             string message;
-            if (req.Comment != null)
+            double? notifMarketCap;
+            if (req.WsType == "thesis")
             {
-                var mc = req.MarketCap.HasValue ? $" (${FormatMarketCap(req.MarketCap.Value)} MC)" : "";
+                notifMarketCap = await FetchMarketCapAsync(req.ContractAddress);
+                var mc = notifMarketCap.HasValue ? $" (${FormatMarketCap(notifMarketCap.Value)} MC)" : "";
                 message = $"💥 {req.Ticker} thesis by {req.Trader}:{mc}\n\n{req.Comment}\n\nCurrent ${req.Ticker} position by {req.Trader}: ${req.UsdAmount:N0}";
             }
             else if (req.Side == "transfer_out" || req.Side == "swap_withdraw")
             {
-                var mc = req.MarketCap.HasValue ? $" at ${FormatMarketCap(req.MarketCap.Value)} MC" : "";
+                notifMarketCap = req.MarketCap;
+                var mc = notifMarketCap.HasValue ? $" at ${FormatMarketCap(notifMarketCap.Value)} MC" : "";
                 var still = req.Equity.HasValue && req.Equity.Value > 0
                     ? $" (still holding ${req.Equity.Value:N0})"
                     : "";
@@ -85,16 +126,15 @@ public class NotificationsController : ControllerBase
             }
             else
             {
+                notifMarketCap = req.MarketCap;
                 var sideWord = req.Side switch
                 {
                     "swap_buy"  => "bought",
                     "swap_sell" => "sold",
                     _           => "traded"
                 };
-
                 var emoji = req.Side == "swap_buy" ? "🟢" : "🔴";
-
-                var mc = req.MarketCap.HasValue ? $" at ${FormatMarketCap(req.MarketCap.Value)} MC" : "";
+                var mc = notifMarketCap.HasValue ? $" at ${FormatMarketCap(notifMarketCap.Value)} MC" : "";
                 message = $"{req.Ticker}{mc} {emoji} {req.Trader} {sideWord} ${req.UsdAmount:0.##}";
             }
 
@@ -106,7 +146,7 @@ public class NotificationsController : ControllerBase
                 chain: chain,
                 traderHandle: req.Trader,
                 ticker: req.Ticker,
-                marketCap: req.MarketCap,
+                marketCap: notifMarketCap,
                 notificationType: notifType,
                 fomoWsTradeId: req.TradeId
             );
