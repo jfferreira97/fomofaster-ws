@@ -151,11 +151,9 @@ public class NotificationsController : ControllerBase
                 fomoWsTradeId: req.TradeId
             );
 
-            if (wsEvent != null)
-            {
-                wsEvent.Handled = true;
-                await _dbContext.SaveChangesAsync();
-            }
+            await _dbContext.WsEvents
+                .Where(e => e.WsId == req.WsId && !e.Handled)
+                .ExecuteUpdateAsync(s => s.SetProperty(e => e.Handled, true));
 
             return Ok(new { accepted = true });
         }
