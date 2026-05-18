@@ -1,3 +1,5 @@
+export type FomoWebsocketPayload = Record<string, unknown>;
+
 export interface StructuredNotificationRequest {
   tradeId: string;
   trader: string;
@@ -28,7 +30,7 @@ function markSeen(tradeId: string): boolean {
   return false;
 }
 
-export function transformFrame(payload: Record<string, unknown>): StructuredNotificationRequest | null {
+export function transformFrame(payload: FomoWebsocketPayload): StructuredNotificationRequest | null {
   const type = payload.type as string;
   const tradeId = (payload.tradeId ?? payload.id) as string;
 

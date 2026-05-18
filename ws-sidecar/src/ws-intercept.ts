@@ -1,8 +1,9 @@
 import fs from 'fs';
 import type { Page } from 'playwright';
 
-const ts = () => `[${new Date().toISOString().replace('T', ' ').slice(0, 19)}]`;
+const ts = () => { const d = new Date(); return `[${new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().replace('T', ' ').slice(0, 19)}]`; };
 import { transformFrame, type StructuredNotificationRequest } from './transform';
+import { insertEvent } from './db';
 
 const LOG_FILE = 'C:\\Users\\Administrator\\Desktop\\ws-payloads.txt';
 
@@ -40,6 +41,7 @@ export function attachWsInterceptor(
 
       // Log raw payload to desktop for inspection
       logPayload(payload);
+      insertEvent(payload);
 
       const req = transformFrame(payload);
       if (req) {

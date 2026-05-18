@@ -80,8 +80,7 @@ public class DashboardController : ControllerBase
                         sentAt = n.SentAt,
                         recipientCount = sentData?.RecipientCount ?? 0,
                         totalUsers = totalUsers,
-                        marketCapAtNotification = n.MarketCapAtNotification,
-                        fomoWsJson = n.FomoWsJson
+                        marketCapAtNotification = n.MarketCapAtNotification
                     };
                 })
                 .OrderBy(n => n.sentAt) // Chronological order

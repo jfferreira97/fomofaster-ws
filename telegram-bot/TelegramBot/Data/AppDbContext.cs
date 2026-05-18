@@ -16,6 +16,7 @@ public class AppDbContext : DbContext
     public DbSet<SentMessage> SentMessages { get; set; }
     public DbSet<PendingPayment> PendingPayments { get; set; }
     public DbSet<AppConfig> AppConfigs { get; set; }
+    public DbSet<WsEvent> WsEvents { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -113,6 +114,18 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Key).IsRequired().HasMaxLength(100);
             entity.Property(e => e.Value).IsRequired();
             entity.Property(e => e.UpdatedAt).IsRequired();
+        });
+
+        modelBuilder.Entity<WsEvent>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.WsId).IsRequired().HasMaxLength(100);
+            entity.HasIndex(e => e.WsId).IsUnique();
+            entity.Property(e => e.Type).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.TradeId).HasMaxLength(100);
+            entity.HasIndex(e => e.TradeId);
+            entity.HasIndex(e => e.Type);
+            entity.Property(e => e.ReceivedAt).IsRequired();
         });
 
         modelBuilder.Entity<PendingPayment>(entity =>

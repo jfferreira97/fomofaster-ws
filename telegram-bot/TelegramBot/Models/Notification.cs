@@ -12,7 +12,6 @@ public class Notification
     public decimal? MarketCapAtNotification { get; set; }
     public NotificationType Type { get; set; } = NotificationType.Unknown;
     public string? FomoWsTradeId { get; set; }
-    public string? FomoWsJson { get; set; }
 }
 
 public enum NotificationType

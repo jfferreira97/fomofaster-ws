@@ -52,7 +52,7 @@ public class TelegramService : ITelegramService
         return _botClient != null;
     }
 
-    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, string? contractAddress = null, Chain? chain = null, string? traderHandle = null, string? ticker = null, double? marketCap = null, NotificationType notificationType = NotificationType.Unknown, string? fomoWsTradeId = null, string? fomoWsJson = null)
+    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, string? contractAddress = null, Chain? chain = null, string? traderHandle = null, string? ticker = null, double? marketCap = null, NotificationType notificationType = NotificationType.Unknown, string? fomoWsTradeId = null)
     {
         if (_botClient == null)
         {
@@ -177,8 +177,7 @@ To get full details: /subscribe";
             SentAt = DateTime.UtcNow,
             MarketCapAtNotification = marketCap.HasValue ? (decimal)marketCap.Value : null,
             Type = notificationType,
-            FomoWsTradeId = fomoWsTradeId,
-            FomoWsJson = fomoWsJson
+            FomoWsTradeId = fomoWsTradeId
         };
         dbContext.Notifications.Add(notificationRecord);
         await dbContext.SaveChangesAsync();
@@ -259,8 +258,7 @@ To get full details: /subscribe";
             sentAt = notificationRecord.SentAt,
             recipientCount = successCount,
             totalUsers = totalActiveUsers.Count,
-            marketCapAtNotification = notificationRecord.MarketCapAtNotification,
-            fomoWsJson = notificationRecord.FomoWsJson
+            marketCapAtNotification = notificationRecord.MarketCapAtNotification
         });
 
         _logger.LogInformation("✅ Notification sent to {Success}/{Total} users ({Failed} failed)",

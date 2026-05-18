@@ -2,7 +2,7 @@ import { chromium } from 'playwright';
 import { attachWsInterceptor } from './ws-intercept';
 import { postStructured, heartbeat } from './client';
 
-const ts = () => `[${new Date().toISOString().replace('T', ' ').slice(0, 19)}]`;
+const ts = () => { const d = new Date(); return `[${new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().replace('T', ' ').slice(0, 19)}]`; };
 
 const HEADLESS = process.env.HEADLESS === 'true';
 const PROFILE_DIR = './chromium-profile';

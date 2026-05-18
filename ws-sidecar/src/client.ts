@@ -1,6 +1,6 @@
 import type { StructuredNotificationRequest } from './transform';
 
-const ts = () => `[${new Date().toISOString().replace('T', ' ').slice(0, 19)}]`;
+const ts = () => { const d = new Date(); return `[${new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().replace('T', ' ').slice(0, 19)}]`; };
 
 const BACKEND_URL = process.env.BACKEND_URL ?? 'http://127.0.0.1:8000';
 

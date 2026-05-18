@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TelegramBot.Data;
@@ -98,23 +97,6 @@ public class NotificationsController : ControllerBase
 
             await _traderService.AddOrUpdateTraderAsync(req.Trader);
 
-            var fomoWsJson = JsonSerializer.Serialize(new
-            {
-                userId             = req.UserId,
-                displayName        = req.DisplayName,
-                userHandle         = req.Trader,
-                profilePictureLink = req.ProfilePictureLink,
-                usdAmount          = req.UsdAmount,
-                marketCap          = req.MarketCap,
-                price              = req.Price,
-                ticker             = req.Ticker,
-                tokenAddress       = req.ContractAddress,
-                networkId          = req.NetworkId,
-                equity             = req.Equity,
-                side               = req.Side,
-                createdAt          = req.CreatedAt
-            });
-
             await _telegramService.SendNotificationToAllUsersAsync(
                 new NotificationRequest { Message = message },
                 contractAddress: req.ContractAddress,
@@ -123,8 +105,7 @@ public class NotificationsController : ControllerBase
                 ticker: req.Ticker,
                 marketCap: req.MarketCap,
                 notificationType: notifType,
-                fomoWsTradeId: req.TradeId,
-                fomoWsJson: fomoWsJson
+                fomoWsTradeId: req.TradeId
             );
 
             return Ok(new { accepted = true });
