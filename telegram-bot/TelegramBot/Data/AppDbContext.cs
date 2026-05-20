@@ -74,7 +74,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Trader).HasMaxLength(100);
             entity.Property(e => e.ContractAddress).HasMaxLength(100);
             entity.Property(e => e.Chain).HasConversion<string>();
-            entity.Property(e => e.Type).HasConversion<string>().HasDefaultValue(NotificationType.Unknown);
+            entity.Property(e => e.Type).HasConversion<string>();
             entity.Property(e => e.SentAt).IsRequired();
 
             entity.Property(e => e.FK_WsEvent_WsId).HasMaxLength(100);

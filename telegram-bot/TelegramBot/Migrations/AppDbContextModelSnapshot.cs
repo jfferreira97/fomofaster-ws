@@ -90,9 +90,7 @@ namespace TelegramBot.Migrations
 
                     b.Property<string>("Type")
                         .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT")
-                        .HasDefaultValue("Unknown");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
