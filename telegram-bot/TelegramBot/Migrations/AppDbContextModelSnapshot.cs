@@ -59,8 +59,16 @@ namespace TelegramBot.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
-                    b.Property<bool>("HasCA")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("ContractAddress")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Chain")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FK_WsEvent_WsId")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal?>("MarketCapAtNotification")
                         .HasColumnType("TEXT");
@@ -74,10 +82,6 @@ namespace TelegramBot.Migrations
 
                     b.Property<string>("Ticker")
                         .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("TradeId")
-                        .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Trader")
@@ -94,9 +98,8 @@ namespace TelegramBot.Migrations
 
                     b.HasIndex("SentAt");
 
-                    b.HasIndex("TradeId")
-                        .IsUnique()
-                        .HasFilter("\"TradeId\" IS NOT NULL");
+                    b.HasIndex("FK_WsEvent_WsId")
+                        .HasFilter("\"FK_WsEvent_WsId\" IS NOT NULL");
 
                     b.ToTable("Notifications");
                 });

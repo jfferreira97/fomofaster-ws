@@ -11,7 +11,7 @@ public class Notification
     public DateTime SentAt { get; set; }
     public decimal? MarketCapAtNotification { get; set; }
     public NotificationType Type { get; set; } = NotificationType.Unknown;
-    public string? FomoWsTradeId { get; set; }
+    public string? FK_WsEvent_WsId { get; set; }
 }
 
 public enum NotificationType

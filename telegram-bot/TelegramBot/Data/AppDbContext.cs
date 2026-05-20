@@ -77,8 +77,8 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Type).HasConversion<string>().HasDefaultValue(NotificationType.Unknown);
             entity.Property(e => e.SentAt).IsRequired();
 
-            entity.Property(e => e.FomoWsTradeId).HasMaxLength(100);
-            entity.HasIndex(e => e.FomoWsTradeId).HasFilter("\"FomoWsTradeId\" IS NOT NULL");
+            entity.Property(e => e.FK_WsEvent_WsId).HasMaxLength(100);
+            entity.HasIndex(e => e.FK_WsEvent_WsId).HasFilter("\"FK_WsEvent_WsId\" IS NOT NULL");
 
             // Index for cleanup queries (delete old notifications)
             entity.HasIndex(e => e.SentAt);

@@ -94,6 +94,7 @@ public class NotificationsController : ControllerBase
                 56         => (Chain?)Chain.BNB,
                 8453       => (Chain?)Chain.BASE,
                 143        => (Chain?)Chain.MONAD,
+                1          => (Chain?)Chain.ETH,
                 _          => null
             };
 
@@ -148,7 +149,7 @@ public class NotificationsController : ControllerBase
                 ticker: req.Ticker,
                 marketCap: notifMarketCap,
                 notificationType: notifType,
-                fomoWsTradeId: req.TradeId
+                fomoWsTradeId: req.WsId
             );
 
             await _dbContext.WsEvents

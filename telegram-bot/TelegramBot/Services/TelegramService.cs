@@ -122,11 +122,12 @@ public class TelegramService : ITelegramService
         {
             string dexScreenerUrl = (chain ?? Chain.SOL) switch
             {
-                Chain.SOL => $"https://dexscreener.com/solana/{contractAddress}",
-                Chain.BNB => $"https://dexscreener.com/bsc/{contractAddress}",
-                Chain.BASE => $"https://dexscreener.com/base/{contractAddress}",
+                Chain.SOL   => $"https://dexscreener.com/solana/{contractAddress}",
+                Chain.BNB   => $"https://dexscreener.com/bsc/{contractAddress}",
+                Chain.BASE  => $"https://dexscreener.com/base/{contractAddress}",
                 Chain.MONAD => $"https://dexscreener.com/monad/{contractAddress}",
-                _ => $"https://dexscreener.com/solana/{contractAddress}"
+                Chain.ETH   => $"https://dexscreener.com/ethereum/{contractAddress}",
+                _           => $"https://dexscreener.com/solana/{contractAddress}"
             };
 
             fullMessage = $@"{processedMessage}
@@ -140,7 +141,7 @@ public class TelegramService : ITelegramService
             obfuscatedMessage = $@"{BuildObfuscatedText(notification.Message, traderHandle, ticker, marketCap)}
 
 📝 Contract: `{redactedCa}`
-🔗 [{chainLabel} | DEXScreener](https://dexscreener.com)
+🔗 {chainLabel} | [DEXScreener](https://dexscreener.com)
 
 To get full details: /subscribe";
         }
@@ -148,11 +149,11 @@ To get full details: /subscribe";
         {
             fullMessage = $@"{processedMessage}
 
-🔗 [{chainLabel} | DEXScreener](https://dexscreener.com)";
+🔗 {chainLabel} | [DEXScreener](https://dexscreener.com)";
             obfuscatedMessage = $@"{BuildObfuscatedText(notification.Message, traderHandle, ticker, marketCap)}
 
 📝 Contract: `{new string('*', 44)}`
-🔗 [{chainLabel} | DEXScreener](https://dexscreener.com)
+🔗 {chainLabel} | [DEXScreener](https://dexscreener.com)
 
 To get full details: /subscribe";
         }
@@ -177,7 +178,7 @@ To get full details: /subscribe";
             SentAt = DateTime.UtcNow,
             MarketCapAtNotification = marketCap.HasValue ? (decimal)marketCap.Value : null,
             Type = notificationType,
-            FomoWsTradeId = fomoWsTradeId
+            FK_WsEvent_WsId = fomoWsTradeId
         };
         dbContext.Notifications.Add(notificationRecord);
         await dbContext.SaveChangesAsync();

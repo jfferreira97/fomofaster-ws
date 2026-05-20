@@ -5,5 +5,6 @@ public enum Chain
     SOL,
     BNB,
     BASE,
-    MONAD
+    MONAD,
+    ETH
 }
