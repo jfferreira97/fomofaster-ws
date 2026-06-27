@@ -286,17 +286,23 @@ You'll only receive notifications from traders you follow!",
                     traderLines.Add($"{trader.Id} - [{trader.Handle}](https://x.com/{trader.Handle}) {status}");
                 }
 
-                var listMessage = $@"📊 All Traders ({allTraders.Count} total)
-
-{string.Join("\n", traderLines)}
-
-Use /follow 1,2,3 or /follow trader1,trader2 to follow traders.";
-
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
-                    text: listMessage,
+                    text: $"📊 All Traders ({allTraders.Count} total) — Use /follow 1,2,3 or /follow trader1,trader2 to follow traders.",
                     parseMode: ParseMode.Markdown
                 );
+
+                const int chunkSize = 150;
+                for (int i = 0; i < traderLines.Count; i += chunkSize)
+                {
+                    var chunk = traderLines.GetRange(i, Math.Min(chunkSize, traderLines.Count - i));
+                    await _botClient.SendTextMessageAsync(
+                        chatId: chatId,
+                        text: string.Join("\n", chunk),
+                        parseMode: ParseMode.Markdown,
+                        disableWebPagePreview: true
+                    );
+                }
                 break;
 
             case "/mytraders":
