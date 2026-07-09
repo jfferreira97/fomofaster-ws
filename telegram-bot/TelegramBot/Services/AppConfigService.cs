@@ -13,6 +13,12 @@ public class AppConfigService
     {
         ["TreasuryWalletAddress"]  = "",
         ["SubscriptionPriceSol"]   = "0.3",
+        ["ConfluenceEnabled"]                  = "true",
+        ["ConfluenceMinTraders"]               = "3",
+        ["ConfluenceWindowMinutes"]            = "30",
+        ["ConfluenceRolloverEnabled"]          = "true",
+        ["ConfluenceRolloverSteps"]            = "15,15",
+        ["ConfluenceRealertDebounceSeconds"]   = "60",
     };
 
     public AppConfigService(IServiceProvider serviceProvider, ILogger<AppConfigService> logger)
@@ -73,6 +79,12 @@ public class AppConfigService
                     {
                         "TreasuryWalletAddress" => "Solana wallet address to sweep payments into",
                         "SubscriptionPriceSol"  => "SOL required for a 30-day subscription",
+                        "ConfluenceEnabled"                => "Enable TRENDING confluence alerts (multiple followed traders buying the same token)",
+                        "ConfluenceMinTraders"             => "Minimum distinct traders buying the same token to trigger a TRENDING alert",
+                        "ConfluenceWindowMinutes"          => "Initial confluence window length in minutes",
+                        "ConfluenceRolloverEnabled"        => "If true, each NEW trader buying extends the window (sells never extend)",
+                        "ConfluenceRolloverSteps"          => "Comma-separated extension minutes per new trader after the first (last value repeats). Empty = extend by full window length",
+                        "ConfluenceRealertDebounceSeconds" => "Minimum seconds between re-alerts for the same token",
                         _ => null
                     },
                     UpdatedAt = DateTime.UtcNow

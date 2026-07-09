@@ -21,5 +21,6 @@ public enum NotificationType
     Deposit,
     Thesis,
     Verified,
+    CUSTOM_Trending, // custom notification fired as a ConfluenceAlert, not an event from the fomo WS feed
     Unknown
 }

@@ -17,6 +17,7 @@ public class AppDbContext : DbContext
     public DbSet<PendingPayment> PendingPayments { get; set; }
     public DbSet<AppConfig> AppConfigs { get; set; }
     public DbSet<WsEvent> WsEvents { get; set; }
+    public DbSet<ConfluenceAlert> ConfluenceAlerts { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -126,6 +127,16 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => e.TradeId);
             entity.HasIndex(e => e.Type);
             entity.Property(e => e.ReceivedAt).IsRequired();
+        });
+
+        modelBuilder.Entity<ConfluenceAlert>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.TokenAddress).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Ticker).HasMaxLength(50);
+            entity.Property(e => e.WindowStartedAt).IsRequired();
+            entity.Property(e => e.FiredAt).IsRequired();
+            entity.HasIndex(e => new { e.TokenAddress, e.FiredAt });
         });
 
         modelBuilder.Entity<PendingPayment>(entity =>

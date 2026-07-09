@@ -15,6 +15,7 @@ public class NotificationsController : ControllerBase
     private readonly ITraderService _traderService;
     private readonly AppDbContext _dbContext;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly ConfluenceService _confluenceService;
     private readonly ILogger<NotificationsController> _logger;
 
     public NotificationsController(
@@ -22,12 +23,14 @@ public class NotificationsController : ControllerBase
         ITraderService traderService,
         AppDbContext dbContext,
         IHttpClientFactory httpClientFactory,
+        ConfluenceService confluenceService,
         ILogger<NotificationsController> logger)
     {
         _telegramService = telegramService;
         _traderService = traderService;
         _dbContext = dbContext;
         _httpClientFactory = httpClientFactory;
+        _confluenceService = confluenceService;
         _logger = logger;
     }
 
@@ -147,6 +150,17 @@ public class NotificationsController : ControllerBase
             await _dbContext.WsEvents
                 .Where(e => e.WsId == req.WsId && !e.Handled)
                 .ExecuteUpdateAsync(s => s.SetProperty(e => e.Handled, true));
+
+            // Non-blocking hand-off to confluence detection (TRENDING alerts)
+            _confluenceService.Enqueue(new ConfluenceTradeEvent(
+                Type: req.WsType,
+                Trader: req.Trader,
+                Ticker: req.Ticker,
+                TokenAddress: req.ContractAddress,
+                NetworkId: req.NetworkId,
+                UsdAmount: (decimal)req.UsdAmount,
+                MarketCap: req.MarketCap.HasValue ? (decimal)req.MarketCap.Value : null,
+                OccurredAt: DateTime.UtcNow));
 
             return Ok(new { accepted = true });
         }
