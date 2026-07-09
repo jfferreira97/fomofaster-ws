@@ -699,7 +699,7 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                 {
                     await _botClient.SendTextMessageAsync(
                         chatId: chatId,
-                        text: "Usage: `/top [chains] <period>`\n\nExamples:\n`/top 1h` - All chains, 1 hour\n`/top sol 1d` - Solana only\n`/top sol,monad 6h` - Multiple chains\n\nChains: sol/solana, bnb/bsc, base, monad",
+                        text: $"Usage: `/top [chains] <period>`\n\nExamples:\n`/top 1h` - All chains, 1 hour\n`/top sol 1d` - Solana only\n`/top sol,monad 6h` - Multiple chains\n\nChains: {ChainInfo.ChainListForHelp()}",
                         parseMode: ParseMode.Markdown
                     );
                     break;
@@ -732,14 +732,7 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                         foreach (var chainStr in chainParts)
                         {
                             var trimmed = chainStr.Trim();
-                            Chain? parsedChain = trimmed switch
-                            {
-                                "sol" or "solana" => Chain.SOL,
-                                "bnb" or "bsc" => Chain.BNB,
-                                "base" => Chain.BASE,
-                                "monad" => Chain.MONAD,
-                                _ => null
-                            };
+                            Chain? parsedChain = ChainInfo.FromAlias(trimmed);
 
                             if (parsedChain.HasValue && !chainFilters.Contains(parsedChain.Value))
                             {

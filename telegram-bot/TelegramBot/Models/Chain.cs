@@ -6,5 +6,6 @@ public enum Chain
     BNB,
     BASE,
     MONAD,
-    ETH
+    ETH,
+    ROBINHOOD
 }

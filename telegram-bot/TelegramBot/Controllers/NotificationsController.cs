@@ -88,15 +88,7 @@ public class NotificationsController : ControllerBase
                 return Ok(new { accepted = false, reason = "duplicate" });
             }
 
-            var chain = req.NetworkId switch
-            {
-                1399811149 => (Chain?)Chain.SOL,
-                56         => (Chain?)Chain.BNB,
-                8453       => (Chain?)Chain.BASE,
-                143        => (Chain?)Chain.MONAD,
-                1          => (Chain?)Chain.ETH,
-                _          => null
-            };
+            var chain = ChainInfo.FromNetworkId(req.NetworkId);
 
             var notifType = req.WsType switch
             {

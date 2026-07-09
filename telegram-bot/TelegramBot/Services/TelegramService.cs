@@ -120,15 +120,7 @@ public class TelegramService : ITelegramService
 
         if (!string.IsNullOrEmpty(contractAddress))
         {
-            string dexScreenerUrl = (chain ?? Chain.SOL) switch
-            {
-                Chain.SOL   => $"https://dexscreener.com/solana/{contractAddress}",
-                Chain.BNB   => $"https://dexscreener.com/bsc/{contractAddress}",
-                Chain.BASE  => $"https://dexscreener.com/base/{contractAddress}",
-                Chain.MONAD => $"https://dexscreener.com/monad/{contractAddress}",
-                Chain.ETH   => $"https://dexscreener.com/ethereum/{contractAddress}",
-                _           => $"https://dexscreener.com/solana/{contractAddress}"
-            };
+            string dexScreenerUrl = ChainInfo.DexScreenerUrl(chain ?? Chain.SOL, contractAddress);
 
             fullMessage = $@"{processedMessage}
 
