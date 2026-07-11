@@ -118,6 +118,16 @@ public class TelegramService : ITelegramService
 
         var chainLabel = (chain ?? Chain.SOL).ToString();
 
+        // Trade-color bubble in the link line so a Ctrl+F on a contract shows the
+        // side (green buy / red sell) right in the search preview
+        var typeBubble = notificationType switch
+        {
+            NotificationType.Buy             => "🟢 | ",
+            NotificationType.Sell            => "🔴 | ",
+            NotificationType.CUSTOM_Trending => "🔥 | ",
+            _                                => ""
+        };
+
         if (!string.IsNullOrEmpty(contractAddress))
         {
             string dexScreenerUrl = ChainInfo.DexScreenerUrl(chain ?? Chain.SOL, contractAddress);
@@ -125,7 +135,7 @@ public class TelegramService : ITelegramService
             fullMessage = $@"{processedMessage}
 
 📝 Contract: `{contractAddress}`
-🔗 {chainLabel} | [DEXScreener]({dexScreenerUrl})";
+🔗 {chainLabel} | {typeBubble}[DEXScreener]({dexScreenerUrl})";
 
             var redactedCa = contractAddress.Length > 4
                 ? contractAddress[..2] + new string('*', contractAddress.Length - 4) + contractAddress[^2..]
@@ -133,7 +143,7 @@ public class TelegramService : ITelegramService
             obfuscatedMessage = $@"{BuildObfuscatedText(notification.Message, traderHandle, ticker, marketCap)}
 
 📝 Contract: `{redactedCa}`
-🔗 {chainLabel} | [DEXScreener](https://dexscreener.com)
+🔗 {chainLabel} | {typeBubble}[DEXScreener](https://dexscreener.com)
 
 To get full details: /subscribe";
         }
@@ -141,11 +151,11 @@ To get full details: /subscribe";
         {
             fullMessage = $@"{processedMessage}
 
-🔗 {chainLabel} | [DEXScreener](https://dexscreener.com)";
+🔗 {chainLabel} | {typeBubble}[DEXScreener](https://dexscreener.com)";
             obfuscatedMessage = $@"{BuildObfuscatedText(notification.Message, traderHandle, ticker, marketCap)}
 
 📝 Contract: `{new string('*', 44)}`
-🔗 {chainLabel} | [DEXScreener](https://dexscreener.com)
+🔗 {chainLabel} | {typeBubble}[DEXScreener](https://dexscreener.com)
 
 To get full details: /subscribe";
         }
