@@ -36,8 +36,8 @@ export function transformFrame(payload: FomoWebsocketPayload): StructuredNotific
   const wsId = payload.id as string;
   const tradeId = (payload.tradeId ?? payload.id) as string;
 
-  if (markSeen(wsId)) {
-    console.log(`[transform] duplicate wsId ${wsId}, skipping`);
+  if (markSeen(tradeId)) {
+    console.log(`[transform] duplicate tradeId ${tradeId}, skipping`);
     return null;
   }
 

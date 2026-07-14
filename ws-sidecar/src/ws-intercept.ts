@@ -4,12 +4,22 @@ const ts = () => { const d = new Date(); return `[${new Date(d.getTime() - d.get
 import { transformFrame, type StructuredNotificationRequest } from './transform';
 import { insertEvent } from './db';
 
+export interface WsTapHooks {
+  /** A fomo.family WebSocket opened. */
+  onTapOpen?: () => void;
+  /** A fomo.family WebSocket closed. */
+  onTapClose?: () => void;
+}
+
 export function attachWsInterceptor(
   page: Page,
-  onTrade: (req: StructuredNotificationRequest) => Promise<void>
+  onTrade: (req: StructuredNotificationRequest) => Promise<void>,
+  hooks: WsTapHooks = {}
 ): void {
   page.on('websocket', (ws) => {
+    const isTap = ws.url().includes('fomo.family');
     console.log(`${ts()} [intercept] WebSocket opened: ${ws.url()}`);
+    if (isTap) hooks.onTapOpen?.();
 
     ws.on('framereceived', (frame) => {
       const raw = typeof frame.payload === 'string' ? frame.payload : null;
@@ -37,6 +47,9 @@ export function attachWsInterceptor(
       }
     });
 
-    ws.on('close', () => console.log(`${ts()} [intercept] WebSocket closed`));
+    ws.on('close', () => {
+      console.log(`${ts()} [intercept] WebSocket closed: ${ws.url()}`);
+      if (isTap) hooks.onTapClose?.();
+    });
   });
 }
