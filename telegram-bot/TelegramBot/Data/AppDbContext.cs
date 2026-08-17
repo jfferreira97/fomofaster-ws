@@ -83,6 +83,9 @@ public class AppDbContext : DbContext
 
             // Index for cleanup queries (delete old notifications)
             entity.HasIndex(e => e.SentAt);
+
+            // Index for the repeat-window throttle lookup (trader+contract+side)
+            entity.HasIndex(e => new { e.Trader, e.ContractAddress, e.Type });
         });
 
         modelBuilder.Entity<SentMessage>(entity =>

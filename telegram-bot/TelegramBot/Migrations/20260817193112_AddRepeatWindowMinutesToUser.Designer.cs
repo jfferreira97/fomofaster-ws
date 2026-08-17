@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TelegramBot.Data;
 
@@ -10,9 +11,11 @@ using TelegramBot.Data;
 namespace TelegramBot.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260817193112_AddRepeatWindowMinutesToUser")]
+    partial class AddRepeatWindowMinutesToUser
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.10");
@@ -128,8 +131,6 @@ namespace TelegramBot.Migrations
                         .HasFilter("\"FK_WsEvent_WsId\" IS NOT NULL");
 
                     b.HasIndex("SentAt");
-
-                    b.HasIndex("Trader", "ContractAddress", "Type");
 
                     b.ToTable("Notifications");
                 });

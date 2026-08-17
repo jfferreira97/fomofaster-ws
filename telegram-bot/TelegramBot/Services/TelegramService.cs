@@ -89,6 +89,29 @@ public class TelegramService : ITelegramService
             users = await userService.GetAllActiveUsersAsync();
         }
 
+        // Repeat window: skip users who already got a Buy/Sell alert for this exact
+        // trader+contract+side within their configured window (e.g. scrolling back
+        // through history shouldn't re-surface the same signal on the same coin).
+        if ((notificationType == NotificationType.Buy || notificationType == NotificationType.Sell)
+            && !string.IsNullOrEmpty(traderHandle) && !string.IsNullOrEmpty(contractAddress))
+        {
+            var dbContextForThrottle = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var lastSentByChat = await dbContextForThrottle.SentMessages
+                .Where(sm => sm.Notification.Trader == traderHandle
+                          && sm.Notification.ContractAddress == contractAddress
+                          && sm.Notification.Type == notificationType)
+                .GroupBy(sm => sm.ChatId)
+                .Select(g => new { ChatId = g.Key, LastSentAt = g.Max(sm => sm.SentAt) })
+                .ToDictionaryAsync(x => x.ChatId, x => x.LastSentAt);
+
+            users = users.Where(u =>
+            {
+                if (u.RepeatWindowMinutes <= 0) return true; // throttling disabled for this user
+                if (!lastSentByChat.TryGetValue(u.ChatId, out var lastSentAt)) return true;
+                return lastSentAt <= DateTime.UtcNow.AddMinutes(-u.RepeatWindowMinutes);
+            }).ToList();
+        }
+
         if (users.Count == 0)
         {
             _logger.LogWarning("No active users to send notification to");
