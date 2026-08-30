@@ -1,6 +1,7 @@
 import { chromium } from 'playwright';
 import { postPumpEvent, postStructuredPump, heartbeat } from './client';
 import { transformItem, type PumpFeedItem } from './transform';
+import { runVerifiedSync } from './verifiedSync';
 
 const ts = () => { const d = new Date(); return `[${new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().replace('T', ' ').slice(0, 19)}]`; };
 
@@ -13,6 +14,7 @@ const POLL_INTERVAL_MS = 20_000;
 const PROBE_INTERVAL_MS = 15_000;
 const PROBE_TIMEOUT_MS = 10_000;
 const PROBE_FAILURES_BEFORE_RELOAD = 3;
+const VERIFIED_SYNC_INTERVAL_MS = Number(process.env.VERIFIED_SYNC_INTERVAL_MS) || 6 * 60 * 60_000; // 6h default
 
 interface AlertsProbeResult {
   ok: boolean;
@@ -43,6 +45,7 @@ async function session(firstRun: boolean): Promise<void> {
   let hbInterval: NodeJS.Timeout | undefined;
   let probeInterval: NodeJS.Timeout | undefined;
   let pollInterval: NodeJS.Timeout | undefined;
+  let verifiedSyncInterval: NodeJS.Timeout | undefined;
 
   try {
     const page = context.pages()[0] ?? await context.newPage();
@@ -150,7 +153,19 @@ async function session(firstRun: boolean): Promise<void> {
 
     hbInterval = setInterval(() => { heartbeat().catch(() => {}); }, HEARTBEAT_INTERVAL_MS);
 
-    console.log(`${ts()} [main] Sidecar running — polling pump.fun alerts every ${POLL_INTERVAL_MS / 1000}s`);
+    let syncingVerified = false;
+    const runVerifiedSyncSafely = () => {
+      if (recovering || syncingVerified) return;
+      syncingVerified = true;
+      void runVerifiedSync(page)
+        .catch((err) => console.error(`${ts()} [verified-sync] error:`, err))
+        .finally(() => { syncingVerified = false; });
+    };
+    // Once shortly after startup (session is warm by then), then on its own interval.
+    setTimeout(runVerifiedSyncSafely, 15_000);
+    verifiedSyncInterval = setInterval(runVerifiedSyncSafely, VERIFIED_SYNC_INTERVAL_MS);
+
+    console.log(`${ts()} [main] Sidecar running — polling pump.fun alerts every ${POLL_INTERVAL_MS / 1000}s, verified-trader sync every ${VERIFIED_SYNC_INTERVAL_MS / 60_000}min`);
 
     const reason = await sessionEnded;
     console.warn(`${ts()} [main] session ended: ${reason}`);
@@ -158,6 +173,7 @@ async function session(firstRun: boolean): Promise<void> {
     if (hbInterval) clearInterval(hbInterval);
     if (probeInterval) clearInterval(probeInterval);
     if (pollInterval) clearInterval(pollInterval);
+    if (verifiedSyncInterval) clearInterval(verifiedSyncInterval);
     await context.close().catch(() => {});
   }
 }

@@ -1,11 +1,15 @@
 using System;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using TelegramBot.Data;
 
 #nullable disable
 
 namespace TelegramBot.Migrations
 {
-    /// <inheritdoc />
+    [DbContext(typeof(AppDbContext))]
+    [Migration("20260830050000_AddPumpEventsTable")]
     public partial class AddPumpEventsTable : Migration
     {
         /// <inheritdoc />

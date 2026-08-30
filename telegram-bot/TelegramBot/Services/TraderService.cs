@@ -94,32 +94,42 @@ public class TraderService : ITraderService
         return trader;
     }
 
-    // Silent counterpart to AddOrUpdateTraderAsync — no broadcast, no "just discovered
-    // live" framing. For seeding known-external trader rosters where per-handle
-    // announcements to every active user would be pure noise.
-    public async Task<int> BulkRegisterTradersAsync(IEnumerable<string> handles, Platform platform)
+    // Silent upsert counterpart to AddOrUpdateTraderAsync — no broadcast, no "just
+    // discovered live" framing. For seeding/re-syncing known-external trader rosters
+    // (e.g. a platform's own verified-trader list) where per-handle announcements to
+    // every active user would be pure noise. Updates IsPumpVerified on existing rows
+    // too, since this is meant to be called routinely, not just once.
+    public async Task<BulkRegisterResult> BulkRegisterTradersAsync(IEnumerable<TraderSeedEntry> traders, Platform platform)
     {
-        int added = 0;
-        foreach (var handle in handles)
+        int added = 0, updated = 0;
+        foreach (var entry in traders)
         {
-            if (string.IsNullOrWhiteSpace(handle)) continue;
+            if (string.IsNullOrWhiteSpace(entry.Handle)) continue;
 
-            var existing = await GetTraderByHandleIgnoreCaseAsync(handle, platform);
-            if (existing != null) continue;
-
-            _dbContext.Traders.Add(new Trader
+            var existing = await GetTraderByHandleIgnoreCaseAsync(entry.Handle, platform);
+            if (existing == null)
             {
-                Handle = handle,
-                Platform = platform,
-                FirstSeenAt = DateTime.UtcNow,
-                LastSeenAt = DateTime.UtcNow,
-            });
-            added++;
+                _dbContext.Traders.Add(new Trader
+                {
+                    Handle = entry.Handle,
+                    Platform = platform,
+                    FirstSeenAt = DateTime.UtcNow,
+                    LastSeenAt = DateTime.UtcNow,
+                    IsPumpVerified = entry.IsVerified,
+                });
+                added++;
+            }
+            else if (existing.IsPumpVerified != entry.IsVerified)
+            {
+                existing.IsPumpVerified = entry.IsVerified;
+                existing.LastSeenAt = DateTime.UtcNow;
+                updated++;
+            }
         }
 
         await _dbContext.SaveChangesAsync();
-        _logger.LogInformation("Bulk-registered {Added} new {Platform} traders (silent, no broadcast)", added, platform);
-        return added;
+        _logger.LogInformation("Bulk-registered {Added} new / updated {Updated} existing {Platform} traders (silent, no broadcast)", added, updated, platform);
+        return new BulkRegisterResult(added, updated);
     }
 
     private async Task BroadcastNewTraderMessageAsync(Trader trader)

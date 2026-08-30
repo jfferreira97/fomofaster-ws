@@ -285,6 +285,9 @@ namespace TelegramBot.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("IsPumpVerified")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime>("LastSeenAt")
                         .HasColumnType("TEXT");
 

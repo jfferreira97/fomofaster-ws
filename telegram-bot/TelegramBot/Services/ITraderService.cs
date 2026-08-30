@@ -9,7 +9,7 @@ public interface ITraderService
     Task<List<Trader>> GetAllTradersAsync();
     Task<List<Trader>> GetTradersByUserIdAsync(int userId);
     Task<Trader> AddOrUpdateTraderAsync(string handle, Platform platform = Platform.Fomo);
-    Task<int> BulkRegisterTradersAsync(IEnumerable<string> handles, Platform platform);
+    Task<BulkRegisterResult> BulkRegisterTradersAsync(IEnumerable<TraderSeedEntry> traders, Platform platform);
     Task<bool> FollowTraderAsync(int userId, int traderId);
     Task<bool> FollowTraderByHandleAsync(int userId, string handle, Platform platform = Platform.Fomo);
     Task<bool> UnfollowTraderAsync(int userId, int traderId);

@@ -108,9 +108,9 @@ public class TradersController : ControllerBase
         try
         {
             var platform = Enum.TryParse<Platform>(request.Platform, ignoreCase: true, out var p) ? p : Platform.Fomo;
-            var cleanHandles = request.Handles.Select(h => h.TrimStart('@')).ToList();
-            var added = await _traderService.BulkRegisterTradersAsync(cleanHandles, platform);
-            return Ok(new { status = "success", added, total = cleanHandles.Count, platform = platform.ToString() });
+            var entries = request.Traders.Select(t => t with { Handle = t.Handle.TrimStart('@') }).ToList();
+            var result = await _traderService.BulkRegisterTradersAsync(entries, platform);
+            return Ok(new { status = "success", added = result.Added, updated = result.Updated, total = entries.Count, platform = platform.ToString() });
         }
         catch (Exception ex)
         {
@@ -159,4 +159,4 @@ public class TradersController : ControllerBase
 
 public record FollowRequest(long ChatId, int TraderId);
 public record BulkAddTradersRequest(string[] Handles);
-public record BulkRegisterTradersRequest(string[] Handles, string Platform = "Fomo");
+public record BulkRegisterTradersRequest(TraderSeedEntry[] Traders, string Platform = "Fomo");
