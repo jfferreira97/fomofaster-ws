@@ -183,6 +183,10 @@ To get full details: /subscribe";
 To get full details: /subscribe";
         }
 
+        // Global prefix for all FOMO-sourced notifications — 👀 mirrors the FOMO logo.
+        fullMessage = $"👀 | {fullMessage}";
+        obfuscatedMessage = $"👀 | {obfuscatedMessage}";
+
         static bool IsRNActive(Models.User u) =>
             u.IsRN4L || (u.IsRegisteredNurse && u.RNExpiresAt > DateTime.UtcNow);
 

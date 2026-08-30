@@ -109,7 +109,7 @@ public class NotificationsController : ControllerBase
             {
                 notifMarketCap = await FetchMarketCapAsync(req.ContractAddress);
                 var mc = notifMarketCap.HasValue ? $" (${FormatMarketCap(notifMarketCap.Value)} MC)" : "";
-                message = $"💥 {req.Ticker} thesis by {req.Trader}:{mc}\n\n{req.Comment}\n\nCurrent ${req.Ticker} position by {req.Trader}: ${req.UsdAmount:N0}";
+                message = $"{req.Ticker} thesis by {req.Trader}:{mc}\n\n{req.Comment}\n\nCurrent ${req.Ticker} position by {req.Trader}: ${req.UsdAmount:N0}";
             }
             else if (req.Side == "transfer_out" || req.Side == "swap_withdraw")
             {
