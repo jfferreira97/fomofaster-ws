@@ -35,8 +35,12 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Trader>(entity =>
         {
             entity.HasKey(e => e.Id);
-            entity.HasIndex(e => e.Handle).IsUnique();
+            // Handle is only unique per platform: a FOMO trader and a Pump
+            // trader can legitimately share the same handle since they're
+            // unrelated identities on unrelated platforms.
+            entity.HasIndex(e => new { e.Handle, e.Platform }).IsUnique();
             entity.Property(e => e.Handle).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Platform).IsRequired().HasConversion<string>();
             entity.Property(e => e.FirstSeenAt).IsRequired();
             entity.Property(e => e.LastSeenAt).IsRequired();
         });
@@ -76,6 +80,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.ContractAddress).HasMaxLength(100);
             entity.Property(e => e.Chain).HasConversion<string>();
             entity.Property(e => e.Type).HasConversion<string>();
+            entity.Property(e => e.Platform).IsRequired().HasConversion<string>();
             entity.Property(e => e.SentAt).IsRequired();
 
             entity.Property(e => e.FK_WsEvent_WsId).HasMaxLength(100);

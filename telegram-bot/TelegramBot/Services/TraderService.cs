@@ -30,9 +30,9 @@ public class TraderService : ITraderService
         }
     }
 
-    public async Task<Trader?> GetTraderByHandleIgnoreCaseAsync(string handle)
+    public async Task<Trader?> GetTraderByHandleIgnoreCaseAsync(string handle, Platform platform = Platform.Fomo)
     {
-        return await _dbContext.Traders.FirstOrDefaultAsync(t => t.Handle.ToLower() == handle.ToLower());
+        return await _dbContext.Traders.FirstOrDefaultAsync(t => t.Handle.ToLower() == handle.ToLower() && t.Platform == platform);
     }
 
     public async Task<Trader?> GetTraderByIdAsync(int traderId)
@@ -55,9 +55,9 @@ public class TraderService : ITraderService
             .ToListAsync();
     }
 
-    public async Task<Trader> AddOrUpdateTraderAsync(string handle)
+    public async Task<Trader> AddOrUpdateTraderAsync(string handle, Platform platform = Platform.Fomo)
     {
-        var trader = await GetTraderByHandleIgnoreCaseAsync(handle);
+        var trader = await GetTraderByHandleIgnoreCaseAsync(handle, platform);
         var isNewTrader = trader == null;
 
         if (trader == null)
@@ -65,12 +65,13 @@ public class TraderService : ITraderService
             trader = new Trader
             {
                 Handle = handle,
+                Platform = platform,
                 FirstSeenAt = DateTime.UtcNow,
                 LastSeenAt = DateTime.UtcNow,
             };
 
             _dbContext.Traders.Add(trader);
-            _logger.LogInformation("New trader added: Handle={Handle}", handle);
+            _logger.LogInformation("New trader added: Handle={Handle} Platform={Platform}", handle, platform);
         }
         else
         {
@@ -110,12 +111,16 @@ public class TraderService : ITraderService
             {
                 string message;
                 var escapedHandle = trader.Handle.Replace("_", "\\_");
+                var platformLabel = trader.Platform == Platform.Pump ? "PUMP.FUN" : "FOMO APP";
+                var profileLink = trader.Platform == Platform.Pump
+                    ? $"https://pump.fun/profile/{trader.Handle}"
+                    : $"https://x.com/{trader.Handle}";
 
                 if (user.AutoFollowNewTraders)
                 {
                     await FollowTraderAsync(user.Id, trader.Id);
 
-                    message = $@"🔔 A new sharp FOMO APP trader, [{escapedHandle}](https://x.com/{trader.Handle}), was just added to our services!
+                    message = $@"🔔 A new sharp {platformLabel} trader, [{escapedHandle}]({profileLink}), was just added to our services!
 
 ✅ This trader's trades will be tracked by you since you have auto-follow ON.
 
@@ -124,7 +129,7 @@ Use /autofollow off if you want to opt out completely of auto-following new trad
                 }
                 else
                 {
-                    message = $@"🔔 A new sharp FOMO APP trader, [{escapedHandle}](https://x.com/{trader.Handle}), was just added to our services!
+                    message = $@"🔔 A new sharp {platformLabel} trader, [{escapedHandle}]({profileLink}), was just added to our services!
 
 ⚠️ You are NOT following this trader since you have auto-follow OFF.
 
@@ -170,9 +175,9 @@ Use /autofollow on if you want to opt in to auto-following new traders.";
         return true;
     }
 
-    public async Task<bool> FollowTraderByHandleAsync(int userId, string handle)
+    public async Task<bool> FollowTraderByHandleAsync(int userId, string handle, Platform platform = Platform.Fomo)
     {
-        var trader = await GetTraderByHandleIgnoreCaseAsync(handle);
+        var trader = await GetTraderByHandleIgnoreCaseAsync(handle, platform);
         if (trader == null)
             return false;
 
@@ -194,9 +199,9 @@ Use /autofollow on if you want to opt in to auto-following new traders.";
         return true;
     }
 
-    public async Task<bool> UnfollowTraderByHandleAsync(int userId, string handle)
+    public async Task<bool> UnfollowTraderByHandleAsync(int userId, string handle, Platform platform = Platform.Fomo)
     {
-        var trader = await GetTraderByHandleIgnoreCaseAsync(handle);
+        var trader = await GetTraderByHandleIgnoreCaseAsync(handle, platform);
         if (trader == null)
             return false;
 
@@ -217,9 +222,9 @@ Use /autofollow on if you want to opt in to auto-following new traders.";
             .ToListAsync();
     }
 
-    public async Task<List<int>> GetFollowerUserIdsForTraderHandleAsync(string handle)
+    public async Task<List<int>> GetFollowerUserIdsForTraderHandleAsync(string handle, Platform platform = Platform.Fomo)
     {
-        var trader = await GetTraderByHandleIgnoreCaseAsync(handle);
+        var trader = await GetTraderByHandleIgnoreCaseAsync(handle, platform);
         if (trader == null)
             return new List<int>();
 
@@ -285,9 +290,9 @@ Use /autofollow on if you want to opt in to auto-following new traders.";
         return true;
     }
 
-    public async Task<bool> DeleteTraderByHandleAsync(string handle)
+    public async Task<bool> DeleteTraderByHandleAsync(string handle, Platform platform = Platform.Fomo)
     {
-        var trader = await GetTraderByHandleIgnoreCaseAsync(handle);
+        var trader = await GetTraderByHandleIgnoreCaseAsync(handle, platform);
         if (trader == null)
             return false;
 
