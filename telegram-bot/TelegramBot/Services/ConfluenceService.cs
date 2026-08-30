@@ -7,6 +7,7 @@ namespace TelegramBot.Services;
 
 public record ConfluenceTradeEvent(
     string Type,
+    Platform Platform,
     string Trader,
     string? Ticker,
     string TokenAddress,
@@ -16,22 +17,26 @@ public record ConfluenceTradeEvent(
     DateTime OccurredAt);
 
 /// <summary>
-/// Detects confluence: N distinct followed traders buying the same token within a
-/// (rolling) time window, and broadcasts a TRENDING alert to ALL users.
+/// Detects confluence: N distinct traders — FOMO buyers AND Pump callout-ers combined —
+/// acting on the same token within a (rolling) time window, and broadcasts a TRENDING
+/// alert to ALL users. The whole point is spotting pockets of attention on a token
+/// across BOTH apps at once, so the two signal types share one counter, not two.
 /// Consumes events from an in-memory channel so the notification hot path only pays
 /// for a non-blocking enqueue. All window state lives in memory; rebuilt from
-/// WsEvents on startup.
+/// WsEvents (FOMO buys only) on startup — see the gap noted on ProcessEventAsync.
 /// </summary>
 public class ConfluenceService : BackgroundService
 {
     private class TraderPosition
     {
         public string Handle = string.Empty;
+        public Platform Platform;
+        public bool IsCallout;          // true = Pump callout signal, false = FOMO buy signal
         public decimal TotalUsd;
         public decimal WeightedMcSum;   // Σ usd × entry MC, for USD-weighted average entry
         public decimal McWeight;        // Σ usd of buys that carried an MC
         public int BuyCount;
-        public bool Sold;
+        public bool Sold;               // only meaningful for FOMO buy positions
     }
 
     private class TokenWindow
@@ -43,6 +48,9 @@ public class ConfluenceService : BackgroundService
         public DateTime ExpiresAt;
         public int ExtensionStage;
         public decimal? LastMarketCap;
+
+        // Keyed by "{Platform}|{Handle}" — a FOMO trader and a Pump trader sharing a
+        // handle string are different people and must count as two distinct entries.
         public Dictionary<string, TraderPosition> Traders = new(StringComparer.OrdinalIgnoreCase);
         public int AlertedTraderCount;  // 0 = never alerted; re-alert when distinct count exceeds this
         public DateTime LastAlertAt;
@@ -138,7 +146,8 @@ public class ConfluenceService : BackgroundService
 
         var isBuy = evt.Type == "swap_buy";
         var isSell = evt.Type is "swap_sell" or "swap_withdraw" or "transfer_out";
-        if (!isBuy && !isSell) return;
+        var isCallout = evt.Type == "callout";
+        if (!isBuy && !isSell && !isCallout) return;
 
         _windows.TryGetValue(evt.TokenAddress, out var window);
         if (window != null && window.ExpiresAt <= now)
@@ -147,10 +156,12 @@ public class ConfluenceService : BackgroundService
             window = null;
         }
 
+        var traderKey = $"{evt.Platform}|{evt.Trader}";
+
         if (isSell)
         {
             // Sells never extend the window; they only flip the trader's bubble to red.
-            if (window != null && window.Traders.TryGetValue(evt.Trader, out var seller))
+            if (window != null && window.Traders.TryGetValue(traderKey, out var seller))
                 seller.Sold = true;
             return;
         }
@@ -170,12 +181,12 @@ public class ConfluenceService : BackgroundService
         window.NetworkId ??= evt.NetworkId;
         if (evt.MarketCap.HasValue) window.LastMarketCap = evt.MarketCap;
 
-        if (!window.Traders.TryGetValue(evt.Trader, out var position))
+        if (!window.Traders.TryGetValue(traderKey, out var position))
         {
-            position = new TraderPosition { Handle = evt.Trader };
-            window.Traders[evt.Trader] = position;
+            position = new TraderPosition { Handle = evt.Trader, Platform = evt.Platform, IsCallout = isCallout };
+            window.Traders[traderKey] = position;
 
-            // Only a NEW distinct trader (after the window opener) extends the window.
+            // Only a NEW distinct trader/caller (after the window opener) extends the window.
             if (window.Traders.Count > 1 && config.RolloverEnabled)
             {
                 var steps = config.RolloverSteps;
@@ -188,13 +199,26 @@ public class ConfluenceService : BackgroundService
             }
         }
 
-        position.TotalUsd += evt.UsdAmount;
-        position.BuyCount++;
-        position.Sold = false; // re-buy after a sell counts as holding again
-        if (evt.MarketCap is { } mc && evt.UsdAmount > 0)
+        if (isCallout)
         {
-            position.WeightedMcSum += evt.UsdAmount * mc;
-            position.McWeight += evt.UsdAmount;
+            // Pump's position size is a running total (a snapshot of their whole
+            // position), not a per-trade delta like FOMO's UsdAmount — overwrite,
+            // don't accumulate, or a re-callout on the same coin double-counts them.
+            // No avg-entry-MC math either — we don't have real multi-buy cost-basis
+            // history for Pump traders the way we do for FOMO's actual buy events.
+            position.TotalUsd = evt.UsdAmount;
+            position.BuyCount++;
+        }
+        else
+        {
+            position.TotalUsd += evt.UsdAmount;
+            position.BuyCount++;
+            if (isBuy) position.Sold = false; // re-buy after a sell counts as holding again
+            if (evt.MarketCap is { } mc && evt.UsdAmount > 0)
+            {
+                position.WeightedMcSum += evt.UsdAmount * mc;
+                position.McWeight += evt.UsdAmount;
+            }
         }
 
         if (!suppressAlerts)
@@ -222,19 +246,24 @@ public class ConfluenceService : BackgroundService
 
     private async Task FireAlertAsync(TokenWindow window, int count, CancellationToken ct)
     {
+        var positions = window.Traders.Values.ToList();
+
         var ticker = string.IsNullOrEmpty(window.Ticker) ? "Token" : window.Ticker;
         var mcPart = window.LastMarketCap.HasValue
             ? $" - ${FormatMarketCap(window.LastMarketCap.Value)} MC"
             : "";
         var header = $"🔥 {ticker} is TRENDING ({count} traders){mcPart}";
 
-        var entries = window.Traders.Values
+        var entries = positions
             .OrderByDescending(p => p.TotalUsd)
             .Select(p =>
             {
-                var bubble = p.Sold ? "🔴" : "🟢";
+                // Pump callouts have no sell concept — 💊 marks them distinctly;
+                // FOMO positions keep the buy/sell bubble.
+                var bubble = p.IsCallout ? "💊" : (p.Sold ? "🔴" : "🟢");
                 var entryPart = "";
-                if (p.McWeight > 0)
+                // Never for callouts — no real avg-entry data to back it up (see ProcessEventAsync).
+                if (!p.IsCallout && p.McWeight > 0)
                 {
                     var avgMc = p.WeightedMcSum / p.McWeight;
                     var avgLabel = p.BuyCount > 1 ? "avg " : "";
@@ -263,10 +292,11 @@ public class ConfluenceService : BackgroundService
 
         var chain = window.NetworkId.HasValue ? ChainInfo.FromNetworkId(window.NetworkId.Value) : null;
 
-        _logger.LogInformation("🔥 TRENDING alert: {Ticker} ({Token}) with {Count} traders", ticker, window.TokenAddress, count);
+        _logger.LogInformation("🔥 TRENDING alert: {Ticker} ({Token}) with {Count} traders",
+            ticker, window.TokenAddress, count);
 
         // traderHandle deliberately null: trending alerts broadcast to ALL active users,
-        // not just followers of the buying traders.
+        // not just followers of the traders/callers involved.
         await _telegramService.SendNotificationToAllUsersAsync(
             new NotificationRequest { Message = message },
             contractAddress: window.TokenAddress,
@@ -333,10 +363,14 @@ public class ConfluenceService : BackgroundService
                 .ToListAsync(ct);
         }
 
+        // NOTE: only rebuilds the FOMO-buy half of state — PumpEvent doesn't carry
+        // MarketCap/position-size columns yet, so a restart mid-window loses in-flight
+        // Pump-callout progress. Known v1 gap, not chased further for now.
         foreach (var e in events)
         {
             var evt = new ConfluenceTradeEvent(
                 Type: e.Type,
+                Platform: Platform.Fomo,
                 Trader: e.UserHandle!,
                 Ticker: e.Ticker,
                 TokenAddress: e.TokenAddress!,

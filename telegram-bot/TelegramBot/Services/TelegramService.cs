@@ -183,10 +183,14 @@ To get full details: /subscribe";
 To get full details: /subscribe";
         }
 
-        // Global per-platform prefix — 👀 mirrors the FOMO logo, 💊 marks Pump-sourced notifications.
-        var platformPrefix = platform == Platform.Pump ? "💊" : "👀";
-        fullMessage = $"{platformPrefix} | {fullMessage}";
-        obfuscatedMessage = $"{platformPrefix} | {obfuscatedMessage}";
+        // Global per-platform prefix — 👀 mirrors the FOMO logo, 💊 marks Pump-sourced
+        // notifications. TRENDING alerts are cross-platform by nature, so they skip it entirely.
+        if (notificationType != NotificationType.CUSTOM_Trending)
+        {
+            var platformPrefix = platform == Platform.Pump ? "💊" : "👀";
+            fullMessage = $"{platformPrefix} | {fullMessage}";
+            obfuscatedMessage = $"{platformPrefix} | {obfuscatedMessage}";
+        }
 
         static bool IsRNActive(Models.User u) =>
             u.IsRN4L || (u.IsRegisteredNurse && u.RNExpiresAt > DateTime.UtcNow);

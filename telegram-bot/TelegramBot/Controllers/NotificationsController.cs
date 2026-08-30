@@ -154,6 +154,7 @@ public class NotificationsController : ControllerBase
             // Non-blocking hand-off to confluence detection (TRENDING alerts)
             _confluenceService.Enqueue(new ConfluenceTradeEvent(
                 Type: req.WsType,
+                Platform: Platform.Fomo,
                 Trader: req.Trader,
                 Ticker: req.Ticker,
                 TokenAddress: req.ContractAddress,
@@ -220,6 +221,22 @@ public class NotificationsController : ControllerBase
                 notificationType: notifType,
                 platform: Platform.Pump
             );
+
+            // Non-blocking hand-off to confluence detection (TRENDING alerts) — callouts
+            // only; repost/reply aren't "an account calling something out" in their own right.
+            if (req.Kind == "callout")
+            {
+                _confluenceService.Enqueue(new ConfluenceTradeEvent(
+                    Type: "callout",
+                    Platform: Platform.Pump,
+                    Trader: req.ActorHandle,
+                    Ticker: req.Symbol,
+                    TokenAddress: req.CoinMint,
+                    NetworkId: req.ChainId,
+                    UsdAmount: (decimal)(req.PositionCostBasisUsd ?? 0),
+                    MarketCap: req.MarketCap.HasValue ? (decimal)req.MarketCap.Value : null,
+                    OccurredAt: DateTime.UtcNow));
+            }
 
             await _dbContext.PumpEvents
                 .Where(e => e.ExternalId == req.ExternalId && !e.Handled)
