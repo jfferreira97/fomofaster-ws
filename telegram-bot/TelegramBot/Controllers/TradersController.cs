@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using TelegramBot.Models;
 using TelegramBot.Services;
 
 namespace TelegramBot.Controllers;
@@ -97,6 +98,27 @@ public class TradersController : ControllerBase
         }
     }
 
+    // Silent, platform-aware bulk registration — unlike bulk-add, this does NOT broadcast
+    // a "new trader" announcement per handle. Meant for seeding known-external trader lists
+    // (e.g. a platform's own verified-trader roster) where blasting every active user with
+    // N announcements would be noise, not signal.
+    [HttpPost("bulk-register")]
+    public async Task<IActionResult> BulkRegisterTraders([FromBody] BulkRegisterTradersRequest request)
+    {
+        try
+        {
+            var platform = Enum.TryParse<Platform>(request.Platform, ignoreCase: true, out var p) ? p : Platform.Fomo;
+            var cleanHandles = request.Handles.Select(h => h.TrimStart('@')).ToList();
+            var added = await _traderService.BulkRegisterTradersAsync(cleanHandles, platform);
+            return Ok(new { status = "success", added, total = cleanHandles.Count, platform = platform.ToString() });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error bulk registering traders");
+            return StatusCode(500, new { status = "error", message = ex.Message });
+        }
+    }
+
     [HttpDelete("{traderId}")]
     public async Task<IActionResult> DeleteTrader(int traderId)
     {
@@ -137,3 +159,4 @@ public class TradersController : ControllerBase
 
 public record FollowRequest(long ChatId, int TraderId);
 public record BulkAddTradersRequest(string[] Handles);
+public record BulkRegisterTradersRequest(string[] Handles, string Platform = "Fomo");

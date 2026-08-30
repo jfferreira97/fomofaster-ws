@@ -94,6 +94,34 @@ public class TraderService : ITraderService
         return trader;
     }
 
+    // Silent counterpart to AddOrUpdateTraderAsync — no broadcast, no "just discovered
+    // live" framing. For seeding known-external trader rosters where per-handle
+    // announcements to every active user would be pure noise.
+    public async Task<int> BulkRegisterTradersAsync(IEnumerable<string> handles, Platform platform)
+    {
+        int added = 0;
+        foreach (var handle in handles)
+        {
+            if (string.IsNullOrWhiteSpace(handle)) continue;
+
+            var existing = await GetTraderByHandleIgnoreCaseAsync(handle, platform);
+            if (existing != null) continue;
+
+            _dbContext.Traders.Add(new Trader
+            {
+                Handle = handle,
+                Platform = platform,
+                FirstSeenAt = DateTime.UtcNow,
+                LastSeenAt = DateTime.UtcNow,
+            });
+            added++;
+        }
+
+        await _dbContext.SaveChangesAsync();
+        _logger.LogInformation("Bulk-registered {Added} new {Platform} traders (silent, no broadcast)", added, platform);
+        return added;
+    }
+
     private async Task BroadcastNewTraderMessageAsync(Trader trader)
     {
         if (_botClient == null)

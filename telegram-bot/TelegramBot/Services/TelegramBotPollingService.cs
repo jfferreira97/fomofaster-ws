@@ -452,14 +452,22 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                     }
                     else
                     {
-                        // Follow by handle (strip @ if present)
-                        var handle = part.TrimStart('@');
-                        success = await traderService.FollowTraderByHandleAsync(userForFollow.Id, handle);
+                        // Follow by handle (strip @ if present). "pump:handle" targets the
+                        // Pump platform; a bare handle defaults to FOMO as it always has.
+                        var raw = part.TrimStart('@');
+                        var platform = Platform.Fomo;
+                        if (raw.StartsWith("pump:", StringComparison.OrdinalIgnoreCase))
+                        {
+                            platform = Platform.Pump;
+                            raw = raw["pump:".Length..];
+                        }
+                        var handle = raw;
+                        success = await traderService.FollowTraderByHandleAsync(userForFollow.Id, handle, platform);
 
                         if (!success)
                         {
                             // Check if trader exists
-                            var trader = await traderService.GetTraderByHandleIgnoreCaseAsync(handle);
+                            var trader = await traderService.GetTraderByHandleIgnoreCaseAsync(handle, platform);
                             if (trader == null)
                             {
                                 notFoundList.Add(part);
@@ -577,14 +585,21 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                     }
                     else
                     {
-                        // Unfollow by handle (strip @ if present)
-                        var handle = part.TrimStart('@');
-                        success = await traderService.UnfollowTraderByHandleAsync(userForUnfollow.Id, handle);
+                        // Unfollow by handle (strip @ if present). Same "pump:handle" convention as /follow.
+                        var raw = part.TrimStart('@');
+                        var platform = Platform.Fomo;
+                        if (raw.StartsWith("pump:", StringComparison.OrdinalIgnoreCase))
+                        {
+                            platform = Platform.Pump;
+                            raw = raw["pump:".Length..];
+                        }
+                        var handle = raw;
+                        success = await traderService.UnfollowTraderByHandleAsync(userForUnfollow.Id, handle, platform);
 
                         if (!success)
                         {
                             // Check if trader exists
-                            var trader = await traderService.GetTraderByHandleIgnoreCaseAsync(handle);
+                            var trader = await traderService.GetTraderByHandleIgnoreCaseAsync(handle, platform);
                             if (trader == null)
                             {
                                 unfollowNotFoundList.Add(part);
