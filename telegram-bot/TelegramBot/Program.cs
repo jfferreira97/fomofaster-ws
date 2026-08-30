@@ -107,7 +107,7 @@ app.MapGet("/dashboard", async context =>
     await context.Response.WriteAsync(html);
 });
 
-app.MapGet("/", () => new { message = "FomoFaster Backend Running", version = "1.0.0" });
+app.MapGet("/", () => new { message = "GROUPCHAT Backend Running", version = "1.0.0" });
 
 app.MapGet("/health", (ITelegramService telegramService) =>
 {
@@ -135,7 +135,7 @@ app.MapPost("/test-bot", async (ITelegramService telegramService, long chatId) =
 {
     try
     {
-        await telegramService.SendTestMessageAsync(chatId, "🎉 Bot is working! This is a test message from FOMOFASTER.");
+        await telegramService.SendTestMessageAsync(chatId, "🎉 Bot is working! This is a test message from GROUPCHAT.");
         return Results.Ok(new { status = "success", message = "Test message sent" });
     }
     catch (Exception ex)

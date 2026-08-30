@@ -43,7 +43,11 @@ public class UserService : IUserService
                 FirstName = firstName,
                 JoinedAt = DateTime.UtcNow,
                 IsActive = true,
-                AutoFollowNewTraders = true // Default to auto-following new traders on user creation
+                // Default new users to auto-following on both platforms; existing users'
+                // Pump preference defaults to off via migration (see User.cs), only new
+                // signups get opted in here.
+                AutoFollowFomoTraders = true,
+                AutoFollowPumpTraders = true
             };
 
             _dbContext.Users.Add(user);

@@ -50,7 +50,7 @@ public class UsersController : ControllerBase
                     firstName = u.FirstName,
                     joinedAt = u.JoinedAt,
                     isActive = u.IsActive,
-                    autoFollowNewTraders = u.AutoFollowNewTraders,
+                    autoFollowNewTraders = u.AutoFollowFomoTraders,
                     trackingCount = userTraderCounts.GetValueOrDefault(u.Id, 0),
                     totalTraders = totalTraders
                 })
@@ -294,14 +294,14 @@ public class UsersController : ControllerBase
                 return NotFound(new { status = "error", message = "User not found" });
             }
 
-            user.AutoFollowNewTraders = request.AutoFollowNewTraders;
+            user.AutoFollowFomoTraders = request.AutoFollowNewTraders;
             await _dbContext.SaveChangesAsync();
 
             return Ok(new
             {
                 status = "success",
                 message = $"Auto-follow new traders set to {request.AutoFollowNewTraders}",
-                autoFollowNewTraders = user.AutoFollowNewTraders
+                autoFollowNewTraders = user.AutoFollowFomoTraders
             });
         }
         catch (Exception ex)

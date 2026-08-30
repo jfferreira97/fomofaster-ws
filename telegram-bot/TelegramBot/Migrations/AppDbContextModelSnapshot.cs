@@ -309,7 +309,10 @@ namespace TelegramBot.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool>("AutoFollowNewTraders")
+                    b.Property<bool>("AutoFollowFomoTraders")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("AutoFollowPumpTraders")
                         .HasColumnType("INTEGER");
 
                     b.Property<long>("ChatId")
@@ -329,6 +332,21 @@ namespace TelegramBot.Migrations
 
                     b.Property<DateTime>("JoinedAt")
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("NotifyFomoBuySell")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("NotifyFomoThesis")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("NotifyPumpCallouts")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("NotifyTrending")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("PumpVerifiedOnly")
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("RNExpiresAt")
                         .HasColumnType("TEXT");

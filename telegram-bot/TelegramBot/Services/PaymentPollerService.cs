@@ -117,7 +117,7 @@ public class PaymentPollerService : BackgroundService
 
             await _telegramService.SendPlainMessageAsync(
                 user.ChatId,
-                "Your FomoFaster subscription has expired. Use /subscribe to renew."
+                "Your GROUPCHAT subscription has expired. Use /subscribe to renew."
             );
         }
 

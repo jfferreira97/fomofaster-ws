@@ -154,25 +154,43 @@ public class TraderService : ITraderService
                     ? $"https://pump.fun/profile/{trader.Handle}"
                     : $"https://fomo.family/profile/{trader.Handle}";
 
-                if (user.AutoFollowNewTraders)
+                // Pump's Verified-Only mode gates auto-follow eligibility too, not just
+                // notification delivery — a "Verified Only" user shouldn't get auto-followed
+                // onto an unverified trader just because a new one showed up.
+                var restrictedByVerifiedOnly = trader.Platform == Platform.Pump
+                    && user.PumpVerifiedOnly && !trader.IsPumpVerified;
+                var autoFollowForPlatform = (trader.Platform == Platform.Pump
+                    ? user.AutoFollowPumpTraders
+                    : user.AutoFollowFomoTraders) && !restrictedByVerifiedOnly;
+
+                if (autoFollowForPlatform)
                 {
                     await FollowTraderAsync(user.Id, trader.Id);
 
                     message = $@"🔔 A new sharp {platformLabel} trader, [{escapedHandle}]({profileLink}), was just added to our services!
 
-✅ This trader's trades will be tracked by you since you have auto-follow ON.
+✅ This trader's trades will be tracked by you since you have {platformLabel} auto-follow ON.
 
 Use /unfollow {escapedHandle} or /unfollow {trader.Id} if you do not desire this trader.
-Use /autofollow off if you want to opt out completely of auto-following new traders.";
+Use /settings to manage auto-follow and notification preferences.";
+                }
+                else if (restrictedByVerifiedOnly)
+                {
+                    message = $@"🔔 A new {platformLabel} trader, [{escapedHandle}]({profileLink}), was just added to our services!
+
+⚠️ Not auto-followed — they're not a verified trader and you have Pump mode set to Verified Only.
+
+Use /follow {escapedHandle} or /follow {trader.Id} if you want to follow them anyway.
+Use /settings to manage auto-follow and notification preferences.";
                 }
                 else
                 {
                     message = $@"🔔 A new sharp {platformLabel} trader, [{escapedHandle}]({profileLink}), was just added to our services!
 
-⚠️ You are NOT following this trader since you have auto-follow OFF.
+⚠️ You are NOT following this trader since you have {platformLabel} auto-follow OFF.
 
 Use /follow {escapedHandle} or /follow {trader.Id} if you want to follow them.
-Use /autofollow on if you want to opt in to auto-following new traders.";
+Use /settings to manage auto-follow and notification preferences.";
                 }
 
                 await _botClient.SendTextMessageAsync(
@@ -284,7 +302,8 @@ Use /autofollow on if you want to opt in to auto-following new traders.";
         var user = await _dbContext.Users.FindAsync(userId);
         if (user != null)
         {
-            user.AutoFollowNewTraders = true;
+            user.AutoFollowFomoTraders = true;
+            user.AutoFollowPumpTraders = true;
             await _dbContext.SaveChangesAsync();
         }
 
@@ -307,7 +326,8 @@ Use /autofollow on if you want to opt in to auto-following new traders.";
         var user = await _dbContext.Users.FindAsync(userId);
         if (user != null)
         {
-            user.AutoFollowNewTraders = false;
+            user.AutoFollowFomoTraders = false;
+            user.AutoFollowPumpTraders = false;
             await _dbContext.SaveChangesAsync();
         }
 

@@ -231,7 +231,7 @@ public class DashboardController : ControllerBase
             await _dbContext.SaveChangesAsync();
 
             var msg = request.IsRN4L
-                ? "✅ You've been granted lifetime access to FomoFaster. Welcome to the club."
+                ? "✅ You've been granted lifetime access to GROUPCHAT. Welcome to the club."
                 : $"✅ You've been granted 30 days of full access (until {user.RNExpiresAt:yyyy-MM-dd}). Enjoy.";
 
             await _telegramService.SendPlainMessageAsync(request.ChatId, msg);
@@ -260,7 +260,7 @@ public class DashboardController : ControllerBase
             user.RNExpiresAt = null;
 
             await _dbContext.SaveChangesAsync();
-            await _telegramService.SendPlainMessageAsync(request.ChatId, "Your FomoFaster access has been revoked. Use /subscribe to resubscribe.");
+            await _telegramService.SendPlainMessageAsync(request.ChatId, "Your GROUPCHAT access has been revoked. Use /subscribe to resubscribe.");
 
             _logger.LogInformation("Manually revoked access for ChatId={ChatId}", request.ChatId);
             return Ok(new { status = "success" });

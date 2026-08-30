@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
+using Telegram.Bot.Types.ReplyMarkups;
 using TelegramBot.Data;
 using TelegramBot.Hubs;
 using TelegramBot.Models;
@@ -22,7 +23,7 @@ public class TelegramBotPollingService : BackgroundService
     private long _ownerChatId;
     private string? _ownerUsername;
 
-    // FOMOFASTER token contract address - update this when token launches
+    // GROUPCHAT token contract address - update this when token launches
     // private const string TOKEN_CONTRACT_ADDRESS = "6gCEGUjPisdGFc6FhRGL43hoD263dRF81i2L3bo5bonk";
 
     public TelegramBotPollingService(
@@ -117,6 +118,10 @@ public class TelegramBotPollingService : BackgroundService
             {
                 await HandleMessageAsync(message);
             }
+            else if (update.CallbackQuery is { } callbackQuery)
+            {
+                await HandleCallbackQueryAsync(callbackQuery);
+            }
         }
         catch (Exception ex)
         {
@@ -176,6 +181,91 @@ public class TelegramBotPollingService : BackgroundService
         }
     }
 
+    private static string OnOff(bool on) => on ? "✅" : "❌";
+    private static string ModeWord(bool verifiedOnly) => verifiedOnly ? "Verified Only" : "All";
+
+    private static string BuildSettingsText(Models.User user) => "⚙️ *Notification Settings* — tap a button below to toggle.";
+
+    // Two columns (FOMO left, Pump right) stacked to the same height for visual symmetry,
+    // then one full-width row for Trending. Pump's mode (All/Verified Only) is a single
+    // shared toggle — its current value is echoed in both the Pump Auto-Follow and
+    // Callouts labels, and governs BOTH which new Pump traders get auto-followed and
+    // which Pump notifications get delivered (see TraderService/TelegramService).
+    private static InlineKeyboardMarkup BuildSettingsKeyboard(Models.User user)
+    {
+        var mode = ModeWord(user.PumpVerifiedOnly);
+        return new(new[]
+        {
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData($"FOMO Auto-Follow: {OnOff(user.AutoFollowFomoTraders)}", "settings:af_fomo"),
+                InlineKeyboardButton.WithCallbackData($"Pump Auto-Follow ({mode}): {OnOff(user.AutoFollowPumpTraders)}", "settings:af_pump"),
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData($"Buys/Sells: {OnOff(user.NotifyFomoBuySell)}", "settings:fomo_bs"),
+                InlineKeyboardButton.WithCallbackData($"Callouts ({mode}): {OnOff(user.NotifyPumpCallouts)}", "settings:pump_callouts"),
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData($"Thesis: {OnOff(user.NotifyFomoThesis)}", "settings:fomo_thesis"),
+                InlineKeyboardButton.WithCallbackData($"Mode: {mode}", "settings:pump_mode"),
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData($"🔥 Trending Alerts: {OnOff(user.NotifyTrending)}", "settings:trending"),
+            },
+        });
+    }
+
+    private async Task HandleCallbackQueryAsync(CallbackQuery callbackQuery)
+    {
+        if (_botClient == null) return;
+
+        var data = callbackQuery.Data;
+        var message = callbackQuery.Message;
+        if (message == null || string.IsNullOrEmpty(data) || !data.StartsWith("settings:"))
+        {
+            await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id);
+            return;
+        }
+
+        using var scope = _serviceProvider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var user = await dbContext.Users.FirstOrDefaultAsync(u => u.ChatId == message.Chat.Id);
+        if (user == null)
+        {
+            await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id, "Please use /start first.");
+            return;
+        }
+
+        switch (data)
+        {
+            case "settings:af_fomo": user.AutoFollowFomoTraders = !user.AutoFollowFomoTraders; break;
+            case "settings:af_pump": user.AutoFollowPumpTraders = !user.AutoFollowPumpTraders; break;
+            case "settings:fomo_bs": user.NotifyFomoBuySell = !user.NotifyFomoBuySell; break;
+            case "settings:fomo_thesis": user.NotifyFomoThesis = !user.NotifyFomoThesis; break;
+            case "settings:pump_callouts": user.NotifyPumpCallouts = !user.NotifyPumpCallouts; break;
+            case "settings:pump_mode": user.PumpVerifiedOnly = !user.PumpVerifiedOnly; break;
+            case "settings:trending": user.NotifyTrending = !user.NotifyTrending; break;
+            default:
+                await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id);
+                return;
+        }
+
+        await dbContext.SaveChangesAsync();
+
+        await _botClient.EditMessageTextAsync(
+            chatId: message.Chat.Id,
+            messageId: message.MessageId,
+            text: BuildSettingsText(user),
+            parseMode: ParseMode.Markdown,
+            replyMarkup: BuildSettingsKeyboard(user)
+        );
+
+        await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id);
+    }
+
     private async Task HandleCommandAsync(Message message, IUserService userService)
     {
         if (_botClient == null)
@@ -201,7 +291,7 @@ public class TelegramBotPollingService : BackgroundService
 
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
-                    text: $@"🎉 Welcome to FOMOFASTER!
+                    text: $@"🎉 Welcome to GROUPCHAT!
 
 You're now following all {allTradersCount.Count} traders by default, configure according to your preferences if needed:
 
@@ -211,12 +301,15 @@ You're now following all {allTradersCount.Count} traders by default, configure a
 /follow - follow specific traders
 /unfollow - unfollow specific traders
 /autofollow <on/off> - check/toggle auto-follow for new traders (starts ON by default)
+/settings - full notification menu: auto-follow, buys/sells, thesis, pump callouts, verified-only mode, trending
 /repeatwindow <2h/30m/off> - limit repeat buy/sell alerts per trader+coin — buys and sells don't block each other (off by default)
 /top - view top tokens (e.g., /top 1h, /top sol 1d, /top sol,monad 6h)
 
-Follow us on twitter, stay tuned for major updates: https://x.com/FOMOFASTER_BOT
-",
-                    parseMode: ParseMode.Markdown
+Follow us on twitter, stay tuned for major updates: https://x.com/groupchat__BOT
+
+{BuildSettingsText(newUser)}",
+                    parseMode: ParseMode.Markdown,
+                    replyMarkup: BuildSettingsKeyboard(newUser)
                 );
 
                 // Broadcast new user to dashboard via SignalR
@@ -236,7 +329,7 @@ Follow us on twitter, stay tuned for major updates: https://x.com/FOMOFASTER_BOT
             case "/help":
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
-                    text: @"📚 FOMOFASTER Commands:
+                    text: @"📚 GROUPCHAT Commands:
 
 /start - Subscribe to notifications
 /help - Show this help message
@@ -246,7 +339,8 @@ Follow us on twitter, stay tuned for major updates: https://x.com/FOMOFASTER_BOT
 /follow all - Follow all traders
 /unfollow <ids/handles> - Unfollow traders (e.g., /unfollow 1,trader2)
 /unfollow all - Unfollow all traders
-/autofollow <on/off> - Check/toggle auto-follow for new traders (starts ON by default)
+/autofollow <on/off> - Check/toggle FOMO auto-follow for new traders (starts ON by default)
+/settings - Full notification menu: auto-follow (FOMO/Pump), buys/sells, thesis, pump callouts, verified-only mode, trending
 /repeatwindow <2h/30m/off> - Limit repeat buy/sell alerts per trader+coin — buys and sells don't block each other (off by default)
 /top [chains] <period> - Top tokens (e.g., /top 1h, /top sol 1d, /top sol,monad 6h)
 
@@ -652,51 +746,51 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                 // Just /autofollow - show current status
                 if (autoFollowArgs == null || autoFollowArgs.Length < 2 || string.IsNullOrWhiteSpace(autoFollowArgs[1]))
                 {
-                    var currentStatus = userForAutoFollow.AutoFollowNewTraders ? "ON" : "OFF";
+                    var currentStatus = userForAutoFollow.AutoFollowFomoTraders ? "ON" : "OFF";
                     await _botClient.SendTextMessageAsync(
                         chatId: chatId,
-                        text: $"Your auto-follow for new traders is currently: {currentStatus}\n\nUse /autofollow on or /autofollow off to change it.",
+                        text: $"Your FOMO auto-follow for new traders is currently: {currentStatus}\n\nUse /autofollow on or /autofollow off to change it, or /settings for the full menu (Pump auto-follow, notification types, etc.).",
                         parseMode: ParseMode.Markdown
                     );
                     break;
                 }
 
-                // /autofollow on/off - toggle the setting
+                // /autofollow on/off - toggle the setting (FOMO only; use /settings for Pump)
                 var autoFollowValue = autoFollowArgs[1].Trim().ToLower();
 
                 if (autoFollowValue == "on")
                 {
-                    userForAutoFollow.AutoFollowNewTraders = true;
+                    userForAutoFollow.AutoFollowFomoTraders = true;
                     using var scope1 = _serviceProvider.CreateScope();
                     var dbContext1 = scope1.ServiceProvider.GetRequiredService<AppDbContext>();
                     var userToUpdate1 = await dbContext1.Users.FindAsync(userForAutoFollow.Id);
                     if (userToUpdate1 != null)
                     {
-                        userToUpdate1.AutoFollowNewTraders = true;
+                        userToUpdate1.AutoFollowFomoTraders = true;
                         await dbContext1.SaveChangesAsync();
                     }
 
                     await _botClient.SendTextMessageAsync(
                         chatId: chatId,
-                        text: "✅ Auto-follow for new traders is now ON\n\nYou'll automatically follow any new traders added to the system.",
+                        text: "✅ FOMO auto-follow for new traders is now ON\n\nYou'll automatically follow any new FOMO traders added to the system. (Use /settings to manage Pump too.)",
                         parseMode: ParseMode.Markdown
                     );
                 }
                 else if (autoFollowValue == "off")
                 {
-                    userForAutoFollow.AutoFollowNewTraders = false;
+                    userForAutoFollow.AutoFollowFomoTraders = false;
                     using var scope2 = _serviceProvider.CreateScope();
                     var dbContext2 = scope2.ServiceProvider.GetRequiredService<AppDbContext>();
                     var userToUpdate2 = await dbContext2.Users.FindAsync(userForAutoFollow.Id);
                     if (userToUpdate2 != null)
                     {
-                        userToUpdate2.AutoFollowNewTraders = false;
+                        userToUpdate2.AutoFollowFomoTraders = false;
                         await dbContext2.SaveChangesAsync();
                     }
 
                     await _botClient.SendTextMessageAsync(
                         chatId: chatId,
-                        text: "❌ Auto-follow for new traders is now OFF\n\nYou won't automatically follow new traders added to the system.",
+                        text: "❌ FOMO auto-follow for new traders is now OFF\n\nYou won't automatically follow new FOMO traders added to the system. (Use /settings to manage Pump too.)",
                         parseMode: ParseMode.Markdown
                     );
                 }
@@ -708,6 +802,27 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                         parseMode: ParseMode.Markdown
                     );
                 }
+                break;
+
+            case "/settings":
+                var userForSettings = await userService.GetUserByChatIdAsync(chatId);
+
+                if (userForSettings == null)
+                {
+                    await _botClient.SendTextMessageAsync(
+                        chatId: chatId,
+                        text: "❌ Please use /start first to register.",
+                        parseMode: ParseMode.Markdown
+                    );
+                    break;
+                }
+
+                await _botClient.SendTextMessageAsync(
+                    chatId: chatId,
+                    text: BuildSettingsText(userForSettings),
+                    parseMode: ParseMode.Markdown,
+                    replyMarkup: BuildSettingsKeyboard(userForSettings)
+                );
                 break;
 
             case "/repeatwindow":
