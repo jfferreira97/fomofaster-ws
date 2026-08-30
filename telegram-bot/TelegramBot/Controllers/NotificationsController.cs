@@ -170,4 +170,67 @@ public class NotificationsController : ControllerBase
             return StatusCode(500, new { status = "error", message = "Internal server error" });
         }
     }
+
+    [HttpPost("pump-structured")]
+    public async Task<IActionResult> ReceiveStructuredPumpNotification([FromBody] StructuredPumpNotificationRequest req)
+    {
+        try
+        {
+            _logger.LogInformation("PUMP STRUCTURED NOTIFICATION: {Kind} {Symbol} by @{Actor} (externalId={ExternalId})",
+                req.Kind, req.Symbol, req.ActorHandle, req.ExternalId);
+
+            var pumpEvent = await _dbContext.PumpEvents.FirstOrDefaultAsync(e => e.ExternalId == req.ExternalId);
+            if (pumpEvent?.Handled == true)
+            {
+                _logger.LogInformation("PumpEvent {ExternalId} already handled, skipping", req.ExternalId);
+                return Ok(new { accepted = false, reason = "duplicate" });
+            }
+
+            var chain = ChainInfo.FromNetworkId(req.ChainId) ?? Chain.SOL;
+            var mc = req.MarketCap.HasValue ? $" (${FormatMarketCap(req.MarketCap.Value)} MC)" : "";
+
+            var notifType = req.Kind switch
+            {
+                "callout" => NotificationType.Callout,
+                "repost"  => NotificationType.Repost,
+                "reply"   => NotificationType.Reply,
+                _         => NotificationType.Unknown
+            };
+
+            string message = req.Kind switch
+            {
+                "callout" =>
+                    $"{req.Symbol} callout by {req.ActorHandle}:{mc}\n\n{req.Thesis}\n\nCurrent ${req.Symbol} position by {req.ActorHandle}: ${req.PositionCostBasisUsd ?? 0:N0}",
+                "repost" =>
+                    $"{req.Symbol}{mc} 🔁 {req.ActorHandle} reposted {req.OriginalAuthorHandle}'s callout:\n\n{req.Thesis}",
+                "reply" =>
+                    $"{req.Symbol}{mc} 💬 {req.ActorHandle} replied on {req.OriginalAuthorHandle}'s callout:\n\n{req.ReplyContent}",
+                _ => $"{req.Symbol}{mc} — {req.ActorHandle}"
+            };
+
+            await _traderService.AddOrUpdateTraderAsync(req.ActorHandle, Platform.Pump);
+
+            await _telegramService.SendNotificationToAllUsersAsync(
+                new NotificationRequest { Message = message },
+                contractAddress: req.CoinMint,
+                chain: chain,
+                traderHandle: req.ActorHandle,
+                ticker: req.Symbol,
+                marketCap: req.MarketCap,
+                notificationType: notifType,
+                platform: Platform.Pump
+            );
+
+            await _dbContext.PumpEvents
+                .Where(e => e.ExternalId == req.ExternalId && !e.Handled)
+                .ExecuteUpdateAsync(s => s.SetProperty(e => e.Handled, true));
+
+            return Ok(new { accepted = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing pump structured notification (externalId={ExternalId})", req.ExternalId);
+            return StatusCode(500, new { status = "error", message = "Internal server error" });
+        }
+    }
 }

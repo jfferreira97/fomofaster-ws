@@ -114,7 +114,7 @@ public class TraderService : ITraderService
                 var platformLabel = trader.Platform == Platform.Pump ? "PUMP.FUN" : "FOMO APP";
                 var profileLink = trader.Platform == Platform.Pump
                     ? $"https://pump.fun/profile/{trader.Handle}"
-                    : $"https://x.com/{trader.Handle}";
+                    : $"https://fomo.family/profile/{trader.Handle}";
 
                 if (user.AutoFollowNewTraders)
                 {

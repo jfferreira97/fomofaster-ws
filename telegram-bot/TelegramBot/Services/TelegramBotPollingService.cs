@@ -285,7 +285,11 @@ You'll only receive notifications from traders you follow!",
                 {
                     var isFollowing = await traderService.IsFollowingAsync(user.Id, trader.Id);
                     var status = isFollowing ? "✅" : "❌";
-                    traderLines.Add($"{trader.Id} - [{trader.Handle}](https://x.com/{trader.Handle}) {status}");
+                    var platformTag = trader.Platform == Platform.Pump ? "💊" : "👀";
+                    var profileLink = trader.Platform == Platform.Pump
+                        ? $"https://pump.fun/profile/{trader.Handle}"
+                        : $"https://fomo.family/profile/{trader.Handle}";
+                    traderLines.Add($"{trader.Id} - {platformTag} [{trader.Handle}]({profileLink}) {status}");
                 }
 
                 await _botClient.SendTextMessageAsync(
@@ -335,7 +339,11 @@ You'll only receive notifications from traders you follow!",
                 var myTraderLines = new List<string>();
                 foreach (var trader in followedTraders)
                 {
-                    myTraderLines.Add($"{trader.Id} - [{trader.Handle}](https://x.com/{trader.Handle}) ✅");
+                    var platformTag = trader.Platform == Platform.Pump ? "💊" : "👀";
+                    var profileLink = trader.Platform == Platform.Pump
+                        ? $"https://pump.fun/profile/{trader.Handle}"
+                        : $"https://fomo.family/profile/{trader.Handle}";
+                    myTraderLines.Add($"{trader.Id} - {platformTag} [{trader.Handle}]({profileLink}) ✅");
                 }
 
                 var myTradersMessage = $@"📊 Your Followed Traders ({followedTraders.Count} total)

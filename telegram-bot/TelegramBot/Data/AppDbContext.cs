@@ -18,6 +18,7 @@ public class AppDbContext : DbContext
     public DbSet<AppConfig> AppConfigs { get; set; }
     public DbSet<WsEvent> WsEvents { get; set; }
     public DbSet<ConfluenceAlert> ConfluenceAlerts { get; set; }
+    public DbSet<PumpEvent> PumpEvents { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -134,6 +135,16 @@ public class AppDbContext : DbContext
             entity.Property(e => e.TradeId).HasMaxLength(100);
             entity.HasIndex(e => e.TradeId);
             entity.HasIndex(e => e.Type);
+            entity.Property(e => e.ReceivedAt).IsRequired();
+        });
+
+        modelBuilder.Entity<PumpEvent>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.ExternalId).IsRequired().HasMaxLength(100);
+            entity.HasIndex(e => e.ExternalId).IsUnique();
+            entity.Property(e => e.Kind).IsRequired().HasMaxLength(20);
+            entity.HasIndex(e => e.Kind);
             entity.Property(e => e.ReceivedAt).IsRequired();
         });
 

@@ -52,7 +52,7 @@ public class TelegramService : ITelegramService
         return _botClient != null;
     }
 
-    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, string? contractAddress = null, Chain? chain = null, string? traderHandle = null, string? ticker = null, double? marketCap = null, NotificationType notificationType = NotificationType.Unknown, string? fomoWsTradeId = null)
+    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, string? contractAddress = null, Chain? chain = null, string? traderHandle = null, string? ticker = null, double? marketCap = null, NotificationType notificationType = NotificationType.Unknown, string? fomoWsTradeId = null, Platform platform = Platform.Fomo)
     {
         if (_botClient == null)
         {
@@ -69,7 +69,7 @@ public class TelegramService : ITelegramService
         // CRITICAL: Filter by trader followers if trader handle provided - O(log n)
         if (!string.IsNullOrEmpty(traderHandle))
         {
-            var followerUserIds = await traderService.GetFollowerUserIdsForTraderHandleAsync(traderHandle);
+            var followerUserIds = await traderService.GetFollowerUserIdsForTraderHandleAsync(traderHandle, platform);
 
             if (followerUserIds.Count == 0)
             {
@@ -183,9 +183,10 @@ To get full details: /subscribe";
 To get full details: /subscribe";
         }
 
-        // Global prefix for all FOMO-sourced notifications — 👀 mirrors the FOMO logo.
-        fullMessage = $"👀 | {fullMessage}";
-        obfuscatedMessage = $"👀 | {obfuscatedMessage}";
+        // Global per-platform prefix — 👀 mirrors the FOMO logo, 💊 marks Pump-sourced notifications.
+        var platformPrefix = platform == Platform.Pump ? "💊" : "👀";
+        fullMessage = $"{platformPrefix} | {fullMessage}";
+        obfuscatedMessage = $"{platformPrefix} | {obfuscatedMessage}";
 
         static bool IsRNActive(Models.User u) =>
             u.IsRN4L || (u.IsRegisteredNurse && u.RNExpiresAt > DateTime.UtcNow);
@@ -207,6 +208,7 @@ To get full details: /subscribe";
             SentAt = DateTime.UtcNow,
             MarketCapAtNotification = marketCap.HasValue ? (decimal)marketCap.Value : null,
             Type = notificationType,
+            Platform = platform,
             FK_WsEvent_WsId = fomoWsTradeId
         };
         dbContext.Notifications.Add(notificationRecord);
