@@ -164,24 +164,41 @@ public class TelegramService : ITelegramService
 
         var chainLabel = (chain ?? Chain.SOL).ToString();
 
-        // Trade-color bubble in the link line so a Ctrl+F on a contract shows the
-        // side (green buy / red sell) right in the search preview
+        // Fire bubble still marks Trending in the link line; buy/sell no longer gets one there.
         var typeBubble = notificationType switch
         {
-            NotificationType.Buy             => "🟢 | ",
-            NotificationType.Sell            => "🔴 | ",
             NotificationType.CUSTOM_Trending => "🔥 | ",
             _                                => ""
         };
 
+        // Axiom and Terminal (Padre) are each omitted per-chain when that platform doesn't
+        // support the chain (confirmed 2026-08-30: Axiom has no Base/Monad, Padre has no Monad)
+        // rather than guessed. DexScreener always has a slug for every chain we track, so it
+        // stays last as the one link that's always present.
+        static string TradeLinks(Chain chain, string contractAddress)
+        {
+            var parts = new List<string>();
+            var axiomUrl = ChainInfo.AxiomUrl(chain, contractAddress);
+            if (axiomUrl != null) parts.Add($"[Axiom]({axiomUrl})");
+
+            var padreUrl = ChainInfo.PadreUrl(chain, contractAddress);
+            if (padreUrl != null) parts.Add($"[Terminal]({padreUrl})");
+
+            parts.Add($"[Dexscreener]({ChainInfo.DexScreenerUrl(chain, contractAddress)})");
+
+            return string.Join(" | ", parts);
+        }
+
+        const string GenericTradeLinks = "[Axiom](https://axiom.trade) | [Terminal](https://trade.padre.gg)";
+
         if (!string.IsNullOrEmpty(contractAddress))
         {
-            string dexScreenerUrl = ChainInfo.DexScreenerUrl(chain ?? Chain.SOL, contractAddress);
+            var resolvedChain = chain ?? Chain.SOL;
 
             fullMessage = $@"{processedMessage}
 
 📝 Contract: `{contractAddress}`
-🔗 {chainLabel} | {typeBubble}[DEXScreener]({dexScreenerUrl})";
+🔗 {chainLabel} | {typeBubble}{TradeLinks(resolvedChain, contractAddress)}";
 
             var redactedCa = contractAddress.Length > 4
                 ? contractAddress[..2] + new string('*', contractAddress.Length - 4) + contractAddress[^2..]
@@ -189,7 +206,7 @@ public class TelegramService : ITelegramService
             obfuscatedMessage = $@"{BuildObfuscatedText(notification.Message, traderHandle, ticker, marketCap)}
 
 📝 Contract: `{redactedCa}`
-🔗 {chainLabel} | {typeBubble}[DEXScreener](https://dexscreener.com)
+🔗 {chainLabel} | {typeBubble}{GenericTradeLinks}
 
 To get full details: /subscribe";
         }
@@ -197,11 +214,11 @@ To get full details: /subscribe";
         {
             fullMessage = $@"{processedMessage}
 
-🔗 {chainLabel} | {typeBubble}[DEXScreener](https://dexscreener.com)";
+🔗 {chainLabel} | {typeBubble}{GenericTradeLinks}";
             obfuscatedMessage = $@"{BuildObfuscatedText(notification.Message, traderHandle, ticker, marketCap)}
 
 📝 Contract: `{new string('*', 44)}`
-🔗 {chainLabel} | {typeBubble}[DEXScreener](https://dexscreener.com)
+🔗 {chainLabel} | {typeBubble}{GenericTradeLinks}
 
 To get full details: /subscribe";
         }
