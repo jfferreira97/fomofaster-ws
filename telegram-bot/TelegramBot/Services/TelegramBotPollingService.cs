@@ -211,6 +211,7 @@ You're now following all {allTradersCount.Count} traders by default, configure a
 /follow - follow specific traders
 /unfollow - unfollow specific traders
 /autofollow <on/off> - check/toggle auto-follow for new traders (starts ON by default)
+/repeatwindow <2h/30m/off> - limit repeat buy/sell alerts per trader+coin — buys and sells don't block each other (off by default)
 /top - view top tokens (e.g., /top 1h, /top sol 1d, /top sol,monad 6h)
 
 Follow us on twitter, stay tuned for major updates: https://x.com/FOMOFASTER_BOT
@@ -246,6 +247,7 @@ Follow us on twitter, stay tuned for major updates: https://x.com/FOMOFASTER_BOT
 /unfollow <ids/handles> - Unfollow traders (e.g., /unfollow 1,trader2)
 /unfollow all - Unfollow all traders
 /autofollow <on/off> - Check/toggle auto-follow for new traders (starts ON by default)
+/repeatwindow <2h/30m/off> - Limit repeat buy/sell alerts per trader+coin — buys and sells don't block each other (off by default)
 /top [chains] <period> - Top tokens (e.g., /top 1h, /top sol 1d, /top sol,monad 6h)
 
 You'll only receive notifications from traders you follow!",
@@ -685,6 +687,86 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                 }
                 break;
 
+            case "/repeatwindow":
+                var userForRepeatWindow = await userService.GetUserByChatIdAsync(chatId);
+
+                if (userForRepeatWindow == null)
+                {
+                    await _botClient.SendTextMessageAsync(
+                        chatId: chatId,
+                        text: "❌ Please use /start first to register.",
+                        parseMode: ParseMode.Markdown
+                    );
+                    break;
+                }
+
+                var repeatWindowArgs = message.Text?.Split(' ', 2);
+
+                // Just /repeatwindow - show current setting
+                if (repeatWindowArgs == null || repeatWindowArgs.Length < 2 || string.IsNullOrWhiteSpace(repeatWindowArgs[1]))
+                {
+                    var currentDisplay = userForRepeatWindow.RepeatWindowMinutes <= 0
+                        ? "OFF (every trade notifies, even repeats)"
+                        : FormatRepeatWindow(userForRepeatWindow.RepeatWindowMinutes);
+                    await _botClient.SendTextMessageAsync(
+                        chatId: chatId,
+                        text: $"Your repeat window is currently: {currentDisplay}\n\nWithin this window, a trader can trigger at most one BUY alert and one SELL alert per coin — buys and sells are tracked separately, so you'll still get notified for both sides. After the window elapses, a new trade on that coin alerts again.\n\nUse /repeatwindow 2h (or 30m, or off) to change it.",
+                        parseMode: ParseMode.Markdown
+                    );
+                    break;
+                }
+
+                var repeatWindowInput = repeatWindowArgs[1].Trim().ToLower();
+                int? newRepeatWindowMinutes = null;
+
+                if (repeatWindowInput == "off")
+                {
+                    newRepeatWindowMinutes = 0;
+                }
+                else if (repeatWindowInput.EndsWith("h") && int.TryParse(repeatWindowInput[..^1], out var hoursVal) && hoursVal > 0 && hoursVal <= 168)
+                {
+                    newRepeatWindowMinutes = hoursVal * 60;
+                }
+                else if (repeatWindowInput.EndsWith("m") && int.TryParse(repeatWindowInput[..^1], out var minsVal) && minsVal > 0 && minsVal <= 10080)
+                {
+                    newRepeatWindowMinutes = minsVal;
+                }
+                else if (int.TryParse(repeatWindowInput, out var plainMinsVal) && plainMinsVal > 0 && plainMinsVal <= 10080)
+                {
+                    newRepeatWindowMinutes = plainMinsVal;
+                }
+
+                if (newRepeatWindowMinutes == null)
+                {
+                    await _botClient.SendTextMessageAsync(
+                        chatId: chatId,
+                        text: "❌ Invalid value. Examples: /repeatwindow 2h, /repeatwindow 30m, /repeatwindow off",
+                        parseMode: ParseMode.Markdown
+                    );
+                    break;
+                }
+
+                using (var scopeRepeatWindow = _serviceProvider.CreateScope())
+                {
+                    var dbContextRepeatWindow = scopeRepeatWindow.ServiceProvider.GetRequiredService<AppDbContext>();
+                    var userToUpdateRepeatWindow = await dbContextRepeatWindow.Users.FindAsync(userForRepeatWindow.Id);
+                    if (userToUpdateRepeatWindow != null)
+                    {
+                        userToUpdateRepeatWindow.RepeatWindowMinutes = newRepeatWindowMinutes.Value;
+                        await dbContextRepeatWindow.SaveChangesAsync();
+                    }
+                }
+
+                var newDisplay = newRepeatWindowMinutes <= 0
+                    ? "OFF (every trade notifies, even repeats)"
+                    : FormatRepeatWindow(newRepeatWindowMinutes.Value);
+                await _botClient.SendTextMessageAsync(
+                    chatId: chatId,
+                    text: $"✅ Repeat window set to: {newDisplay}",
+                    parseMode: ParseMode.Markdown
+                );
+                break;
+
             // case "/ca":
             //     await _botClient.SendTextMessageAsync(
             //         chatId: chatId,
@@ -900,6 +982,16 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                 );
                 break;
         }
+    }
+
+    private static string FormatRepeatWindow(int minutes)
+    {
+        if (minutes % 60 == 0)
+        {
+            var hours = minutes / 60;
+            return hours == 1 ? "1 hour" : $"{hours} hours";
+        }
+        return minutes == 1 ? "1 minute" : $"{minutes} minutes";
     }
 
     private static (string PublicKey, string PrivateKey) GenerateSolanaKeypair()
