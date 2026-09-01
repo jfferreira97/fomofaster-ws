@@ -38,7 +38,15 @@ async function session(firstRun: boolean): Promise<void> {
   const context = await chromium.launchPersistentContext(PROFILE_DIR, {
     channel: 'chrome',
     headless: HEADLESS,
-    args: ['--disable-blink-features=AutomationControlled'],
+    args: [
+      '--disable-blink-features=AutomationControlled',
+      // This box is a Hyper-V VM with no real GPU (only the virtual Hyper-V/RDP
+      // adapters) — letting Chrome try to use one crashes the GPU process, which
+      // cascades into renderer crashes and an endless recover()-reload loop.
+      '--disable-gpu',
+      '--disable-software-rasterizer',
+      '--disable-gpu-compositing',
+    ],
     ignoreDefaultArgs: ['--enable-automation'],
   });
 
