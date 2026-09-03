@@ -19,39 +19,6 @@ public class WsEventsController : ControllerBase
         _logger = logger;
     }
 
-    [HttpGet("unhandled")]
-    public async Task<IActionResult> GetUnhandled([FromQuery] int limit = 200)
-    {
-        var events = await _db.WsEvents
-            .Where(e => !e.Handled)
-            .OrderByDescending(e => e.ReceivedAt)
-            .Take(limit)
-            .Select(e => new {
-                id          = e.Id,
-                wsId        = e.WsId,
-                type        = e.Type,
-                receivedAt  = e.ReceivedAt,
-                userHandle  = e.UserHandle,
-                displayName = e.DisplayName,
-                ticker      = e.Ticker,
-                usdAmount   = e.UsdAmount,
-                rawJson     = e.RawJson
-            })
-            .ToListAsync();
-
-        return Ok(new { events });
-    }
-
-    [HttpPost("{id:int}/mark-handled")]
-    public async Task<IActionResult> MarkHandled(int id)
-    {
-        var ev = await _db.WsEvents.FindAsync(id);
-        if (ev is null) return NotFound();
-        ev.Handled = true;
-        await _db.SaveChangesAsync();
-        return Ok(new { ok = true });
-    }
-
     [HttpPost]
     public async Task<IActionResult> Post([FromBody] JsonElement payload)
     {
