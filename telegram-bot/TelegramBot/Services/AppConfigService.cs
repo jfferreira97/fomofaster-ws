@@ -102,4 +102,18 @@ public class AppConfigService
         var raw = await GetAsync("SubscriptionPriceSol");
         return decimal.TryParse(raw, out var val) ? val : 0.3m;
     }
+
+    // Signing key for the manage-page session cookie (HMAC over "chatId|expiry"). Generated
+    // once on first use and persisted — not a static Default because it must be random per
+    // deployment, not a shared hardcoded value.
+    public async Task<byte[]> GetOrCreateWebSessionSecretAsync()
+    {
+        var existing = await GetAsync("WebSessionSecret");
+        if (!string.IsNullOrEmpty(existing))
+            return Convert.FromBase64String(existing);
+
+        var secret = System.Security.Cryptography.RandomNumberGenerator.GetBytes(32);
+        await SetAsync("WebSessionSecret", Convert.ToBase64String(secret), "Signing key for manage-page session cookies (auto-generated, do not share)");
+        return secret;
+    }
 }
