@@ -52,33 +52,6 @@ public class WsEventsController : ControllerBase
         return Ok(new { ok = true });
     }
 
-    [HttpGet("milestones")]
-    public async Task<IActionResult> GetMilestones([FromQuery] int limit = 1000)
-    {
-        var events = await _db.WsEvents
-            .Where(e => e.Type == "user_trade_profit_milestone")
-            .OrderByDescending(e => e.ReceivedAt)
-            .Take(limit)
-            .Select(e => new {
-                id               = e.Id,
-                receivedAt       = e.ReceivedAt,
-                userHandle       = e.UserHandle,
-                displayName      = e.DisplayName,
-                ticker           = e.Ticker,
-                tag              = e.Tag,
-                totalPnlUsd      = e.TotalPnlUsd,
-                totalPercentagePnl = e.TotalPercentagePnl,
-                totalCostBasis   = e.TotalCostBasis,
-                entryTime        = e.EntryTime,
-                showAbsolutePnl  = e.ShowAbsolutePnl,
-                tradeId          = e.TradeId,
-                rawJson          = e.RawJson
-            })
-            .ToListAsync();
-
-        return Ok(new { events });
-    }
-
     [HttpPost]
     public async Task<IActionResult> Post([FromBody] JsonElement payload)
     {
@@ -98,13 +71,19 @@ public class WsEventsController : ControllerBase
             if (wsId is null)
                 return BadRequest(new { error = "missing id" });
 
+            var eventType = Str(payload, "type") ?? "unknown";
+
+            // Retired 2026-09-04 at rr3332's request — never acted on, just archived.
+            if (eventType == "user_trade_profit_milestone")
+                return Ok(new { accepted = false, reason = "profit_milestone_not_stored" });
+
             if (await _db.WsEvents.AnyAsync(e => e.WsId == wsId))
                 return Ok(new { accepted = false, reason = "duplicate" });
 
             var wsEvent = new WsEvent
             {
                 WsId         = wsId,
-                Type         = Str(payload, "type") ?? "unknown",
+                Type         = eventType,
                 UserId       = Str(payload, "userId"),
                 UserHandle   = Str(payload, "userHandle") ?? (body.HasValue ? Str(body.Value, "userHandle") : null),
                 DisplayName  = Str(payload, "displayName") ?? (body.HasValue ? Str(body.Value, "displayName") : null),
@@ -125,7 +104,7 @@ public class WsEventsController : ControllerBase
                 EntryTime        = body.HasValue && body.Value.TryGetProperty("entryTime", out var et) && et.ValueKind == JsonValueKind.String && DateTime.TryParse(et.GetString(), out var etVal) ? etVal : null,
                 ShowAbsolutePnl  = body.HasValue ? Bool(body.Value, "showAbsolutePnl") : null,
                 RawJson      = payload.GetRawText(),
-                Handled      = Str(payload, "type") == "user_trade_profit_milestone",
+                Handled      = false,
             };
 
             _db.WsEvents.Add(wsEvent);
