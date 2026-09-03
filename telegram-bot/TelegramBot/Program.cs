@@ -49,6 +49,7 @@ builder.Services.AddScoped<IChainSettingsService, ChainSettingsService>();
 builder.Services.AddSingleton<ChainSettingsCache>();
 builder.Services.AddSingleton<ITelegramService, TelegramService>();
 builder.Services.AddSingleton<AppConfigService>();
+builder.Services.AddSingleton<WebSessionService>();
 builder.Services.AddHostedService<TelegramBotPollingService>(); // Background polling service
 builder.Services.AddSingleton<PaymentPollerService>();
 builder.Services.AddHostedService(provider => provider.GetRequiredService<PaymentPollerService>()); // Solana payment polling + subscription expiry
@@ -110,6 +111,14 @@ app.MapGet("/dashboard", async context =>
 {
     context.Response.ContentType = "text/html";
     var html = await System.IO.File.ReadAllTextAsync("wwwroot/dashboard.html");
+    await context.Response.WriteAsync(html);
+});
+
+// Self-service alert manager (Telegram Login Widget auth)
+app.MapGet("/manage", async context =>
+{
+    context.Response.ContentType = "text/html";
+    var html = await System.IO.File.ReadAllTextAsync("wwwroot/manage.html");
     await context.Response.WriteAsync(html);
 });
 

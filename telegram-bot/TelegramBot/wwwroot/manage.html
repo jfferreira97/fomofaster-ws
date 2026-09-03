@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GROUPCHAT Alerts - Manage</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        background-color: #0e1621;
+        color: #ffffff;
+        min-height: 100vh;
+    }
+
+    .wrap { max-width: 720px; margin: 0 auto; padding: 20px 16px 60px; }
+
+    .header { text-align: center; margin-bottom: 24px; }
+    .header h1 { font-size: 20px; font-weight: 600; }
+    .header p { color: #8a96a0; font-size: 14px; margin-top: 4px; }
+
+    .card {
+        background-color: #17212b;
+        border-radius: 12px;
+        padding: 18px;
+        margin-bottom: 16px;
+    }
+
+    .card h2 {
+        font-size: 15px;
+        font-weight: 600;
+        margin-bottom: 14px;
+        color: #ffffff;
+    }
+
+    /* --- Login screen --- */
+    #loginScreen { text-align: center; padding: 60px 16px; }
+    #loginScreen p { color: #8a96a0; margin-bottom: 20px; font-size: 14px; }
+    #telegramLoginContainer { display: inline-block; }
+
+    /* --- Toggle rows --- */
+    .toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 0;
+        border-bottom: 1px solid #0e1621;
+    }
+    .toggle-row:last-child { border-bottom: none; }
+    .toggle-label { font-size: 14px; }
+    .toggle-sub { font-size: 12px; color: #8a96a0; margin-top: 2px; }
+
+    .switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+        position: absolute; cursor: pointer; inset: 0;
+        background-color: #2b3a4a; border-radius: 22px; transition: .15s;
+    }
+    .slider::before {
+        content: ""; position: absolute; height: 16px; width: 16px;
+        left: 3px; bottom: 3px; background-color: white; border-radius: 50%; transition: .15s;
+    }
+    input:checked + .slider { background-color: #2b8fef; }
+    input:checked + .slider::before { transform: translateX(18px); }
+
+    .num-input {
+        width: 70px; background: #0e1621; border: 1px solid #2b3a4a; color: #fff;
+        border-radius: 6px; padding: 6px 8px; font-size: 13px; text-align: right;
+    }
+
+    button.save-btn {
+        background: #2b8fef; color: #fff; border: none; border-radius: 8px;
+        padding: 10px 16px; font-size: 14px; font-weight: 500; cursor: pointer; width: 100%;
+        margin-top: 4px;
+    }
+    button.save-btn:hover { background: #2478d0; }
+    button.save-btn:disabled { opacity: 0.5; cursor: default; }
+
+    /* --- Trader filter/search --- */
+    .filter-row { display: flex; gap: 8px; margin-bottom: 14px; }
+    .filter-btn {
+        flex: 1; background: #0e1621; border: 1px solid #2b3a4a; color: #8a96a0;
+        border-radius: 8px; padding: 8px; font-size: 13px; cursor: pointer;
+    }
+    .filter-btn.active { background: #2b8fef; border-color: #2b8fef; color: #fff; }
+    .search-input {
+        width: 100%; background: #0e1621; border: 1px solid #2b3a4a; color: #fff;
+        border-radius: 8px; padding: 9px 12px; font-size: 14px; margin-bottom: 14px;
+    }
+
+    .trader-list { max-height: 480px; overflow-y: auto; }
+    .trader-row {
+        display: flex; align-items: center; gap: 10px;
+        padding: 10px 0; border-bottom: 1px solid #0e1621;
+    }
+    .trader-row:last-child { border-bottom: none; }
+    .trader-handle { font-size: 14px; font-weight: 500; }
+    .trader-meta { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+    .badge {
+        font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600;
+        flex-shrink: 0;
+    }
+    .badge-fomo { background: #2b3a4a; color: #7ea9d8; }
+    .badge-pump { background: #3a2b1a; color: #e0a35c; }
+    .badge-verified { background: #1a3a2b; color: #5ce0a0; }
+
+    .threshold-input {
+        width: 80px; background: #0e1621; border: 1px solid #2b3a4a; color: #fff;
+        border-radius: 6px; padding: 6px 8px; font-size: 12px;
+    }
+    .threshold-input:disabled { opacity: 0.35; }
+
+    .follow-btn {
+        flex-shrink: 0; border: none; border-radius: 6px; padding: 6px 12px;
+        font-size: 12px; font-weight: 600; cursor: pointer;
+    }
+    .follow-btn.following { background: #2b3a4a; color: #8a96a0; }
+    .follow-btn.not-following { background: #2b8fef; color: #fff; }
+
+    .empty-state { text-align: center; color: #8a96a0; padding: 30px; font-size: 14px; }
+
+    .toast {
+        position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+        background: #1a3a2b; color: #5ce0a0; padding: 10px 18px; border-radius: 8px;
+        font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none;
+    }
+    .toast.show { opacity: 1; }
+
+    .logout-link {
+        display: block; text-align: center; color: #8a96a0; font-size: 13px;
+        margin-top: 8px; cursor: pointer;
+    }
+
+    .whoami { text-align: center; color: #8a96a0; font-size: 13px; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <div class="header">
+        <h1>Manage Your Alerts</h1>
+        <p>Choose which traders you follow and what's worth an alert.</p>
+    </div>
+
+    <div id="loginScreen" style="display:none;">
+        <p>Log in with Telegram to manage your followed traders and alert thresholds.</p>
+        <div id="telegramLoginContainer"></div>
+    </div>
+
+    <div id="appScreen" style="display:none;">
+        <div class="whoami" id="whoami"></div>
+
+        <div class="card">
+            <h2>Auto-follow &amp; notifications</h2>
+            <div class="toggle-row">
+                <div><div class="toggle-label">Auto-follow new FOMO traders</div></div>
+                <label class="switch"><input type="checkbox" id="s_autoFollowFomoTraders"><span class="slider"></span></label>
+            </div>
+            <div class="toggle-row">
+                <div><div class="toggle-label">Auto-follow new Pump traders</div></div>
+                <label class="switch"><input type="checkbox" id="s_autoFollowPumpTraders"><span class="slider"></span></label>
+            </div>
+            <div class="toggle-row">
+                <div><div class="toggle-label">FOMO buy/sell alerts</div></div>
+                <label class="switch"><input type="checkbox" id="s_notifyFomoBuySell"><span class="slider"></span></label>
+            </div>
+            <div class="toggle-row">
+                <div><div class="toggle-label">FOMO thesis alerts</div></div>
+                <label class="switch"><input type="checkbox" id="s_notifyFomoThesis"><span class="slider"></span></label>
+            </div>
+            <div class="toggle-row">
+                <div><div class="toggle-label">Pump callouts/reposts/replies</div></div>
+                <label class="switch"><input type="checkbox" id="s_notifyPumpCallouts"><span class="slider"></span></label>
+            </div>
+            <div class="toggle-row">
+                <div>
+                    <div class="toggle-label">Verified Pump traders only</div>
+                    <div class="toggle-sub">Only applies while Pump callouts are on</div>
+                </div>
+                <label class="switch"><input type="checkbox" id="s_pumpVerifiedOnly"><span class="slider"></span></label>
+            </div>
+            <div class="toggle-row">
+                <div><div class="toggle-label">Trending (confluence) alerts</div></div>
+                <label class="switch"><input type="checkbox" id="s_notifyTrending"><span class="slider"></span></label>
+            </div>
+            <div class="toggle-row">
+                <div>
+                    <div class="toggle-label">Repeat window (minutes)</div>
+                    <div class="toggle-sub">0 = no throttling, alert every time</div>
+                </div>
+                <input type="number" min="0" class="num-input" id="s_repeatWindowMinutes">
+            </div>
+            <button class="save-btn" id="saveSettingsBtn">Save</button>
+        </div>
+
+        <div class="card">
+            <h2>Traders</h2>
+            <div class="filter-row">
+                <button class="filter-btn active" data-platform="all">All</button>
+                <button class="filter-btn" data-platform="fomo">FOMO</button>
+                <button class="filter-btn" data-platform="pump">Pump</button>
+            </div>
+            <input type="text" class="search-input" id="traderSearch" placeholder="Search by handle...">
+            <div class="trader-list" id="traderList"></div>
+        </div>
+
+        <div class="logout-link" id="logoutLink">Log out</div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = window.location.origin;
+let allTraders = [];
+let currentPlatform = 'all';
+
+function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+async function init() {
+    const me = await fetch(`${API}/api/manage/me`).then(r => r.ok ? r.json() : null).catch(() => null);
+    if (!me) {
+        await showLogin();
+        return;
+    }
+    showApp(me);
+}
+
+async function showLogin() {
+    document.getElementById('loginScreen').style.display = 'block';
+    document.getElementById('appScreen').style.display = 'none';
+
+    const res = await fetch(`${API}/api/auth/bot-username`).then(r => r.json()).catch(() => null);
+    if (!res || res.status !== 'success') {
+        document.getElementById('telegramLoginContainer').textContent = 'Login unavailable right now.';
+        return;
+    }
+
+    window.onTelegramAuth = async (user) => {
+        const loginRes = await fetch(`${API}/api/auth/telegram-login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(user)
+        });
+        if (!loginRes.ok) {
+            showToast('Login failed, try again');
+            return;
+        }
+        init();
+    };
+
+    const script = document.createElement('script');
+    script.src = 'https://telegram.org/js/telegram-widget.js?22';
+    script.setAttribute('data-telegram-login', res.username);
+    script.setAttribute('data-size', 'large');
+    script.setAttribute('data-onauth', 'onTelegramAuth(user)');
+    script.setAttribute('data-request-access', 'write');
+    document.getElementById('telegramLoginContainer').appendChild(script);
+}
+
+function showApp(me) {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('appScreen').style.display = 'block';
+
+    document.getElementById('whoami').textContent =
+        `Logged in as ${me.user.username ? '@' + me.user.username : (me.user.firstName || me.user.chatId)}`;
+
+    const s = me.settings;
+    document.getElementById('s_autoFollowFomoTraders').checked = s.autoFollowFomoTraders;
+    document.getElementById('s_autoFollowPumpTraders').checked = s.autoFollowPumpTraders;
+    document.getElementById('s_notifyFomoBuySell').checked = s.notifyFomoBuySell;
+    document.getElementById('s_notifyFomoThesis').checked = s.notifyFomoThesis;
+    document.getElementById('s_notifyPumpCallouts').checked = s.notifyPumpCallouts;
+    document.getElementById('s_pumpVerifiedOnly').checked = s.pumpVerifiedOnly;
+    document.getElementById('s_notifyTrending').checked = s.notifyTrending;
+    document.getElementById('s_repeatWindowMinutes').value = s.repeatWindowMinutes;
+
+    loadTraders();
+}
+
+document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('saveSettingsBtn');
+    btn.disabled = true;
+    const body = {
+        autoFollowFomoTraders: document.getElementById('s_autoFollowFomoTraders').checked,
+        autoFollowPumpTraders: document.getElementById('s_autoFollowPumpTraders').checked,
+        notifyFomoBuySell: document.getElementById('s_notifyFomoBuySell').checked,
+        notifyFomoThesis: document.getElementById('s_notifyFomoThesis').checked,
+        notifyPumpCallouts: document.getElementById('s_notifyPumpCallouts').checked,
+        pumpVerifiedOnly: document.getElementById('s_pumpVerifiedOnly').checked,
+        notifyTrending: document.getElementById('s_notifyTrending').checked,
+        repeatWindowMinutes: parseInt(document.getElementById('s_repeatWindowMinutes').value, 10) || 0
+    };
+    const res = await fetch(`${API}/api/manage/settings`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    btn.disabled = false;
+    showToast(res.ok ? 'Settings saved' : 'Failed to save');
+});
+
+document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentPlatform = btn.dataset.platform;
+        loadTraders();
+    });
+});
+
+document.getElementById('traderSearch').addEventListener('input', renderTraders);
+
+async function loadTraders() {
+    const res = await fetch(`${API}/api/manage/traders?platform=${currentPlatform}`).then(r => r.json()).catch(() => null);
+    if (!res || res.status !== 'success') {
+        showToast('Failed to load traders');
+        return;
+    }
+    allTraders = res.traders;
+    renderTraders();
+}
+
+function renderTraders() {
+    const query = document.getElementById('traderSearch').value.trim().toLowerCase();
+    const list = document.getElementById('traderList');
+    const filtered = allTraders.filter(t => !query || t.handle.toLowerCase().includes(query));
+
+    if (filtered.length === 0) {
+        list.innerHTML = '<div class="empty-state">No traders match.</div>';
+        return;
+    }
+
+    list.innerHTML = filtered.map(t => `
+        <div class="trader-row" data-id="${t.id}">
+            <div class="trader-meta">
+                <span class="badge ${t.platform === 'Pump' ? 'badge-pump' : 'badge-fomo'}">${t.platform.toUpperCase()}</span>
+                ${t.isPumpVerified ? '<span class="badge badge-verified">VERIFIED</span>' : ''}
+                <span class="trader-handle">${escapeHtml(t.handle)}</span>
+            </div>
+            <input type="number" min="0" step="1" class="threshold-input" placeholder="min $"
+                value="${t.minValueUsd != null ? t.minValueUsd : ''}"
+                ${t.isFollowing ? '' : 'disabled'}
+                data-id="${t.id}">
+            <button class="follow-btn ${t.isFollowing ? 'following' : 'not-following'}" data-id="${t.id}" data-following="${t.isFollowing}">
+                ${t.isFollowing ? 'Following' : 'Follow'}
+            </button>
+        </div>
+    `).join('');
+
+    list.querySelectorAll('.follow-btn').forEach(btn => btn.addEventListener('click', onToggleFollow));
+    list.querySelectorAll('.threshold-input').forEach(input => {
+        input.addEventListener('change', onThresholdChange);
+    });
+}
+
+function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+async function onToggleFollow(e) {
+    const traderId = parseInt(e.target.dataset.id, 10);
+    const following = e.target.dataset.following === 'true';
+    const endpoint = following ? 'unfollow' : 'follow';
+
+    const res = await fetch(`${API}/api/manage/${endpoint}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ traderId })
+    });
+    if (!res.ok) { showToast('Failed'); return; }
+
+    const t = allTraders.find(x => x.id === traderId);
+    if (t) { t.isFollowing = !following; if (following) t.minValueUsd = null; }
+    renderTraders();
+}
+
+async function onThresholdChange(e) {
+    const traderId = parseInt(e.target.dataset.id, 10);
+    const raw = e.target.value.trim();
+    const minValueUsd = raw === '' ? null : Number(raw);
+
+    const res = await fetch(`${API}/api/manage/threshold`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ traderId, minValueUsd })
+    });
+
+    if (!res.ok) { showToast('Failed to save threshold'); return; }
+    const t = allTraders.find(x => x.id === traderId);
+    if (t) t.minValueUsd = minValueUsd;
+    showToast('Threshold saved');
+}
+
+document.getElementById('logoutLink').addEventListener('click', async () => {
+    await fetch(`${API}/api/auth/logout`, { method: 'POST' });
+    init();
+});
+
+init();
+</script>
+</body>
+</html>
