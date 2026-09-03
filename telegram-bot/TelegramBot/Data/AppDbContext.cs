@@ -21,6 +21,7 @@ public class AppDbContext : DbContext
     public DbSet<WsEvent> WsEvents { get; set; }
     public DbSet<ConfluenceAlert> ConfluenceAlerts { get; set; }
     public DbSet<PumpEvent> PumpEvents { get; set; }
+    public DbSet<SuggestedTrader> SuggestedTraders { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -153,6 +154,21 @@ public class AppDbContext : DbContext
             entity.HasOne(e => e.Notification)
                 .WithMany()
                 .HasForeignKey(e => e.NotificationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<SuggestedTrader>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Handle).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Platform).IsRequired().HasConversion<string>();
+            entity.Property(e => e.CreatedAt).IsRequired();
+            // Backs the rate-limit lookup: "how many has this user made in the last 24h".
+            entity.HasIndex(e => new { e.UserId, e.CreatedAt });
+
+            entity.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

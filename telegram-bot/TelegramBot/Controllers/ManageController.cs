@@ -1,4 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Telegram.Bot;
+using Telegram.Bot.Types.Enums;
 using TelegramBot.Data;
 using TelegramBot.Models;
 using TelegramBot.Services;
@@ -18,19 +22,25 @@ public class ManageController : ControllerBase
     private readonly ITraderService _traderService;
     private readonly IChainSettingsService _chainSettingsService;
     private readonly AppDbContext _dbContext;
+    private readonly TelegramSettings _telegramSettings;
+
+    private const int SuggestionRateLimit = 5;
+    private static readonly TimeSpan SuggestionWindow = TimeSpan.FromHours(24);
 
     public ManageController(
         WebSessionService sessionService,
         IUserService userService,
         ITraderService traderService,
         IChainSettingsService chainSettingsService,
-        AppDbContext dbContext)
+        AppDbContext dbContext,
+        IOptions<TelegramSettings> telegramSettings)
     {
         _sessionService = sessionService;
         _userService = userService;
         _traderService = traderService;
         _chainSettingsService = chainSettingsService;
         _dbContext = dbContext;
+        _telegramSettings = telegramSettings.Value;
     }
 
     private async Task<Models.User?> GetCurrentUserAsync()
@@ -242,6 +252,78 @@ public class ManageController : ControllerBase
         await _chainSettingsService.SetTrendingDisabledAsync(user.Id, request.Chain, request.Disabled);
         return Ok(new { status = "success" });
     }
+
+    [HttpPost("suggest-trader")]
+    public async Task<IActionResult> SuggestTrader([FromBody] SuggestTraderRequest request)
+    {
+        var (user, error) = await ResolveSubscriberAsync();
+        if (user == null) return error!;
+
+        var handle = request.Handle?.Trim().TrimStart('@');
+        if (string.IsNullOrWhiteSpace(handle) || handle.Length > 100)
+            return BadRequest(new { status = "error", message = "Enter a valid trader handle" });
+
+        var windowStart = DateTime.UtcNow - SuggestionWindow;
+        var recentCount = await _dbContext.SuggestedTraders
+            .CountAsync(s => s.UserId == user.Id && s.CreatedAt >= windowStart);
+        if (recentCount >= SuggestionRateLimit)
+            return StatusCode(429, new { status = "error", message = $"You can suggest up to {SuggestionRateLimit} traders per day — try again later." });
+
+        _dbContext.SuggestedTraders.Add(new SuggestedTrader
+        {
+            UserId = user.Id,
+            Handle = handle,
+            Platform = request.Platform,
+            CreatedAt = DateTime.UtcNow
+        });
+        await _dbContext.SaveChangesAsync();
+
+        await NotifyOwnerOfSuggestionAsync(user, handle, request.Platform);
+
+        return Ok(new { status = "success" });
+    }
+
+    // Reuses the same admin-bot DM channel HandleFreeTextAsync already forwards non-command
+    // messages through — one place the owner checks, not a second notification surface.
+    private async Task NotifyOwnerOfSuggestionAsync(Models.User user, string handle, Platform platform)
+    {
+        if (string.IsNullOrEmpty(_telegramSettings.AdminBotToken))
+            return;
+
+        var owner = await _dbContext.Users.FindAsync(_telegramSettings.OwnerUserId);
+        if (owner == null)
+            return;
+
+        static string EscapeMarkdown(string text) =>
+            text.Replace("_", "\\_").Replace("*", "\\*").Replace("`", "\\`").Replace("[", "\\[");
+
+        var profileUrl = platform == Platform.Pump
+            ? $"https://pump.fun/profile/{Uri.EscapeDataString(handle)}"
+            : $"https://fomo.family/profile/{Uri.EscapeDataString(handle)}";
+
+        // @username auto-links in Telegram's own rendering when present; tg://user deep-links
+        // work even without one, so a requester is always clickable either way.
+        var requester = !string.IsNullOrEmpty(user.Username)
+            ? $"@{user.Username}"
+            : $"[{EscapeMarkdown(user.FirstName ?? "a user")}](tg://user?id={user.ChatId})";
+
+        var text = $"📬 *Trader suggestion*\n\n{requester} suggests adding [{EscapeMarkdown(handle)}]({profileUrl}) on *{platform}*";
+
+        try
+        {
+            var adminBot = new TelegramBotClient(_telegramSettings.AdminBotToken);
+            await adminBot.SendTextMessageAsync(
+                chatId: owner.ChatId,
+                text: text,
+                parseMode: ParseMode.Markdown,
+                disableWebPagePreview: true
+            );
+        }
+        catch
+        {
+            // Suggestion is already saved — a failed DM shouldn't fail the request.
+        }
+    }
 }
 
 public record UpdateManageSettingsRequest(
@@ -259,3 +341,4 @@ public record SetThresholdRequest(int TraderId, decimal? MinValueUsd);
 public record SetChainDisabledRequest(Chain Chain, bool Disabled);
 public record SetChainMinMarketCapRequest(Chain Chain, decimal? MinMarketCap);
 public record SetChainTrendingDisabledRequest(Chain Chain, bool Disabled);
+public record SuggestTraderRequest(string Handle, Platform Platform);
