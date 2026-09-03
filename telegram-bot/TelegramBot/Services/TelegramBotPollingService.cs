@@ -497,9 +497,19 @@ Follow us on twitter, stay tuned for major updates: https://x.com/groupchat__BOT
 /repeatwindow <2h/30m/off> - Limit repeat buy/sell alerts per trader+coin — buys and sells don't block each other (off by default)
 /chains - Tap-button menu: enable/disable each chain, cycle its minimum market cap floor (also: /chains disable base, /chains minmcap sol 50k)
 /top [chains] <period> - Top tokens (e.g., /top 1h, /top sol 1d, /top sol,monad 6h)
+/manage - Open the web page to manage followed traders and alert thresholds
 
 You'll only receive notifications from traders you follow!",
                     parseMode: ParseMode.Markdown
+                );
+                break;
+
+            case "/manage":
+                await _botClient.SendTextMessageAsync(
+                    chatId: chatId,
+                    text: "Manage your followed traders and per-trader alert thresholds here:",
+                    replyMarkup: new InlineKeyboardMarkup(
+                        InlineKeyboardButton.WithUrl("Open Manage Page", "https://groupchat-bot.tech/manage"))
                 );
                 break;
 
