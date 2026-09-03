@@ -189,55 +189,6 @@
     }
     .ghost-btn:hover { background: rgba(232,172,63,0.12); }
 
-    /* ---------- Quick-add batch builder ---------- */
-    .quickadd { position: relative; margin-bottom: 12px; }
-    .quickadd-input {
-        width: 100%; background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
-        border-radius: var(--radius); padding: 10px 12px; font-size: 13px; outline: none;
-        font-family: 'IBM Plex Mono', monospace;
-    }
-    .quickadd-input::placeholder { color: var(--text-faint); }
-    .quickadd-input:focus { border-color: var(--accent); }
-    .quickadd-dropdown {
-        position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 5;
-        background: var(--surface-3); border: 1px solid var(--border); border-radius: var(--radius);
-        max-height: 220px; overflow-y: auto; display: none;
-    }
-    .quickadd-dropdown.show { display: block; }
-    .quickadd-item {
-        display: flex; align-items: center; gap: 8px; padding: 9px 12px; cursor: pointer;
-        font-size: 12.5px; border-bottom: 1px solid var(--border);
-    }
-    .quickadd-item:last-child { border-bottom: none; }
-    .quickadd-item:hover { background: var(--surface-2); }
-    .quickadd-item .trader-handle { flex: 1; }
-    .quickadd-item .already { color: var(--text-faint); font-size: 11px; }
-
-    .staged-wrap { margin-bottom: 14px; }
-    .staged-head {
-        display: flex; align-items: center; justify-content: space-between;
-        margin-bottom: 8px;
-    }
-    .staged-head span { font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-faint); font-weight: 700; }
-    .staged-head button {
-        background: none; border: none; color: var(--text-faint); font-size: 11.5px;
-        cursor: pointer; font-family: inherit; text-decoration: underline;
-    }
-    .staged-head button:hover { color: var(--text-dim); }
-    .staged-list { display: flex; flex-direction: column; gap: 6px; }
-    .staged-row {
-        display: flex; align-items: center; gap: 10px;
-        background: var(--surface-2); border: 1px solid var(--accent-dim); border-radius: var(--radius);
-        padding: 8px 10px;
-    }
-    .staged-row .trader-handle { flex: 1; }
-    .staged-row .threshold-input { width: 100px; }
-    .staged-remove {
-        background: none; border: none; color: var(--text-faint); font-size: 15px; line-height: 1;
-        cursor: pointer; padding: 2px 4px;
-    }
-    .staged-remove:hover { color: var(--bad); }
-
     .trader-table { width: 100%; border-collapse: collapse; }
     .trader-table thead th {
         position: sticky; top: 0; background: var(--surface); z-index: 1;
@@ -278,6 +229,15 @@
     }
 
     .trader-scroll { max-height: 620px; overflow-y: auto; }
+
+    .pagination { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 12px; }
+    .pagination button {
+        background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
+        border-radius: var(--radius); padding: 6px 12px; font-size: 12.5px; cursor: pointer; font-family: inherit;
+    }
+    .pagination button:disabled { opacity: .35; cursor: default; }
+    .pagination button:hover:not(:disabled) { background: var(--surface-3); }
+    .pagination span { font-size: 12px; color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; }
 
     .empty-state { text-align: center; color: var(--text-dim); padding: 40px 20px; font-size: 13.5px; }
 
@@ -362,19 +322,6 @@
                     <div class="panel-desc">Check a trader to follow them. Set a $ floor to only get alerted above it — blank alerts on everything from them.</div>
                 </div>
                 <div class="panel-body">
-                    <div class="quickadd">
-                        <input type="text" class="quickadd-input" id="quickAddInput" placeholder="＋ type a handle to add a trader...">
-                        <div class="quickadd-dropdown" id="quickAddDropdown"></div>
-                    </div>
-
-                    <div class="staged-wrap" id="stagedWrap" style="display:none;">
-                        <div class="staged-head">
-                            <span id="stagedCount">Just added</span>
-                            <button id="clearStagedBtn" type="button">clear list</button>
-                        </div>
-                        <div class="staged-list" id="stagedList"></div>
-                    </div>
-
                     <div class="traders-toolbar">
                         <div class="tabs">
                             <button class="tab active" data-platform="all">All</button>
@@ -401,6 +348,7 @@
                             <tbody id="traderList"></tbody>
                         </table>
                     </div>
+                    <div class="pagination" id="pagination"></div>
                 </div>
             </div>
         </div>
@@ -415,6 +363,8 @@ let allTraders = [];
 let currentPlatform = 'all';
 let currentSettings = null;
 let currentChains = [];
+let currentPage = 1;
+const PAGE_SIZE = 50;
 
 function showToast(msg, durationMs = 1800) {
     const t = document.getElementById('toast');
@@ -642,11 +592,15 @@ document.querySelectorAll('.tab').forEach(btn => {
         document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         currentPlatform = btn.dataset.platform;
+        currentPage = 1;
         loadTraders();
     });
 });
 
-document.getElementById('traderSearch').addEventListener('input', renderTraders);
+document.getElementById('traderSearch').addEventListener('input', () => {
+    currentPage = 1;
+    renderTraders();
+});
 
 async function loadTraders() {
     const res = await fetch(`${API}/api/manage/traders?platform=${currentPlatform}`).then(r => r.json()).catch(() => null);
@@ -667,12 +621,19 @@ function renderTraders() {
     document.getElementById('traderCount').innerHTML =
         `<b>${followingCount}</b> following <span style="opacity:.5">/</span> <b>${allTraders.length}</b> available`;
 
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    currentPage = Math.min(Math.max(currentPage, 1), totalPages);
+
     if (filtered.length === 0) {
         list.innerHTML = '<tr><td colspan="3"><div class="empty-state">No traders match.</div></td></tr>';
+        renderPagination(0, 1);
         return;
     }
 
-    list.innerHTML = filtered.map(t => `
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const pageItems = filtered.slice(start, start + PAGE_SIZE);
+
+    list.innerHTML = pageItems.map(t => `
         <tr data-id="${t.id}">
             <td>
                 <div class="trader-cell">
@@ -695,6 +656,21 @@ function renderTraders() {
 
     list.querySelectorAll('.follow-check').forEach(chk => chk.addEventListener('change', onToggleFollow));
     list.querySelectorAll('.threshold-input').forEach(input => input.addEventListener('change', onThresholdChange));
+
+    renderPagination(filtered.length, totalPages);
+}
+
+function renderPagination(totalCount, totalPages) {
+    const el = document.getElementById('pagination');
+    if (totalCount === 0) { el.innerHTML = ''; return; }
+
+    el.innerHTML = `
+        <button id="pagePrev" ${currentPage <= 1 ? 'disabled' : ''}>‹ Prev</button>
+        <span>Page ${currentPage} of ${totalPages} · ${totalCount} traders</span>
+        <button id="pageNext" ${currentPage >= totalPages ? 'disabled' : ''}>Next ›</button>
+    `;
+    document.getElementById('pagePrev')?.addEventListener('click', () => { currentPage--; renderTraders(); });
+    document.getElementById('pageNext')?.addEventListener('click', () => { currentPage++; renderTraders(); });
 }
 
 async function onToggleFollow(e) {
@@ -729,113 +705,6 @@ async function onThresholdChange(e) {
     showToast('Threshold saved');
 }
 
-/* ---------- Quick-add batch builder ---------- */
-
-let stagedIds = new Set();
-
-document.getElementById('quickAddInput').addEventListener('input', renderQuickAddDropdown);
-document.getElementById('quickAddInput').addEventListener('focus', renderQuickAddDropdown);
-document.addEventListener('click', (e) => {
-    if (!e.target.closest('.quickadd')) {
-        document.getElementById('quickAddDropdown').classList.remove('show');
-    }
-});
-
-function renderQuickAddDropdown() {
-    const query = document.getElementById('quickAddInput').value.trim().toLowerCase();
-    const dropdown = document.getElementById('quickAddDropdown');
-    if (!query) { dropdown.classList.remove('show'); dropdown.innerHTML = ''; return; }
-
-    const matches = allTraders.filter(t => t.handle.toLowerCase().includes(query)).slice(0, 8);
-
-    if (matches.length === 0) {
-        dropdown.innerHTML = '<div class="quickadd-item" style="cursor:default;color:var(--text-faint);">No matches</div>';
-        dropdown.classList.add('show');
-        return;
-    }
-
-    dropdown.innerHTML = matches.map(t => `
-        <div class="quickadd-item" data-id="${t.id}">
-            <span class="platform-mark">${t.platform === 'Pump' ? '💊' : '👀'}</span>
-            <span class="trader-handle">${escapeHtml(t.handle)}</span>
-            ${t.isFollowing ? '<span class="already">already following</span>' : ''}
-        </div>
-    `).join('');
-    dropdown.classList.add('show');
-
-    dropdown.querySelectorAll('.quickadd-item[data-id]').forEach(item => {
-        item.addEventListener('click', () => addTraderFromQuickAdd(parseInt(item.dataset.id, 10)));
-    });
-}
-
-async function addTraderFromQuickAdd(traderId) {
-    const t = allTraders.find(x => x.id === traderId);
-    if (!t) return;
-
-    document.getElementById('quickAddInput').value = '';
-    document.getElementById('quickAddDropdown').classList.remove('show');
-
-    if (!t.isFollowing) {
-        const res = await fetch(`${API}/api/manage/follow`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ traderId })
-        });
-        if (!res.ok) { showToast('Failed to follow'); return; }
-        t.isFollowing = true;
-    }
-
-    stagedIds.add(traderId);
-    renderStaged();
-    renderTraders();
-    document.getElementById('quickAddInput').focus();
-}
-
-function renderStaged() {
-    const wrap = document.getElementById('stagedWrap');
-    const list = document.getElementById('stagedList');
-    const staged = [...stagedIds].map(id => allTraders.find(t => t.id === id)).filter(Boolean);
-
-    if (staged.length === 0) {
-        wrap.style.display = 'none';
-        return;
-    }
-    wrap.style.display = 'block';
-    document.getElementById('stagedCount').textContent = `Just added (${staged.length})`;
-
-    list.innerHTML = staged.map(t => `
-        <div class="staged-row" data-id="${t.id}">
-            <span class="platform-mark">${t.platform === 'Pump' ? '💊' : '👀'}</span>
-            <a class="trader-handle" href="${traderProfileUrl(t)}" target="_blank" rel="noopener noreferrer">${escapeHtml(t.handle)}</a>
-            <input type="number" min="0" step="1" class="threshold-input" placeholder="any"
-                value="${t.minValueUsd != null ? t.minValueUsd : ''}" data-id="${t.id}">
-            <button class="staged-remove" data-id="${t.id}" title="Unfollow">✕</button>
-        </div>
-    `).join('');
-
-    list.querySelectorAll('.threshold-input').forEach(input => input.addEventListener('change', onThresholdChange));
-    list.querySelectorAll('.staged-remove').forEach(btn => btn.addEventListener('click', onRemoveStaged));
-}
-
-async function onRemoveStaged(e) {
-    const traderId = parseInt(e.currentTarget.dataset.id, 10);
-    const res = await fetch(`${API}/api/manage/unfollow`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ traderId })
-    });
-    if (!res.ok) { showToast('Failed'); return; }
-
-    stagedIds.delete(traderId);
-    const t = allTraders.find(x => x.id === traderId);
-    if (t) { t.isFollowing = false; t.minValueUsd = null; }
-    renderStaged();
-    renderTraders();
-}
-
-document.getElementById('clearStagedBtn').addEventListener('click', () => {
-    stagedIds.clear();
-    renderStaged();
-});
-
 document.getElementById('followAllBtn').addEventListener('click', async () => {
     if (!confirm('Follow every available trader? This also turns on FOMO + Pump auto-follow for new traders. Anyone you explicitly unfollowed before stays unfollowed.')) return;
 
@@ -855,8 +724,7 @@ document.getElementById('followAllBtn').addEventListener('click', async () => {
         currentSettings.autoFollowPumpTraders = true;
         renderSettings();
 
-        stagedIds.clear();
-        renderStaged();
+        currentPage = 1;
         await loadTraders();
         const newlyFollowed = body?.followedCount ?? '?';
         showToast(`Done — followed ${newlyFollowed} new trader(s)`, 4000);
@@ -881,8 +749,7 @@ document.getElementById('unfollowAllBtn').addEventListener('click', async () => 
         if (!res.ok) { showToast('Failed to unfollow all'); return; }
 
         allTraders.forEach(t => { t.isFollowing = false; t.minValueUsd = null; });
-        stagedIds.clear();
-        renderStaged();
+        currentPage = 1;
         renderTraders();
         const unfollowedCount = body?.unfollowedCount ?? '?';
         showToast(`Done — unfollowed ${unfollowedCount} trader(s)`, 4000);
