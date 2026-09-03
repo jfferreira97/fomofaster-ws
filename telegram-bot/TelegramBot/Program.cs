@@ -56,6 +56,8 @@ builder.Services.AddHostedService(provider => provider.GetRequiredService<Paymen
 builder.Services.AddSingleton<ConfluenceService>();
 builder.Services.AddHostedService(provider => provider.GetRequiredService<ConfluenceService>()); // Multi-trader confluence -> TRENDING alerts
 builder.Services.AddHostedService<NotificationRetentionService>(); // Purges Notifications/SentMessages older than the repeat-window's max lookback
+builder.Services.AddSingleton<ActiveUserCache>();
+builder.Services.AddHostedService(provider => provider.GetRequiredService<ActiveUserCache>()); // In-memory active-user pool for the notification hot path
 builder.Services.AddHttpClient(); // For Helius API calls and DexScreener API calls
 
 // Configure settings from appsettings.json or environment variables

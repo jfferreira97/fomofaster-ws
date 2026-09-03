@@ -17,6 +17,7 @@ public class TelegramService : ITelegramService
     private readonly ILogger<TelegramService> _logger;
     private readonly IHubContext<DashboardHub> _hubContext;
     private readonly ChainSettingsCache _chainSettingsCache;
+    private readonly ActiveUserCache _activeUserCache;
     private PaymentPollerService? _paymentPoller;
 
     public TelegramService(
@@ -24,13 +25,15 @@ public class TelegramService : ITelegramService
         IServiceProvider serviceProvider,
         ILogger<TelegramService> logger,
         IHubContext<DashboardHub> hubContext,
-        ChainSettingsCache chainSettingsCache)
+        ChainSettingsCache chainSettingsCache,
+        ActiveUserCache activeUserCache)
     {
         _settings = settings.Value;
         _serviceProvider = serviceProvider;
         _logger = logger;
         _hubContext = hubContext;
         _chainSettingsCache = chainSettingsCache;
+        _activeUserCache = activeUserCache;
 
         if (!string.IsNullOrEmpty(_settings.BotToken))
         {
@@ -81,8 +84,8 @@ public class TelegramService : ITelegramService
                 return;
             }
 
-            // Get only active users who follow this trader
-            var allUsers = await userService.GetAllActiveUsersAsync();
+            // Get only active users who follow this trader — zero-DB-query read
+            var allUsers = _activeUserCache.GetActiveUsers();
             users = allUsers.Where(u => followerThresholds.ContainsKey(u.Id)).ToList();
 
             _logger.LogInformation("Filtered to {Count} users following trader {Trader}", users.Count, traderHandle);
@@ -90,7 +93,7 @@ public class TelegramService : ITelegramService
         else
         {
             // No trader specified - send to all active users (backward compatible)
-            users = await userService.GetAllActiveUsersAsync();
+            users = _activeUserCache.GetActiveUsers();
         }
 
         // Per-trader alert floor, set on the manage page: only deliver trade-like activity
@@ -301,10 +304,13 @@ To get full details: /subscribe";
         dbContext.Notifications.Add(notificationRecord);
         await dbContext.SaveChangesAsync();
 
-        // RN4L first, then active RN, then free users
+        // RN4L first, then active RN, then free users — and within each of those tiers, whoever
+        // interacted with the bot most recently goes first, since they're the most likely to
+        // actually be looking at Telegram right now.
         users = users
             .OrderByDescending(u => u.IsRN4L)
             .ThenByDescending(u => IsRNActive(u))
+            .ThenByDescending(u => u.LastActiveAt ?? DateTime.MinValue)
             .ToList();
 
         // Send messages and track MessageIds
