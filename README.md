@@ -1,26 +1,36 @@
 # FomoFaster WS
 
-Real-time FOMO trade notifications to Telegram, sourced directly from the FOMO WebSocket feed.
+Real-time trade notifications to Telegram, sourced directly from the FOMO and Pump.fun feeds.
 
 ## Architecture
 
 ```mermaid
 flowchart TB
     subgraph Windows["Windows Machine"]
-        subgraph Chrome["Chrome (Playwright)"]
-            FOMO["fomo.family"] -->|WebSocket| Sidecar["WS Sidecar"]
+        subgraph ChromeWS["Chrome (Playwright)"]
+            FOMO["fomo.family"] -->|WebSocket| WsSidecar["ws-sidecar"]
         end
-        Sidecar -->|HTTP POST structured trade| Backend["TelegramBot Backend"]
+        subgraph ChromePump["Chrome (Playwright)"]
+            Pump["pump.fun"] -->|polling| PumpSidecar["pump-sidecar"]
+        end
+        WsSidecar -->|HTTP POST| Backend["TelegramBot Backend :8000"]
+        PumpSidecar -->|HTTP POST| Backend
+        Caddy["Caddy — groupchat-bot.tech"] -->|reverse proxy| Backend
     end
     Backend -->|Telegram API| Telegram["Telegram Users"]
+    Browser["Browser"] -->|HTTPS| Caddy
 ```
+
+`/manage` is a self-service web page (Telegram Login auth, subscription-gated) where users pick which traders to follow, set per-trader/per-chain alert thresholds, and manage notification settings — the same data the bot's own commands read and write.
 
 ## Components
 
 | Folder | Purpose |
 |--------|---------|
 | `ws-sidecar/` | Node.js + Playwright process that opens fomo.family in Chrome, intercepts the `wss://prod-api.fomo.family/ws` WebSocket feed, transforms trade events into structured JSON, and POSTs them to the backend. |
-| `telegram-bot/TelegramBot/` | C# backend that receives structured trade notifications, stores them in SQLite, and sends formatted messages to Telegram subscribers. Contract address, chain, and market cap arrive pre-resolved — no lookup needed. |
+| `pump-sidecar/` | Node.js + Playwright process that polls pump.fun for followed-trader activity (callouts, reposts, replies) and POSTs structured events to the backend. |
+| `telegram-bot/TelegramBot/` | C# backend — Telegram bot, structured-notification ingestion, SQLite storage, and the API behind `/manage` and `/dashboard`. |
+| `deploy/` | `Caddyfile` — reverse proxy config that terminates TLS for `groupchat-bot.tech` and exposes only `/manage` and its API, nothing else. |
 
 ## Prerequisites
 
@@ -62,70 +72,43 @@ Should show:
 Now listening on: http://0.0.0.0:8000
 ```
 
-### 4. Install Sidecar Dependencies
+### 4. Install & Run the Sidecars
+
+Same steps for both `ws-sidecar/` and `pump-sidecar/`:
 
 ```cmd
 cd ws-sidecar
 npm install
-npx playwright install chromium
-```
-
-### 5. Run Sidecar
-
-```cmd
-cd ws-sidecar
+npx playwright install chrome
 npm start
 ```
 
-Chrome opens and navigates to `fomo.family`. **On first run**, log in with your FOMO account. The session is saved to `ws-sidecar/chromium-profile/` and persists — you never have to log in again.
+Chrome opens to the target site. **On first run**, log in by hand — the session is saved to `chromium-profile/` (gitignored) and persists after that.
 
-Once logged in the sidecar prints:
-```
-[main] Sidecar running — intercepting WS trade events
-[intercept] WebSocket opened: wss://prod-api.fomo.family/ws
-```
+### 5. Reverse Proxy (optional, needed for `/manage`)
 
-Trades will start flowing to Telegram immediately.
+`/manage` uses the Telegram Login Widget, which requires HTTPS on a real domain. Point DNS at this machine, then run Caddy with `deploy/Caddyfile` — it auto-provisions TLS and only forwards `/manage`, `/api/auth/*`, and `/api/manage/*`. Everything else on the backend stays unreachable from outside.
 
-## Running Both Together
+## Running Everything
 
-Open two terminals:
-
-```cmd
-# Terminal 1 — backend
-cd telegram-bot\TelegramBot
-dotnet run
-
-# Terminal 2 — sidecar
-cd ws-sidecar
-npm start
-```
+`start-all.bat` launches the backend and both sidecars, each in its own window. Individual `start-*.bat` scripts exist per component.
 
 ## Project Structure
 
 ```
 fomofaster-ws/
-├── ws-sidecar/
-│   ├── src/
-│   │   ├── index.ts          # Browser lifecycle, reconnect on crash, heartbeat
-│   │   ├── ws-intercept.ts   # Playwright WebSocket frame filter
-│   │   ├── transform.ts      # Raw WS payload → StructuredNotificationRequest
-│   │   └── client.ts         # HTTP client — POSTs to backend + heartbeat
-│   ├── chromium-profile/     # Persistent Chrome session (gitignored)
-│   ├── package.json
-│   └── tsconfig.json
+├── ws-sidecar/          # FOMO WebSocket interceptor
+├── pump-sidecar/        # Pump.fun poller
 ├── telegram-bot/
-│   └── TelegramBot/
-│       ├── Controllers/      # API endpoints (notifications, sidecar heartbeat)
-│       ├── Services/         # Telegram, trader, user, payment logic
-│       ├── Models/           # Data models + DTOs
-│       ├── Data/             # SQLite DB context
-│       └── Migrations/       # EF Core migrations
+│   └── TelegramBot/     # C# backend + /manage and /dashboard web pages
+├── deploy/              # Caddy reverse proxy config
 └── README.md
 ```
 
-## How the Feed Works
+## How the Feeds Work
 
-FOMO's web app at `fomo.family` connects to `wss://prod-api.fomo.family/ws` and subscribes to `trading_activity` for the authenticated user — this delivers every trade made by traders that user follows, as structured JSON with contract address, chain, USD amount, and market cap already resolved.
+**FOMO**: `fomo.family` connects to `wss://prod-api.fomo.family/ws` and subscribes to `trading_activity` for the authenticated user — every trade made by traders that user follows, as structured JSON with contract address, chain, USD amount, and market cap already resolved. `ws-sidecar` intercepts these frames at the Playwright level and POSTs to `/api/notifications/structured`.
 
-The sidecar intercepts these frames at the Playwright level, maps them to a typed `StructuredNotificationRequest`, and POSTs to `POST /api/notifications/structured`. The backend stores the notification and broadcasts to Telegram subscribers — no ticker parsing, no contract address lookups, no retries.
+**Pump.fun**: has no equivalent WebSocket feed, so `pump-sidecar` polls the authenticated account's alerts endpoint instead, transforms callout/repost/reply events, and POSTs to `/api/notifications/pump-structured`.
+
+Either way: no ticker parsing, no contract address lookups, no retries — the backend stores the notification and broadcasts to Telegram subscribers.
