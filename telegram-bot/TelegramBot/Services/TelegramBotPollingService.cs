@@ -120,6 +120,10 @@ public class TelegramBotPollingService : BackgroundService
     {
         try
         {
+            var chatId = update.Message?.Chat.Id ?? update.CallbackQuery?.Message?.Chat.Id;
+            if (chatId.HasValue)
+                await TouchLastActiveAsync(chatId.Value);
+
             if (update.Message is { } message)
             {
                 await HandleMessageAsync(message);
@@ -133,6 +137,17 @@ public class TelegramBotPollingService : BackgroundService
         {
             _logger.LogError(ex, "Error handling update {UpdateId}", update.Id);
         }
+    }
+
+    // No-op if the user doesn't exist yet (e.g. their very first /start, before the User row
+    // is created) — that's fine, JoinedAt already covers "brand new" and their next message
+    // picks LastActiveAt up from here on.
+    private async Task TouchLastActiveAsync(long chatId)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Users.Where(u => u.ChatId == chatId)
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.LastActiveAt, DateTime.UtcNow));
     }
 
     private async Task HandleMessageAsync(Message message)

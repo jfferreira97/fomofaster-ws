@@ -55,6 +55,7 @@ builder.Services.AddSingleton<PaymentPollerService>();
 builder.Services.AddHostedService(provider => provider.GetRequiredService<PaymentPollerService>()); // Solana payment polling + subscription expiry
 builder.Services.AddSingleton<ConfluenceService>();
 builder.Services.AddHostedService(provider => provider.GetRequiredService<ConfluenceService>()); // Multi-trader confluence -> TRENDING alerts
+builder.Services.AddHostedService<NotificationRetentionService>(); // Purges Notifications/SentMessages older than the repeat-window's max lookback
 builder.Services.AddHttpClient(); // For Helius API calls and DexScreener API calls
 
 // Configure settings from appsettings.json or environment variables

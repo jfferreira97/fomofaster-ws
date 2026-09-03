@@ -9,6 +9,11 @@ public class User
     public DateTime JoinedAt { get; set; }
     public bool IsActive { get; set; }
 
+    // Touched on every inbound message/button tap (see TelegramBotPollingService.HandleUpdateAsync).
+    // IsActive only tells you Telegram-confirmed-unreachable (blocked/deleted); this is the only
+    // signal for "still reachable but hasn't touched the bot in months."
+    public DateTime? LastActiveAt { get; set; }
+
     // Auto-follow: whether newly-discovered traders on each platform get auto-followed.
     // AutoFollowFomoTraders was formerly the single global AutoFollowNewTraders column —
     // renamed (not a new column) so existing users' preference carries over as their FOMO
