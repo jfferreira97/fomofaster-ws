@@ -263,6 +263,10 @@ public class ManageController : ControllerBase
         if (string.IsNullOrWhiteSpace(handle) || handle.Length > 100)
             return BadRequest(new { status = "error", message = "Enter a valid trader handle" });
 
+        var existingTrader = await _traderService.GetTraderByHandleIgnoreCaseAsync(handle, request.Platform);
+        if (existingTrader != null)
+            return Conflict(new { status = "error", code = "already_tracked", message = "This trader is already tracked — follow them from the list instead." });
+
         var windowStart = DateTime.UtcNow - SuggestionWindow;
         var recentCount = await _dbContext.SuggestedTraders
             .CountAsync(s => s.UserId == user.Id && s.CreatedAt >= windowStart);

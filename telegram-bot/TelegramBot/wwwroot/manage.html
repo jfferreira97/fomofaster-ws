@@ -116,7 +116,19 @@
     .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
     .modal-desc { font-size: 12.5px; color: var(--text-dim); margin-bottom: 16px; line-height: 1.5; }
     .modal-card .search-input { margin-bottom: 10px; }
+    .select-input {
+        appearance: none; -webkit-appearance: none;
+        cursor: pointer;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237c8aa0'/%3E%3C/svg%3E");
+        background-repeat: no-repeat; background-position: right 12px center;
+        padding-right: 32px;
+    }
     .modal-actions { display: flex; gap: 8px; margin-top: 18px; justify-content: flex-end; }
+    .modal-warning {
+        font-size: 12px; color: var(--pump); background: rgba(224,163,92,0.12);
+        border: 1px solid rgba(224,163,92,0.3); border-radius: var(--radius);
+        padding: 8px 10px; margin-top: 10px; line-height: 1.4;
+    }
 
     /* ---------- Toggle chips (Settings / Chains) ---------- */
     .chip-grid { display: grid; gap: 6px; }
@@ -380,10 +392,11 @@
         <div class="modal-title">Suggest a trader</div>
         <div class="modal-desc">Not tracking someone yet? Send a request straight to the team.</div>
         <input type="text" class="search-input" id="suggestHandleInput" placeholder="trader handle...">
-        <div class="tabs">
-            <button class="tab active" id="suggestPlatformFomo" type="button">👀 FOMO</button>
-            <button class="tab" id="suggestPlatformPump" type="button">💊 Pump</button>
-        </div>
+        <select class="search-input select-input" id="suggestPlatformSelect">
+            <option value="Fomo">👀 FOMO</option>
+            <option value="Pump">💊 Pump</option>
+        </select>
+        <div class="modal-warning" id="suggestWarning" style="display:none;"></div>
         <div class="modal-actions">
             <button class="logout-btn" id="suggestCancelBtn" type="button">Cancel</button>
             <button class="ghost-btn" id="suggestSubmitBtn" type="button">Send suggestion</button>
@@ -807,7 +820,9 @@ let suggestPlatform = 'Fomo';
 function openSuggestModal() {
     document.getElementById('suggestModal').style.display = 'flex';
     document.getElementById('suggestHandleInput').value = '';
-    setSuggestPlatform('Fomo');
+    document.getElementById('suggestPlatformSelect').value = 'Fomo';
+    suggestPlatform = 'Fomo';
+    checkSuggestExisting();
     document.getElementById('suggestHandleInput').focus();
 }
 
@@ -815,25 +830,46 @@ function closeSuggestModal() {
     document.getElementById('suggestModal').style.display = 'none';
 }
 
-function setSuggestPlatform(p) {
-    suggestPlatform = p;
-    document.getElementById('suggestPlatformFomo').classList.toggle('active', p === 'Fomo');
-    document.getElementById('suggestPlatformPump').classList.toggle('active', p === 'Pump');
-}
+document.getElementById('suggestPlatformSelect').addEventListener('change', (e) => {
+    suggestPlatform = e.target.value;
+    checkSuggestExisting();
+});
 
 document.getElementById('suggestTraderBtn').addEventListener('click', openSuggestModal);
 document.getElementById('suggestCancelBtn').addEventListener('click', closeSuggestModal);
 document.getElementById('suggestModal').addEventListener('click', (e) => {
     if (e.target.id === 'suggestModal') closeSuggestModal();
 });
-document.getElementById('suggestPlatformFomo').addEventListener('click', () => setSuggestPlatform('Fomo'));
-document.getElementById('suggestPlatformPump').addEventListener('click', () => setSuggestPlatform('Pump'));
 
+document.getElementById('suggestHandleInput').addEventListener('input', checkSuggestExisting);
 document.getElementById('suggestHandleInput').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') submitSuggestion();
     if (e.key === 'Escape') closeSuggestModal();
 });
 document.getElementById('suggestSubmitBtn').addEventListener('click', submitSuggestion);
+
+// Checks against the trader list already loaded client-side — instant, no round trip.
+// The server re-checks at submit time regardless, in case this list is stale.
+function checkSuggestExisting() {
+    const handle = document.getElementById('suggestHandleInput').value.trim().toLowerCase();
+    const warningEl = document.getElementById('suggestWarning');
+    const submitBtn = document.getElementById('suggestSubmitBtn');
+
+    const existing = handle
+        ? allTraders.find(t => t.handle.toLowerCase() === handle && t.platform === suggestPlatform)
+        : null;
+
+    if (existing) {
+        warningEl.textContent = existing.isFollowing
+            ? 'Already tracked — you\'re already following them.'
+            : 'Already tracked — you can follow them from the list instead of suggesting them.';
+        warningEl.style.display = 'block';
+        submitBtn.disabled = true;
+    } else {
+        warningEl.style.display = 'none';
+        submitBtn.disabled = false;
+    }
+}
 
 async function submitSuggestion() {
     const handle = document.getElementById('suggestHandleInput').value.trim();
@@ -841,28 +877,35 @@ async function submitSuggestion() {
 
     const btn = document.getElementById('suggestSubmitBtn');
     btn.disabled = true;
-    try {
-        const res = await fetch(`${API}/api/manage/suggest-trader`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ handle, platform: suggestPlatform })
-        });
 
-        if (res.status === 429) {
-            const body = await res.json().catch(() => null);
-            showToast(body?.message || 'Rate limit reached — try again later', 4000);
-            return;
-        }
-        if (!res.ok) {
-            const body = await res.json().catch(() => null);
-            showToast(body?.message || 'Failed to send suggestion');
-            return;
-        }
+    const res = await fetch(`${API}/api/manage/suggest-trader`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ handle, platform: suggestPlatform })
+    }).catch(() => null);
 
-        closeSuggestModal();
-        showToast('Sent — thanks for the suggestion!', 3000);
-    } finally {
+    if (!res) { showToast('Failed to send suggestion'); btn.disabled = false; return; }
+
+    if (res.status === 429) {
+        const body = await res.json().catch(() => null);
+        showToast(body?.message || 'Rate limit reached — try again later', 4000);
         btn.disabled = false;
+        return;
     }
+    if (res.status === 409) {
+        const body = await res.json().catch(() => null);
+        showToast(body?.message || 'This trader is already tracked', 4000);
+        checkSuggestExisting(); // re-evaluates disabled state against current known data
+        return;
+    }
+    if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        showToast(body?.message || 'Failed to send suggestion');
+        btn.disabled = false;
+        return;
+    }
+
+    closeSuggestModal();
+    showToast('Sent — thanks for the suggestion!', 3000);
 }
 
 init();
