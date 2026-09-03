@@ -143,6 +143,28 @@ public class ManageController : ControllerBase
         return Ok(new { status = "success", unfollowed = success });
     }
 
+    [HttpPost("follow-all")]
+    public async Task<IActionResult> FollowAll()
+    {
+        var user = await GetCurrentUserAsync();
+        if (user == null)
+            return Unauthorized(new { status = "error", message = "Not logged in" });
+
+        var count = await _traderService.FollowAllTradersAsync(user.Id);
+        return Ok(new { status = "success", followedCount = count });
+    }
+
+    [HttpPost("unfollow-all")]
+    public async Task<IActionResult> UnfollowAll()
+    {
+        var user = await GetCurrentUserAsync();
+        if (user == null)
+            return Unauthorized(new { status = "error", message = "Not logged in" });
+
+        var count = await _traderService.UnfollowAllTradersAsync(user.Id);
+        return Ok(new { status = "success", unfollowedCount = count });
+    }
+
     [HttpPost("threshold")]
     public async Task<IActionResult> SetThreshold([FromBody] SetThresholdRequest request)
     {
@@ -175,7 +197,8 @@ public class ManageController : ControllerBase
             {
                 chain = c.ToString(),
                 isDisabled = s?.IsDisabled ?? false,
-                minMarketCap = s?.MinMarketCap
+                minMarketCap = s?.MinMarketCap,
+                trendingDisabled = s?.TrendingDisabled ?? false
             };
         });
 
@@ -203,6 +226,17 @@ public class ManageController : ControllerBase
         await _chainSettingsService.SetMinMarketCapAsync(user.Id, request.Chain, request.MinMarketCap);
         return Ok(new { status = "success" });
     }
+
+    [HttpPost("chains/trending")]
+    public async Task<IActionResult> SetChainTrendingDisabled([FromBody] SetChainTrendingDisabledRequest request)
+    {
+        var user = await GetCurrentUserAsync();
+        if (user == null)
+            return Unauthorized(new { status = "error", message = "Not logged in" });
+
+        await _chainSettingsService.SetTrendingDisabledAsync(user.Id, request.Chain, request.Disabled);
+        return Ok(new { status = "success" });
+    }
 }
 
 public record UpdateManageSettingsRequest(
@@ -219,3 +253,4 @@ public record ManageTraderRequest(int TraderId);
 public record SetThresholdRequest(int TraderId, decimal? MinValueUsd);
 public record SetChainDisabledRequest(Chain Chain, bool Disabled);
 public record SetChainMinMarketCapRequest(Chain Chain, decimal? MinMarketCap);
+public record SetChainTrendingDisabledRequest(Chain Chain, bool Disabled);

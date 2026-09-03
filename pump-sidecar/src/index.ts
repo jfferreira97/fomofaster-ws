@@ -169,11 +169,13 @@ async function session(firstRun: boolean): Promise<void> {
         .catch((err) => console.error(`${ts()} [verified-sync] error:`, err))
         .finally(() => { syncingVerified = false; });
     };
-    // Once shortly after startup (session is warm by then), then on its own interval.
-    setTimeout(runVerifiedSyncSafely, 15_000);
-    verifiedSyncInterval = setInterval(runVerifiedSyncSafely, VERIFIED_SYNC_INTERVAL_MS);
+    // Disabled 2026-09-03 at rr3332's request — was auto-following every pump.fun
+    // verified trader on the sidecar's own pump.fun account. Left in place, not
+    // deleted, in case it needs to come back.
+    // setTimeout(runVerifiedSyncSafely, 15_000);
+    // verifiedSyncInterval = setInterval(runVerifiedSyncSafely, VERIFIED_SYNC_INTERVAL_MS);
 
-    console.log(`${ts()} [main] Sidecar running — polling pump.fun alerts every ${POLL_INTERVAL_MS / 1000}s, verified-trader sync every ${VERIFIED_SYNC_INTERVAL_MS / 60_000}min`);
+    console.log(`${ts()} [main] Sidecar running — polling pump.fun alerts every ${POLL_INTERVAL_MS / 1000}s, verified-trader sync disabled`);
 
     const reason = await sessionEnded;
     console.warn(`${ts()} [main] session ended: ${reason}`);

@@ -3,208 +3,397 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GROUPCHAT Alerts - Manage</title>
+<title>GROUPCHAT — Manage Alerts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
+    :root {
+        --bg: #0a0e13;
+        --surface: #10161d;
+        --surface-2: #161d26;
+        --surface-3: #1c2530;
+        --border: #202a35;
+        --text: #e9eef4;
+        --text-dim: #7c8aa0;
+        --text-faint: #4d5a6e;
+        --accent: #e8ac3f;
+        --accent-dim: #6b551f;
+        --good: #38c98f;
+        --bad: #ea5a6e;
+        --fomo: #63a7e8;
+        --pump: #e0a35c;
+        --radius: 7px;
+        --radius-lg: 10px;
+    }
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        background-color: #0e1621;
-        color: #ffffff;
+        font-family: 'Manrope', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: var(--bg);
+        color: var(--text);
         min-height: 100vh;
+        font-size: 14px;
+        line-height: 1.45;
     }
 
-    .wrap { max-width: 720px; margin: 0 auto; padding: 20px 16px 60px; }
+    .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
 
-    .header { text-align: center; margin-bottom: 24px; }
-    .header h1 { font-size: 20px; font-weight: 600; }
-    .header p { color: #8a96a0; font-size: 14px; margin-top: 4px; }
+    a { color: inherit; }
 
-    .card {
-        background-color: #17212b;
-        border-radius: 12px;
-        padding: 18px;
-        margin-bottom: 16px;
+    /* ---------- Topbar ---------- */
+    .topbar {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 14px 24px; border-bottom: 1px solid var(--border);
+        position: sticky; top: 0; background: rgba(10,14,19,0.92); backdrop-filter: blur(8px);
+        z-index: 20;
     }
-
-    .card h2 {
-        font-size: 15px;
-        font-weight: 600;
-        margin-bottom: 14px;
-        color: #ffffff;
+    .brand { display: flex; align-items: baseline; gap: 9px; }
+    .brand-mark {
+        font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 13px;
+        color: var(--bg); background: var(--accent); padding: 3px 6px; border-radius: 5px;
+        letter-spacing: .02em;
     }
+    .brand-name { font-weight: 700; font-size: 15px; letter-spacing: -.01em; }
+    .brand-tag { color: var(--text-dim); font-size: 13px; }
+    .topbar-right { display: flex; align-items: center; gap: 14px; }
+    .whoami { color: var(--text-dim); font-size: 13px; }
+    .whoami b { color: var(--text); font-weight: 600; }
+    .logout-btn {
+        background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+        border-radius: var(--radius); padding: 6px 12px; font-size: 12.5px; cursor: pointer;
+        font-family: inherit; transition: border-color .12s, color .12s;
+    }
+    .logout-btn:hover { border-color: var(--text-dim); color: var(--text); }
 
-    /* --- Login screen --- */
-    #loginScreen { text-align: center; padding: 60px 16px; }
-    #loginScreen p { color: #8a96a0; margin-bottom: 20px; font-size: 14px; }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 22px 24px 64px; }
+
+    /* ---------- Login ---------- */
+    #loginScreen { text-align: center; padding: 110px 16px 60px; }
+    #loginScreen .login-eyebrow {
+        font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: .12em;
+        color: var(--accent); text-transform: uppercase; margin-bottom: 10px;
+    }
+    #loginScreen h2 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+    #loginScreen p { color: var(--text-dim); margin-bottom: 26px; font-size: 14px; }
     #telegramLoginContainer { display: inline-block; }
 
-    /* --- Toggle rows --- */
-    .toggle-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 10px 0;
-        border-bottom: 1px solid #0e1621;
-    }
-    .toggle-row:last-child { border-bottom: none; }
-    .toggle-label { font-size: 14px; }
-    .toggle-sub { font-size: 12px; color: #8a96a0; margin-top: 2px; }
+    /* ---------- Console layout ---------- */
+    .console { display: grid; grid-template-columns: 340px 1fr; gap: 18px; align-items: start; }
+    @media (max-width: 900px) { .console { grid-template-columns: 1fr; } }
+    .rail { display: flex; flex-direction: column; gap: 18px; }
 
-    .switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
-    .switch input { opacity: 0; width: 0; height: 0; }
-    .slider {
-        position: absolute; cursor: pointer; inset: 0;
-        background-color: #2b3a4a; border-radius: 22px; transition: .15s;
+    .panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
     }
-    .slider::before {
-        content: ""; position: absolute; height: 16px; width: 16px;
-        left: 3px; bottom: 3px; background-color: white; border-radius: 50%; transition: .15s;
+    .panel-head {
+        padding: 14px 16px 12px;
+        border-bottom: 1px solid var(--border);
     }
-    input:checked + .slider { background-color: #2b8fef; }
-    input:checked + .slider::before { transform: translateX(18px); }
+    .panel-title {
+        font-size: 13.5px; font-weight: 700; letter-spacing: .01em;
+        display: flex; align-items: center; gap: 7px;
+    }
+    .panel-desc { color: var(--text-dim); font-size: 12.5px; margin-top: 5px; line-height: 1.5; }
+    .panel-body { padding: 14px 16px 16px; }
 
-    .num-input {
-        width: 70px; background: #0e1621; border: 1px solid #2b3a4a; color: #fff;
-        border-radius: 6px; padding: 6px 8px; font-size: 13px; text-align: right;
+    /* ---------- Toggle chips (Settings / Chains) ---------- */
+    .chip-grid { display: grid; gap: 6px; }
+    .chip-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+    .chip-grid.cols-3 { grid-template-columns: 1.25fr 1fr 0.8fr; }
+    .chip-head {
+        margin-bottom: 6px;
     }
+    .chip-head span {
+        font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em;
+        color: var(--text-faint); font-weight: 700; padding-left: 2px;
+    }
+    .chip-head span:not(:first-child) { text-align: center; }
+    .chip-grid + .chip-grid { margin-top: 6px; }
 
-    button.save-btn {
-        background: #2b8fef; color: #fff; border: none; border-radius: 8px;
-        padding: 10px 16px; font-size: 14px; font-weight: 500; cursor: pointer; width: 100%;
-        margin-top: 4px;
+    .chip {
+        background: var(--surface-2);
+        color: var(--text);
+        border: 1px solid transparent;
+        border-radius: var(--radius);
+        padding: 10px 9px;
+        font-size: 12px;
+        font-weight: 500;
+        font-family: inherit;
+        text-align: center;
+        cursor: pointer;
+        line-height: 1.3;
+        transition: background .1s, border-color .1s;
     }
-    button.save-btn:hover { background: #2478d0; }
-    button.save-btn:disabled { opacity: 0.5; cursor: default; }
+    .chip:hover { background: var(--surface-3); }
+    .chip:active { background: var(--bg); }
+    .chip.full { grid-column: 1 / -1; }
+    .chip.on { border-color: var(--accent-dim); }
+    input.chip { outline: none; font-family: 'IBM Plex Mono', monospace; }
+    input.chip:focus { border-color: var(--accent); }
 
-    /* --- Trader filter/search --- */
-    .filter-row { display: flex; gap: 8px; margin-bottom: 14px; }
-    .filter-btn {
-        flex: 1; background: #0e1621; border: 1px solid #2b3a4a; color: #8a96a0;
-        border-radius: 8px; padding: 8px; font-size: 13px; cursor: pointer;
+    .field-row {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);
     }
-    .filter-btn.active { background: #2b8fef; border-color: #2b8fef; color: #fff; }
+    .field-row .field-label { font-size: 13px; font-weight: 500; }
+    .field-row .field-hint { font-size: 11.5px; color: var(--text-faint); margin-top: 1px; }
+    .field-row input {
+        width: 64px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
+        border-radius: var(--radius); padding: 8px; font-size: 13px; text-align: center; outline: none;
+        font-family: 'IBM Plex Mono', monospace;
+    }
+    .field-row input:focus { border-color: var(--accent); }
+
+    .panel + .panel { margin-top: 0; }
+
+    /* ---------- Traders panel ---------- */
+    .traders-toolbar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    .bulk-actions { display: flex; gap: 8px; flex-shrink: 0; }
+    .tabs { display: flex; gap: 2px; background: var(--surface-2); border-radius: var(--radius); padding: 3px; }
+    .tab {
+        background: transparent; border: none; color: var(--text-dim);
+        border-radius: 5px; padding: 7px 14px; font-size: 12.5px; font-weight: 600;
+        cursor: pointer; font-family: inherit; transition: background .12s, color .12s;
+    }
+    .tab.active { background: var(--accent); color: #1a1305; }
     .search-input {
-        width: 100%; background: #0e1621; border: 1px solid #2b3a4a; color: #fff;
-        border-radius: 8px; padding: 9px 12px; font-size: 14px; margin-bottom: 14px;
+        flex: 1; min-width: 160px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
+        border-radius: var(--radius); padding: 8px 12px; font-size: 13px; outline: none;
+        font-family: 'IBM Plex Mono', monospace;
     }
+    .search-input::placeholder { color: var(--text-faint); }
+    .search-input:focus { border-color: var(--accent); }
 
-    .trader-list { max-height: 480px; overflow-y: auto; }
-    .trader-row {
+    .count-chip {
+        font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; color: var(--text-dim);
+        background: var(--surface-2); border-radius: var(--radius); padding: 8px 12px; white-space: nowrap;
+    }
+    .count-chip b { color: var(--text); }
+
+    .danger-btn {
+        background: transparent; border: 1px solid var(--bad); color: var(--bad);
+        border-radius: var(--radius); padding: 8px 13px; font-size: 12.5px; font-weight: 600;
+        cursor: pointer; font-family: inherit; white-space: nowrap; transition: background .12s;
+    }
+    .danger-btn:hover { background: rgba(234,90,110,0.12); }
+
+    .ghost-btn {
+        background: transparent; border: 1px solid var(--accent-dim); color: var(--accent);
+        border-radius: var(--radius); padding: 8px 13px; font-size: 12.5px; font-weight: 600;
+        cursor: pointer; font-family: inherit; white-space: nowrap; transition: background .12s;
+    }
+    .ghost-btn:hover { background: rgba(232,172,63,0.12); }
+
+    /* ---------- Quick-add batch builder ---------- */
+    .quickadd { position: relative; margin-bottom: 12px; }
+    .quickadd-input {
+        width: 100%; background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
+        border-radius: var(--radius); padding: 10px 12px; font-size: 13px; outline: none;
+        font-family: 'IBM Plex Mono', monospace;
+    }
+    .quickadd-input::placeholder { color: var(--text-faint); }
+    .quickadd-input:focus { border-color: var(--accent); }
+    .quickadd-dropdown {
+        position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 5;
+        background: var(--surface-3); border: 1px solid var(--border); border-radius: var(--radius);
+        max-height: 220px; overflow-y: auto; display: none;
+    }
+    .quickadd-dropdown.show { display: block; }
+    .quickadd-item {
+        display: flex; align-items: center; gap: 8px; padding: 9px 12px; cursor: pointer;
+        font-size: 12.5px; border-bottom: 1px solid var(--border);
+    }
+    .quickadd-item:last-child { border-bottom: none; }
+    .quickadd-item:hover { background: var(--surface-2); }
+    .quickadd-item .trader-handle { flex: 1; }
+    .quickadd-item .already { color: var(--text-faint); font-size: 11px; }
+
+    .staged-wrap { margin-bottom: 14px; }
+    .staged-head {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: 8px;
+    }
+    .staged-head span { font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-faint); font-weight: 700; }
+    .staged-head button {
+        background: none; border: none; color: var(--text-faint); font-size: 11.5px;
+        cursor: pointer; font-family: inherit; text-decoration: underline;
+    }
+    .staged-head button:hover { color: var(--text-dim); }
+    .staged-list { display: flex; flex-direction: column; gap: 6px; }
+    .staged-row {
         display: flex; align-items: center; gap: 10px;
-        padding: 10px 0; border-bottom: 1px solid #0e1621;
+        background: var(--surface-2); border: 1px solid var(--accent-dim); border-radius: var(--radius);
+        padding: 8px 10px;
     }
-    .trader-row:last-child { border-bottom: none; }
-    .trader-handle { font-size: 14px; font-weight: 500; }
-    .trader-meta { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
-    .badge {
-        font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600;
-        flex-shrink: 0;
+    .staged-row .trader-handle { flex: 1; }
+    .staged-row .threshold-input { width: 100px; }
+    .staged-remove {
+        background: none; border: none; color: var(--text-faint); font-size: 15px; line-height: 1;
+        cursor: pointer; padding: 2px 4px;
     }
-    .badge-fomo { background: #2b3a4a; color: #7ea9d8; }
-    .badge-pump { background: #3a2b1a; color: #e0a35c; }
-    .badge-verified { background: #1a3a2b; color: #5ce0a0; }
+    .staged-remove:hover { color: var(--bad); }
 
+    .trader-table { width: 100%; border-collapse: collapse; }
+    .trader-table thead th {
+        position: sticky; top: 0; background: var(--surface); z-index: 1;
+        text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em;
+        color: var(--text-faint); font-weight: 700; padding: 8px 10px 9px; border-bottom: 1px solid var(--border);
+    }
+    .trader-table thead th.num { text-align: center; }
+    .trader-table thead th.chk { text-align: center; width: 56px; }
+    .trader-table tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+    .trader-table tbody tr:hover { background: var(--surface-2); }
+    .trader-table tbody tr:last-child { border-bottom: none; }
+    .trader-table td { padding: 9px 10px; vertical-align: middle; }
+
+    .trader-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .platform-mark { font-size: 13px; flex-shrink: 0; }
+    .trader-handle {
+        font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; font-weight: 500;
+        color: var(--text); text-decoration: none; overflow: hidden; text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .trader-handle:hover { color: var(--accent); }
+    .verified-mark { color: var(--good); font-size: 12px; flex-shrink: 0; }
+
+    .threshold-cell { text-align: center; }
     .threshold-input {
-        width: 80px; background: #0e1621; border: 1px solid #2b3a4a; color: #fff;
-        border-radius: 6px; padding: 6px 8px; font-size: 12px;
+        width: 92px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
+        border-radius: var(--radius); padding: 6px 6px; font-size: 12px; text-align: center; outline: none;
+        font-family: 'IBM Plex Mono', monospace;
     }
-    .threshold-input:disabled { opacity: 0.35; }
+    .threshold-input::placeholder { color: var(--text-faint); }
+    .threshold-input:focus { border-color: var(--accent); }
+    .threshold-input:disabled { opacity: .3; }
 
-    .follow-btn {
-        flex-shrink: 0; border: none; border-radius: 6px; padding: 6px 12px;
-        font-size: 12px; font-weight: 600; cursor: pointer;
+    .chk-cell { text-align: center; }
+    .follow-check {
+        width: 17px; height: 17px; accent-color: var(--accent);
+        cursor: pointer; vertical-align: middle;
     }
-    .follow-btn.following { background: #2b3a4a; color: #8a96a0; }
-    .follow-btn.not-following { background: #2b8fef; color: #fff; }
 
-    .empty-state { text-align: center; color: #8a96a0; padding: 30px; font-size: 14px; }
+    .trader-scroll { max-height: 620px; overflow-y: auto; }
+
+    .empty-state { text-align: center; color: var(--text-dim); padding: 40px 20px; font-size: 13.5px; }
 
     .toast {
-        position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-        background: #1a3a2b; color: #5ce0a0; padding: 10px 18px; border-radius: 8px;
-        font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none;
+        position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+        background: var(--surface-3); color: var(--text); border: 1px solid var(--border);
+        padding: 10px 16px; border-radius: var(--radius); font-size: 12.5px;
+        opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; z-index: 30;
     }
-    .toast.show { opacity: 1; }
-
-    .logout-link {
-        display: block; text-align: center; color: #8a96a0; font-size: 13px;
-        margin-top: 8px; cursor: pointer;
-    }
-
-    .whoami { text-align: center; color: #8a96a0; font-size: 13px; margin-bottom: 16px; }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
 </style>
 </head>
 <body>
-<div class="wrap">
-    <div class="header">
-        <h1>Manage Your Alerts</h1>
-        <p>Choose which traders you follow and what's worth an alert.</p>
+<div id="loginScreen" style="display:none;">
+    <div class="login-eyebrow">GROUPCHAT · ALERT CONSOLE</div>
+    <h2>Manage Your Alerts</h2>
+    <p>Log in with Telegram to configure who you follow and what's worth an alert.</p>
+    <div id="telegramLoginContainer"></div>
+</div>
+
+<div id="appScreen" style="display:none;">
+    <div class="topbar">
+        <div class="brand">
+            <span class="brand-mark">GC</span>
+            <span class="brand-name">Alert Console</span>
+        </div>
+        <div class="topbar-right">
+            <span class="whoami" id="whoami"></span>
+            <button class="logout-btn" id="logoutLink">Log out</button>
+        </div>
     </div>
 
-    <div id="loginScreen" style="display:none;">
-        <p>Log in with Telegram to manage your followed traders and alert thresholds.</p>
-        <div id="telegramLoginContainer"></div>
-    </div>
-
-    <div id="appScreen" style="display:none;">
-        <div class="whoami" id="whoami"></div>
-
-        <div class="card">
-            <h2>Auto-follow &amp; notifications</h2>
-            <div class="toggle-row">
-                <div><div class="toggle-label">Auto-follow new FOMO traders</div></div>
-                <label class="switch"><input type="checkbox" id="s_autoFollowFomoTraders"><span class="slider"></span></label>
-            </div>
-            <div class="toggle-row">
-                <div><div class="toggle-label">Auto-follow new Pump traders</div></div>
-                <label class="switch"><input type="checkbox" id="s_autoFollowPumpTraders"><span class="slider"></span></label>
-            </div>
-            <div class="toggle-row">
-                <div><div class="toggle-label">FOMO buy/sell alerts</div></div>
-                <label class="switch"><input type="checkbox" id="s_notifyFomoBuySell"><span class="slider"></span></label>
-            </div>
-            <div class="toggle-row">
-                <div><div class="toggle-label">FOMO thesis alerts</div></div>
-                <label class="switch"><input type="checkbox" id="s_notifyFomoThesis"><span class="slider"></span></label>
-            </div>
-            <div class="toggle-row">
-                <div><div class="toggle-label">Pump callouts/reposts/replies</div></div>
-                <label class="switch"><input type="checkbox" id="s_notifyPumpCallouts"><span class="slider"></span></label>
-            </div>
-            <div class="toggle-row">
-                <div>
-                    <div class="toggle-label">Verified Pump traders only</div>
-                    <div class="toggle-sub">Only applies while Pump callouts are on</div>
+    <div class="wrap">
+        <div class="console">
+            <div class="rail">
+                <div class="panel">
+                    <div class="panel-head">
+                        <div class="panel-title">⚙️ Notification Settings</div>
+                        <div class="panel-desc">Tap a button below to toggle.</div>
+                    </div>
+                    <div class="panel-body">
+                        <div class="chip-grid cols-2" id="settingsGrid"></div>
+                        <div class="field-row">
+                            <div>
+                                <div class="field-label">Repeat window (min)</div>
+                                <div class="field-hint">0 = alert every time</div>
+                            </div>
+                            <input type="number" min="0" id="repeatWindowInput">
+                        </div>
+                    </div>
                 </div>
-                <label class="switch"><input type="checkbox" id="s_pumpVerifiedOnly"><span class="slider"></span></label>
-            </div>
-            <div class="toggle-row">
-                <div><div class="toggle-label">Trending (confluence) alerts</div></div>
-                <label class="switch"><input type="checkbox" id="s_notifyTrending"><span class="slider"></span></label>
-            </div>
-            <div class="toggle-row">
-                <div>
-                    <div class="toggle-label">Repeat window (minutes)</div>
-                    <div class="toggle-sub">0 = no throttling, alert every time</div>
+
+                <div class="panel">
+                    <div class="panel-head">
+                        <div class="panel-title">⛓ Chain Settings</div>
+                        <div class="panel-desc">1st: enable/disable the chain. 2nd: tap to edit its min market cap floor. 3rd: mute just Trending for that chain.</div>
+                    </div>
+                    <div class="panel-body">
+                        <div class="chip-grid cols-3 chip-head">
+                            <span>Chain</span>
+                            <span>Min Market Cap</span>
+                            <span>Trending</span>
+                        </div>
+                        <div id="chainGrid"></div>
+                    </div>
                 </div>
-                <input type="number" min="0" class="num-input" id="s_repeatWindowMinutes">
             </div>
-            <button class="save-btn" id="saveSettingsBtn">Save</button>
-        </div>
 
-        <div class="card">
-            <h2>Traders</h2>
-            <div class="filter-row">
-                <button class="filter-btn active" data-platform="all">All</button>
-                <button class="filter-btn" data-platform="fomo">FOMO</button>
-                <button class="filter-btn" data-platform="pump">Pump</button>
+            <div class="panel">
+                <div class="panel-head">
+                    <div class="panel-title">📊 Traders</div>
+                    <div class="panel-desc">Check a trader to follow them. Set a $ floor to only get alerted above it — blank alerts on everything from them.</div>
+                </div>
+                <div class="panel-body">
+                    <div class="quickadd">
+                        <input type="text" class="quickadd-input" id="quickAddInput" placeholder="＋ type a handle to add a trader...">
+                        <div class="quickadd-dropdown" id="quickAddDropdown"></div>
+                    </div>
+
+                    <div class="staged-wrap" id="stagedWrap" style="display:none;">
+                        <div class="staged-head">
+                            <span id="stagedCount">Just added</span>
+                            <button id="clearStagedBtn" type="button">clear list</button>
+                        </div>
+                        <div class="staged-list" id="stagedList"></div>
+                    </div>
+
+                    <div class="traders-toolbar">
+                        <div class="tabs">
+                            <button class="tab active" data-platform="all">All</button>
+                            <button class="tab" data-platform="fomo">FOMO</button>
+                            <button class="tab" data-platform="pump">Pump</button>
+                        </div>
+                        <input type="text" class="search-input" id="traderSearch" placeholder="search handle...">
+                        <div class="count-chip" id="traderCount"></div>
+                        <div class="bulk-actions">
+                            <button class="ghost-btn" id="followAllBtn" type="button">Follow all</button>
+                            <button class="danger-btn" id="unfollowAllBtn" type="button">Unfollow all</button>
+                        </div>
+                    </div>
+
+                    <div class="trader-scroll">
+                        <table class="trader-table">
+                            <thead>
+                                <tr>
+                                    <th>Trader</th>
+                                    <th class="num">Min $ to alert</th>
+                                    <th class="chk">Follow</th>
+                                </tr>
+                            </thead>
+                            <tbody id="traderList"></tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
-            <input type="text" class="search-input" id="traderSearch" placeholder="Search by handle...">
-            <div class="trader-list" id="traderList"></div>
         </div>
-
-        <div class="logout-link" id="logoutLink">Log out</div>
     </div>
 </div>
 
@@ -214,12 +403,23 @@
 const API = window.location.origin;
 let allTraders = [];
 let currentPlatform = 'all';
+let currentSettings = null;
+let currentChains = [];
 
 function showToast(msg) {
     const t = document.getElementById('toast');
     t.textContent = msg;
     t.classList.add('show');
     setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function traderProfileUrl(t) {
+    const handle = encodeURIComponent(t.handle);
+    return t.platform === 'Pump' ? `https://pump.fun/profile/${handle}` : `https://fomo.family/profile/${handle}`;
 }
 
 async function init() {
@@ -267,45 +467,153 @@ function showApp(me) {
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('appScreen').style.display = 'block';
 
-    document.getElementById('whoami').textContent =
-        `Logged in as ${me.user.username ? '@' + me.user.username : (me.user.firstName || me.user.chatId)}`;
+    document.getElementById('whoami').innerHTML =
+        `<b>${me.user.username ? '@' + escapeHtml(me.user.username) : escapeHtml(me.user.firstName || String(me.user.chatId))}</b>`;
 
-    const s = me.settings;
-    document.getElementById('s_autoFollowFomoTraders').checked = s.autoFollowFomoTraders;
-    document.getElementById('s_autoFollowPumpTraders').checked = s.autoFollowPumpTraders;
-    document.getElementById('s_notifyFomoBuySell').checked = s.notifyFomoBuySell;
-    document.getElementById('s_notifyFomoThesis').checked = s.notifyFomoThesis;
-    document.getElementById('s_notifyPumpCallouts').checked = s.notifyPumpCallouts;
-    document.getElementById('s_pumpVerifiedOnly').checked = s.pumpVerifiedOnly;
-    document.getElementById('s_notifyTrending').checked = s.notifyTrending;
-    document.getElementById('s_repeatWindowMinutes').value = s.repeatWindowMinutes;
+    currentSettings = me.settings;
+    document.getElementById('repeatWindowInput').value = currentSettings.repeatWindowMinutes;
+    renderSettings();
 
     loadTraders();
+    loadChains();
 }
 
-document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
-    const btn = document.getElementById('saveSettingsBtn');
-    btn.disabled = true;
-    const body = {
-        autoFollowFomoTraders: document.getElementById('s_autoFollowFomoTraders').checked,
-        autoFollowPumpTraders: document.getElementById('s_autoFollowPumpTraders').checked,
-        notifyFomoBuySell: document.getElementById('s_notifyFomoBuySell').checked,
-        notifyFomoThesis: document.getElementById('s_notifyFomoThesis').checked,
-        notifyPumpCallouts: document.getElementById('s_notifyPumpCallouts').checked,
-        pumpVerifiedOnly: document.getElementById('s_pumpVerifiedOnly').checked,
-        notifyTrending: document.getElementById('s_notifyTrending').checked,
-        repeatWindowMinutes: parseInt(document.getElementById('s_repeatWindowMinutes').value, 10) || 0
-    };
+/* ---------- Settings ---------- */
+
+function renderSettings() {
+    const s = currentSettings;
+    const mode = s.pumpVerifiedOnly ? 'Verified Only' : 'All';
+    const onOff = v => v ? '✅' : '❌';
+    const grid = document.getElementById('settingsGrid');
+    grid.innerHTML = `
+        <button class="chip ${s.autoFollowFomoTraders ? 'on' : ''}" data-field="autoFollowFomoTraders">FOMO Auto-Follow: ${onOff(s.autoFollowFomoTraders)}</button>
+        <button class="chip ${s.autoFollowPumpTraders ? 'on' : ''}" data-field="autoFollowPumpTraders">Pump Auto-Follow (${mode}): ${onOff(s.autoFollowPumpTraders)}</button>
+        <button class="chip ${s.notifyFomoBuySell ? 'on' : ''}" data-field="notifyFomoBuySell">Buys/Sells: ${onOff(s.notifyFomoBuySell)}</button>
+        <button class="chip ${s.notifyPumpCallouts ? 'on' : ''}" data-field="notifyPumpCallouts">Callouts (${mode}): ${onOff(s.notifyPumpCallouts)}</button>
+        <button class="chip ${s.notifyFomoThesis ? 'on' : ''}" data-field="notifyFomoThesis">Thesis: ${onOff(s.notifyFomoThesis)}</button>
+        <button class="chip ${s.pumpVerifiedOnly ? 'on' : ''}" data-field="pumpVerifiedOnly">Mode: ${mode}</button>
+        <button class="chip full ${s.notifyTrending ? 'on' : ''}" data-field="notifyTrending">🔥 Trending Alerts: ${onOff(s.notifyTrending)}</button>
+    `;
+    grid.querySelectorAll('.chip').forEach(btn => btn.addEventListener('click', onSettingToggle));
+}
+
+async function onSettingToggle(e) {
+    const field = e.currentTarget.dataset.field;
+    currentSettings[field] = !currentSettings[field];
+    renderSettings();
     const res = await fetch(`${API}/api/manage/settings`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(currentSettings)
     });
-    btn.disabled = false;
-    showToast(res.ok ? 'Settings saved' : 'Failed to save');
+    if (!res.ok) showToast('Failed to save');
+}
+
+document.getElementById('repeatWindowInput').addEventListener('change', async (e) => {
+    currentSettings.repeatWindowMinutes = parseInt(e.target.value, 10) || 0;
+    const res = await fetch(`${API}/api/manage/settings`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(currentSettings)
+    });
+    showToast(res.ok ? 'Saved' : 'Failed to save');
 });
 
-document.querySelectorAll('.filter-btn').forEach(btn => {
+/* ---------- Chains ---------- */
+
+function formatMcap(v) {
+    if (v == null) return '$0';
+    const n = Number(v);
+    if (n >= 1_000_000) return '$' + trimNum(n / 1_000_000) + 'M';
+    if (n >= 1_000) return '$' + trimNum(n / 1_000) + 'K';
+    return '$0';
+}
+function trimNum(n) { return (Math.round(n * 10) / 10).toString(); }
+
+async function loadChains() {
+    const res = await fetch(`${API}/api/manage/chains`).then(r => r.json()).catch(() => null);
+    if (!res || res.status !== 'success') {
+        showToast('Failed to load chains');
+        return;
+    }
+    currentChains = res.chains;
+    renderChains();
+}
+
+function renderChains() {
+    const grid = document.getElementById('chainGrid');
+    grid.innerHTML = currentChains.map(c => `
+        <div class="chip-grid cols-3">
+            <button class="chip ${!c.isDisabled ? 'on' : ''}" data-chain="${c.chain}" data-action="toggle">${c.isDisabled ? '🔴' : '🟢'} ${c.chain}</button>
+            <button class="chip" data-chain="${c.chain}" data-action="mcap">Min: ${formatMcap(c.minMarketCap)}</button>
+            <button class="chip ${!c.trendingDisabled ? 'on' : ''}" data-chain="${c.chain}" data-action="trend">🔥 ${c.trendingDisabled ? '🔴' : '🟢'}</button>
+        </div>
+    `).join('');
+
+    grid.querySelectorAll('.chip').forEach(btn => btn.addEventListener('click', onChainButtonClick));
+}
+
+function onChainButtonClick(e) {
+    const btn = e.currentTarget;
+    const chain = btn.dataset.chain;
+    const action = btn.dataset.action;
+    if (action === 'toggle') return toggleChainDisabled(chain);
+    if (action === 'trend') return toggleChainTrending(chain);
+    if (action === 'mcap') return editChainMcap(btn, chain);
+}
+
+async function toggleChainDisabled(chain) {
+    const c = currentChains.find(x => x.chain === chain);
+    c.isDisabled = !c.isDisabled;
+    renderChains();
+    const res = await fetch(`${API}/api/manage/chains/disabled`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chain, disabled: c.isDisabled })
+    });
+    showToast(res.ok ? 'Chain updated' : 'Failed to update chain');
+}
+
+async function toggleChainTrending(chain) {
+    const c = currentChains.find(x => x.chain === chain);
+    c.trendingDisabled = !c.trendingDisabled;
+    renderChains();
+    const res = await fetch(`${API}/api/manage/chains/trending`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chain, disabled: c.trendingDisabled })
+    });
+    showToast(res.ok ? 'Chain updated' : 'Failed to update chain');
+}
+
+function editChainMcap(btn, chain) {
+    const current = currentChains.find(c => c.chain === chain);
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.min = '0';
+    input.step = '1000';
+    input.className = 'chip';
+    input.placeholder = '0';
+    input.value = current.minMarketCap != null ? current.minMarketCap : '';
+    btn.replaceWith(input);
+    input.focus();
+
+    let committed = false;
+    const commit = async () => {
+        if (committed) return;
+        committed = true;
+        const raw = input.value.trim();
+        current.minMarketCap = raw === '' ? null : Number(raw);
+        renderChains();
+        const res = await fetch(`${API}/api/manage/chains/minmarketcap`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chain, minMarketCap: current.minMarketCap })
+        });
+        showToast(res.ok ? 'Min market cap saved' : 'Failed to save');
+    };
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', ev => { if (ev.key === 'Enter') input.blur(); });
+}
+
+/* ---------- Traders ---------- */
+
+document.querySelectorAll('.tab').forEach(btn => {
     btn.addEventListener('click', () => {
-        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         currentPlatform = btn.dataset.platform;
         loadTraders();
@@ -328,52 +636,54 @@ function renderTraders() {
     const query = document.getElementById('traderSearch').value.trim().toLowerCase();
     const list = document.getElementById('traderList');
     const filtered = allTraders.filter(t => !query || t.handle.toLowerCase().includes(query));
+    const followingCount = allTraders.filter(t => t.isFollowing).length;
+
+    document.getElementById('traderCount').innerHTML =
+        `<b>${followingCount}</b> following <span style="opacity:.5">/</span> <b>${allTraders.length}</b> available`;
 
     if (filtered.length === 0) {
-        list.innerHTML = '<div class="empty-state">No traders match.</div>';
+        list.innerHTML = '<tr><td colspan="3"><div class="empty-state">No traders match.</div></td></tr>';
         return;
     }
 
     list.innerHTML = filtered.map(t => `
-        <div class="trader-row" data-id="${t.id}">
-            <div class="trader-meta">
-                <span class="badge ${t.platform === 'Pump' ? 'badge-pump' : 'badge-fomo'}">${t.platform.toUpperCase()}</span>
-                ${t.isPumpVerified ? '<span class="badge badge-verified">VERIFIED</span>' : ''}
-                <span class="trader-handle">${escapeHtml(t.handle)}</span>
-            </div>
-            <input type="number" min="0" step="1" class="threshold-input" placeholder="min $"
-                value="${t.minValueUsd != null ? t.minValueUsd : ''}"
-                ${t.isFollowing ? '' : 'disabled'}
-                data-id="${t.id}">
-            <button class="follow-btn ${t.isFollowing ? 'following' : 'not-following'}" data-id="${t.id}" data-following="${t.isFollowing}">
-                ${t.isFollowing ? 'Following' : 'Follow'}
-            </button>
-        </div>
+        <tr data-id="${t.id}">
+            <td>
+                <div class="trader-cell">
+                    <span class="platform-mark" title="${t.platform}">${t.platform === 'Pump' ? '💊' : '👀'}</span>
+                    <a class="trader-handle" href="${traderProfileUrl(t)}" target="_blank" rel="noopener noreferrer">${escapeHtml(t.handle)}</a>
+                    ${t.isPumpVerified ? '<span class="verified-mark" title="Verified">✓</span>' : ''}
+                </div>
+            </td>
+            <td class="threshold-cell">
+                <input type="number" min="0" step="1" class="threshold-input" placeholder="any"
+                    value="${t.minValueUsd != null ? t.minValueUsd : ''}"
+                    ${t.isFollowing ? '' : 'disabled'}
+                    data-id="${t.id}">
+            </td>
+            <td class="chk-cell">
+                <input type="checkbox" class="follow-check" data-id="${t.id}" ${t.isFollowing ? 'checked' : ''}>
+            </td>
+        </tr>
     `).join('');
 
-    list.querySelectorAll('.follow-btn').forEach(btn => btn.addEventListener('click', onToggleFollow));
-    list.querySelectorAll('.threshold-input').forEach(input => {
-        input.addEventListener('change', onThresholdChange);
-    });
-}
-
-function escapeHtml(s) {
-    return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    list.querySelectorAll('.follow-check').forEach(chk => chk.addEventListener('change', onToggleFollow));
+    list.querySelectorAll('.threshold-input').forEach(input => input.addEventListener('change', onThresholdChange));
 }
 
 async function onToggleFollow(e) {
     const traderId = parseInt(e.target.dataset.id, 10);
-    const following = e.target.dataset.following === 'true';
-    const endpoint = following ? 'unfollow' : 'follow';
+    const nowFollowing = e.target.checked;
+    const endpoint = nowFollowing ? 'follow' : 'unfollow';
 
     const res = await fetch(`${API}/api/manage/${endpoint}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ traderId })
     });
-    if (!res.ok) { showToast('Failed'); return; }
+    if (!res.ok) { showToast('Failed'); e.target.checked = !nowFollowing; return; }
 
     const t = allTraders.find(x => x.id === traderId);
-    if (t) { t.isFollowing = !following; if (following) t.minValueUsd = null; }
+    if (t) { t.isFollowing = nowFollowing; if (!nowFollowing) t.minValueUsd = null; }
     renderTraders();
 }
 
@@ -392,6 +702,143 @@ async function onThresholdChange(e) {
     if (t) t.minValueUsd = minValueUsd;
     showToast('Threshold saved');
 }
+
+/* ---------- Quick-add batch builder ---------- */
+
+let stagedIds = new Set();
+
+document.getElementById('quickAddInput').addEventListener('input', renderQuickAddDropdown);
+document.getElementById('quickAddInput').addEventListener('focus', renderQuickAddDropdown);
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.quickadd')) {
+        document.getElementById('quickAddDropdown').classList.remove('show');
+    }
+});
+
+function renderQuickAddDropdown() {
+    const query = document.getElementById('quickAddInput').value.trim().toLowerCase();
+    const dropdown = document.getElementById('quickAddDropdown');
+    if (!query) { dropdown.classList.remove('show'); dropdown.innerHTML = ''; return; }
+
+    const matches = allTraders.filter(t => t.handle.toLowerCase().includes(query)).slice(0, 8);
+
+    if (matches.length === 0) {
+        dropdown.innerHTML = '<div class="quickadd-item" style="cursor:default;color:var(--text-faint);">No matches</div>';
+        dropdown.classList.add('show');
+        return;
+    }
+
+    dropdown.innerHTML = matches.map(t => `
+        <div class="quickadd-item" data-id="${t.id}">
+            <span class="platform-mark">${t.platform === 'Pump' ? '💊' : '👀'}</span>
+            <span class="trader-handle">${escapeHtml(t.handle)}</span>
+            ${t.isFollowing ? '<span class="already">already following</span>' : ''}
+        </div>
+    `).join('');
+    dropdown.classList.add('show');
+
+    dropdown.querySelectorAll('.quickadd-item[data-id]').forEach(item => {
+        item.addEventListener('click', () => addTraderFromQuickAdd(parseInt(item.dataset.id, 10)));
+    });
+}
+
+async function addTraderFromQuickAdd(traderId) {
+    const t = allTraders.find(x => x.id === traderId);
+    if (!t) return;
+
+    document.getElementById('quickAddInput').value = '';
+    document.getElementById('quickAddDropdown').classList.remove('show');
+
+    if (!t.isFollowing) {
+        const res = await fetch(`${API}/api/manage/follow`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ traderId })
+        });
+        if (!res.ok) { showToast('Failed to follow'); return; }
+        t.isFollowing = true;
+    }
+
+    stagedIds.add(traderId);
+    renderStaged();
+    renderTraders();
+    document.getElementById('quickAddInput').focus();
+}
+
+function renderStaged() {
+    const wrap = document.getElementById('stagedWrap');
+    const list = document.getElementById('stagedList');
+    const staged = [...stagedIds].map(id => allTraders.find(t => t.id === id)).filter(Boolean);
+
+    if (staged.length === 0) {
+        wrap.style.display = 'none';
+        return;
+    }
+    wrap.style.display = 'block';
+    document.getElementById('stagedCount').textContent = `Just added (${staged.length})`;
+
+    list.innerHTML = staged.map(t => `
+        <div class="staged-row" data-id="${t.id}">
+            <span class="platform-mark">${t.platform === 'Pump' ? '💊' : '👀'}</span>
+            <a class="trader-handle" href="${traderProfileUrl(t)}" target="_blank" rel="noopener noreferrer">${escapeHtml(t.handle)}</a>
+            <input type="number" min="0" step="1" class="threshold-input" placeholder="any"
+                value="${t.minValueUsd != null ? t.minValueUsd : ''}" data-id="${t.id}">
+            <button class="staged-remove" data-id="${t.id}" title="Unfollow">✕</button>
+        </div>
+    `).join('');
+
+    list.querySelectorAll('.threshold-input').forEach(input => input.addEventListener('change', onThresholdChange));
+    list.querySelectorAll('.staged-remove').forEach(btn => btn.addEventListener('click', onRemoveStaged));
+}
+
+async function onRemoveStaged(e) {
+    const traderId = parseInt(e.currentTarget.dataset.id, 10);
+    const res = await fetch(`${API}/api/manage/unfollow`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ traderId })
+    });
+    if (!res.ok) { showToast('Failed'); return; }
+
+    stagedIds.delete(traderId);
+    const t = allTraders.find(x => x.id === traderId);
+    if (t) { t.isFollowing = false; t.minValueUsd = null; }
+    renderStaged();
+    renderTraders();
+}
+
+document.getElementById('clearStagedBtn').addEventListener('click', () => {
+    stagedIds.clear();
+    renderStaged();
+});
+
+document.getElementById('followAllBtn').addEventListener('click', async () => {
+    if (!confirm('Follow every available trader? This also turns on FOMO + Pump auto-follow for new traders. Anyone you explicitly unfollowed before stays unfollowed.')) return;
+
+    const res = await fetch(`${API}/api/manage/follow-all`, { method: 'POST' });
+    if (!res.ok) { showToast('Failed to follow all'); return; }
+
+    // FollowAllTradersAsync also flips both autofollow flags on server-side — mirror that here.
+    currentSettings.autoFollowFomoTraders = true;
+    currentSettings.autoFollowPumpTraders = true;
+    renderSettings();
+
+    stagedIds.clear();
+    renderStaged();
+    await loadTraders();
+    showToast('Followed all available traders');
+});
+
+document.getElementById('unfollowAllBtn').addEventListener('click', async () => {
+    if (!confirm('Unfollow every trader you currently follow? You can rebuild your list with the search box above.')) return;
+
+    const res = await fetch(`${API}/api/manage/unfollow-all`, { method: 'POST' });
+    if (!res.ok) { showToast('Failed to unfollow all'); return; }
+
+    allTraders.forEach(t => { t.isFollowing = false; t.minValueUsd = null; });
+    stagedIds.clear();
+    renderStaged();
+    renderTraders();
+    showToast('Unfollowed all traders');
+});
 
 document.getElementById('logoutLink').addEventListener('click', async () => {
     await fetch(`${API}/api/auth/logout`, { method: 'POST' });
