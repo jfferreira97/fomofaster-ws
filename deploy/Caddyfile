@@ -1,0 +1,13 @@
+groupchat-bot.tech {
+    # Only these paths are public-facing. Everything else on the backend
+    # (admin dashboard, /api/users, /api/traders, /api/dashboard/*, etc.)
+    # has no authentication of its own — it was built trusting "only
+    # reachable via localhost" — so it must never be proxied here.
+    @public path /manage /api/auth/* /api/manage/*
+    handle @public {
+        reverse_proxy localhost:8000
+    }
+    handle {
+        respond 404
+    }
+}
