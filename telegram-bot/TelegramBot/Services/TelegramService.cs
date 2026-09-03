@@ -55,7 +55,7 @@ public class TelegramService : ITelegramService
         return _botClient != null;
     }
 
-    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, string? contractAddress = null, Chain? chain = null, string? traderHandle = null, string? ticker = null, double? marketCap = null, NotificationType notificationType = NotificationType.Unknown, string? fomoWsTradeId = null, Platform platform = Platform.Fomo)
+    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, string? contractAddress = null, Chain? chain = null, string? traderHandle = null, string? ticker = null, double? marketCap = null, NotificationType notificationType = NotificationType.Unknown, string? fomoWsTradeId = null, Platform platform = Platform.Fomo, double? usdAmount = null)
     {
         if (_botClient == null)
         {
@@ -68,13 +68,14 @@ public class TelegramService : ITelegramService
         var traderService = scope.ServiceProvider.GetRequiredService<ITraderService>();
 
         List<Models.User> users;
+        Dictionary<int, decimal?> followerThresholds = new();
 
         // CRITICAL: Filter by trader followers if trader handle provided - O(log n)
         if (!string.IsNullOrEmpty(traderHandle))
         {
-            var followerUserIds = await traderService.GetFollowerUserIdsForTraderHandleAsync(traderHandle, platform);
+            followerThresholds = await traderService.GetFollowerThresholdsForTraderHandleAsync(traderHandle, platform);
 
-            if (followerUserIds.Count == 0)
+            if (followerThresholds.Count == 0)
             {
                 _logger.LogInformation("No users following trader {Trader}, skipping notification", traderHandle);
                 return;
@@ -82,7 +83,7 @@ public class TelegramService : ITelegramService
 
             // Get only active users who follow this trader
             var allUsers = await userService.GetAllActiveUsersAsync();
-            users = allUsers.Where(u => followerUserIds.Contains(u.Id)).ToList();
+            users = allUsers.Where(u => followerThresholds.ContainsKey(u.Id)).ToList();
 
             _logger.LogInformation("Filtered to {Count} users following trader {Trader}", users.Count, traderHandle);
         }
@@ -90,6 +91,21 @@ public class TelegramService : ITelegramService
         {
             // No trader specified - send to all active users (backward compatible)
             users = await userService.GetAllActiveUsersAsync();
+        }
+
+        // Per-trader alert floor, set on the manage page: only deliver trade-like activity
+        // (Buy/Sell/Callout) to a follower whose MinValueUsd for this specific trader is
+        // unset or met by this trade's USD size. Notifications with no known dollar amount
+        // (thesis, repost, reply, trending) pass through untouched.
+        if (usdAmount.HasValue
+            && (notificationType is NotificationType.Buy or NotificationType.Sell or NotificationType.Callout)
+            && followerThresholds.Count > 0)
+        {
+            users = users.Where(u =>
+            {
+                var minValueUsd = followerThresholds.GetValueOrDefault(u.Id);
+                return !minValueUsd.HasValue || usdAmount.Value >= (double)minValueUsd.Value;
+            }).ToList();
         }
 
         // Per-user chain preferences, set via /chains: a user who disabled this chain gets
@@ -383,6 +399,21 @@ To get full details: /subscribe";
         );
 
         _logger.LogInformation("✅ Test message sent to chat: {ChatId}", chatId);
+    }
+
+    private string? _cachedBotUsername;
+
+    public async Task<string?> GetBotUsernameAsync()
+    {
+        if (_cachedBotUsername != null)
+            return _cachedBotUsername;
+
+        if (_botClient == null)
+            return null;
+
+        var me = await _botClient.GetMeAsync();
+        _cachedBotUsername = me.Username;
+        return _cachedBotUsername;
     }
 
     public async Task<object> GetUpdatesAsync()

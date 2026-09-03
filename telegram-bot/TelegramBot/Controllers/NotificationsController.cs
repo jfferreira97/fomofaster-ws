@@ -144,7 +144,8 @@ public class NotificationsController : ControllerBase
                 ticker: req.Ticker,
                 marketCap: notifMarketCap,
                 notificationType: notifType,
-                fomoWsTradeId: req.WsId
+                fomoWsTradeId: req.WsId,
+                usdAmount: req.UsdAmount
             );
 
             await _dbContext.WsEvents
@@ -219,7 +220,8 @@ public class NotificationsController : ControllerBase
                 ticker: req.Symbol,
                 marketCap: req.MarketCap,
                 notificationType: notifType,
-                platform: Platform.Pump
+                platform: Platform.Pump,
+                usdAmount: req.PositionCostBasisUsd
             );
 
             // Non-blocking hand-off to confluence detection (TRENDING alerts) — callouts
