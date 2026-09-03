@@ -392,10 +392,12 @@ Use /settings to manage auto-follow and notification preferences.";
 
         foreach (var trader in allTraders)
         {
-            // Bulk follow is autofollow-flavored (it also flips both autofollow flags on
-            // below), so it must respect prior explicit unfollows just like the new-trader
-            // autofollow path does — otherwise "follow all" would silently undo them.
-            var success = await TryAutoFollowTraderAsync(userId, trader.Id);
+            // The user explicitly asked to follow all, so this is an explicit action like
+            // FollowTraderAsync, not the auto-follow path — it must clear prior exclusions
+            // rather than honor them, or an unfollow-all before it permanently zeroes out
+            // every future follow-all (exclusions never expire and TryAutoFollowTraderAsync
+            // skips anything excluded).
+            var success = await FollowTraderAsync(userId, trader.Id);
             if (success)
                 followedCount++;
         }
