@@ -165,7 +165,7 @@ public class TraderService : ITraderService
 
                 if (autoFollowForPlatform)
                 {
-                    await FollowTraderAsync(user.Id, trader.Id);
+                    await TryAutoFollowTraderAsync(user.Id, trader.Id);
 
                     message = $@"🔔 A new sharp {platformLabel} trader, [{escapedHandle}]({profileLink}), was just added to our services!
 
@@ -209,13 +209,21 @@ Use /settings to manage auto-follow and notification preferences.";
         }
     }
 
+    // Explicit follow: the user (via /follow, the API, or the manage page) directly chose
+    // this trader, so it always follows and always clears any prior exclusion — an explicit
+    // action overrides a past explicit unfollow by design.
     public async Task<bool> FollowTraderAsync(int userId, int traderId)
     {
         var existing = await _dbContext.UserTraders
             .FirstOrDefaultAsync(ut => ut.UserId == userId && ut.TraderId == traderId);
 
+        await RemoveExclusionAsync(userId, traderId);
+
         if (existing != null)
+        {
+            await _dbContext.SaveChangesAsync();
             return false;
+        }
 
         var userTrader = new UserTrader
         {
@@ -240,6 +248,20 @@ Use /settings to manage auto-follow and notification preferences.";
         return await FollowTraderAsync(userId, trader.Id);
     }
 
+    public async Task<bool> TryAutoFollowTraderAsync(int userId, int traderId)
+    {
+        var isExcluded = await _dbContext.TraderFollowExclusions
+            .AnyAsync(e => e.UserId == userId && e.TraderId == traderId);
+
+        if (isExcluded)
+        {
+            _logger.LogInformation("Skipping autofollow of trader {TraderId} for user {UserId}: previously unfollowed explicitly", traderId, userId);
+            return false;
+        }
+
+        return await FollowTraderAsync(userId, traderId);
+    }
+
     public async Task<bool> UnfollowTraderAsync(int userId, int traderId)
     {
         var userTrader = await _dbContext.UserTraders
@@ -249,10 +271,38 @@ Use /settings to manage auto-follow and notification preferences.";
             return false;
 
         _dbContext.UserTraders.Remove(userTrader);
+
+        // Mark this pair as explicitly opted out, so no autofollow-driven path (new-trader
+        // broadcast, follow-all) silently re-adds it later.
+        await AddExclusionAsync(userId, traderId);
+
         await _dbContext.SaveChangesAsync();
 
         _logger.LogInformation("User {UserId} unfollowed trader {TraderId}", userId, traderId);
         return true;
+    }
+
+    private async Task AddExclusionAsync(int userId, int traderId)
+    {
+        var existing = await _dbContext.TraderFollowExclusions
+            .FirstOrDefaultAsync(e => e.UserId == userId && e.TraderId == traderId);
+        if (existing != null)
+            return;
+
+        _dbContext.TraderFollowExclusions.Add(new TraderFollowExclusion
+        {
+            UserId = userId,
+            TraderId = traderId,
+            ExcludedAt = DateTime.UtcNow
+        });
+    }
+
+    private async Task RemoveExclusionAsync(int userId, int traderId)
+    {
+        var existing = await _dbContext.TraderFollowExclusions
+            .FirstOrDefaultAsync(e => e.UserId == userId && e.TraderId == traderId);
+        if (existing != null)
+            _dbContext.TraderFollowExclusions.Remove(existing);
     }
 
     public async Task<bool> UnfollowTraderByHandleAsync(int userId, string handle, Platform platform = Platform.Fomo)
@@ -287,6 +337,54 @@ Use /settings to manage auto-follow and notification preferences.";
         return await GetFollowerUserIdsForTraderAsync(trader.Id);
     }
 
+    public async Task<Dictionary<int, decimal?>> GetFollowerThresholdsForTraderHandleAsync(string handle, Platform platform = Platform.Fomo)
+    {
+        var trader = await GetTraderByHandleIgnoreCaseAsync(handle, platform);
+        if (trader == null)
+            return new Dictionary<int, decimal?>();
+
+        return await _dbContext.UserTraders
+            .Where(ut => ut.TraderId == trader.Id)
+            .ToDictionaryAsync(ut => ut.UserId, ut => ut.MinValueUsd);
+    }
+
+    public async Task<bool> SetThresholdAsync(int userId, int traderId, decimal? minValueUsd)
+    {
+        var userTrader = await _dbContext.UserTraders
+            .FirstOrDefaultAsync(ut => ut.UserId == userId && ut.TraderId == traderId);
+
+        if (userTrader == null)
+            return false;
+
+        userTrader.MinValueUsd = minValueUsd;
+        await _dbContext.SaveChangesAsync();
+
+        _logger.LogInformation("User {UserId} set MinValueUsd={MinValueUsd} for trader {TraderId}", userId, minValueUsd, traderId);
+        return true;
+    }
+
+    public async Task<List<TraderBrowseEntry>> GetBrowseListAsync(int userId, Platform? platform)
+    {
+        var tradersQuery = _dbContext.Traders.AsQueryable();
+        if (platform.HasValue)
+            tradersQuery = tradersQuery.Where(t => t.Platform == platform.Value);
+
+        var traders = await tradersQuery.OrderBy(t => t.Handle).ToListAsync();
+
+        var follows = await _dbContext.UserTraders
+            .Where(ut => ut.UserId == userId)
+            .ToDictionaryAsync(ut => ut.TraderId, ut => ut.MinValueUsd);
+
+        return traders.Select(t => new TraderBrowseEntry(
+            t.Id,
+            t.Handle,
+            t.Platform,
+            t.IsPumpVerified,
+            IsFollowing: follows.ContainsKey(t.Id),
+            MinValueUsd: follows.GetValueOrDefault(t.Id)
+        )).ToList();
+    }
+
     public async Task<int> FollowAllTradersAsync(int userId)
     {
         var allTraders = await GetAllTradersAsync();
@@ -294,7 +392,10 @@ Use /settings to manage auto-follow and notification preferences.";
 
         foreach (var trader in allTraders)
         {
-            var success = await FollowTraderAsync(userId, trader.Id);
+            // Bulk follow is autofollow-flavored (it also flips both autofollow flags on
+            // below), so it must respect prior explicit unfollows just like the new-trader
+            // autofollow path does — otherwise "follow all" would silently undo them.
+            var success = await TryAutoFollowTraderAsync(userId, trader.Id);
             if (success)
                 followedCount++;
         }

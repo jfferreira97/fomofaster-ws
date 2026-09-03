@@ -12,6 +12,7 @@ public class AppDbContext : DbContext
     public DbSet<User> Users { get; set; }
     public DbSet<Trader> Traders { get; set; }
     public DbSet<UserTrader> UserTraders { get; set; }
+    public DbSet<TraderFollowExclusion> TraderFollowExclusions { get; set; }
     public DbSet<UserChainSetting> UserChainSettings { get; set; }
     public DbSet<Notification> Notifications { get; set; }
     public DbSet<SentMessage> SentMessages { get; set; }
@@ -61,6 +62,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.UserId).IsRequired();
             entity.Property(e => e.TraderId).IsRequired();
             entity.Property(e => e.FollowedAt).IsRequired();
+            entity.Property(e => e.MinValueUsd).HasColumnType("decimal(18,2)");
 
             // Configure relationships
             entity.HasOne(e => e.User)
@@ -69,6 +71,25 @@ public class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne(e => e.Trader)
+                .WithMany()
+                .HasForeignKey(e => e.TraderId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<TraderFollowExclusion>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.UserId, e.TraderId }).IsUnique();
+            entity.Property(e => e.UserId).IsRequired();
+            entity.Property(e => e.TraderId).IsRequired();
+            entity.Property(e => e.ExcludedAt).IsRequired();
+
+            entity.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne<Trader>()
                 .WithMany()
                 .HasForeignKey(e => e.TraderId)
                 .OnDelete(DeleteBehavior.Cascade);
