@@ -37,10 +37,13 @@ export function attachWsInterceptor(
       const payload = msg.payload as Record<string, unknown> | undefined;
       if (!payload) return;
 
-      insertEvent(payload);
-
+      // Archive only once we know this frame is a real, non-duplicate trade — transformFrame's
+      // own dedup (markSeen) rejects WS-reconnect replays of trades already handled, and
+      // archiving those anyway (the old behavior) is exactly what filled WsEvents with rows
+      // that legitimately went out fine but could never be matched back and marked handled.
       const req = transformFrame(payload);
       if (req) {
+        insertEvent(payload);
         onTrade(req).catch((err) =>
           console.error(`${ts()} [intercept] onTrade error:`, err)
         );
