@@ -69,14 +69,14 @@
 
     .wrap { max-width: 1180px; margin: 0 auto; padding: 22px 24px 64px; }
 
-    /* ---------- Login ---------- */
-    #loginScreen { text-align: center; padding: 110px 16px 60px; }
-    #loginScreen .login-eyebrow {
+    /* ---------- Login / subscribe gate ---------- */
+    #loginScreen, #subscribeScreen { text-align: center; padding: 110px 16px 60px; }
+    #loginScreen .login-eyebrow, #subscribeScreen .login-eyebrow {
         font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: .12em;
         color: var(--accent); text-transform: uppercase; margin-bottom: 10px;
     }
-    #loginScreen h2 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
-    #loginScreen p { color: var(--text-dim); margin-bottom: 26px; font-size: 14px; }
+    #loginScreen h2, #subscribeScreen h2 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+    #loginScreen p, #subscribeScreen p { color: var(--text-dim); margin-bottom: 26px; font-size: 14px; max-width: 380px; margin-left: auto; margin-right: auto; }
     #telegramLoginContainer { display: inline-block; }
 
     /* ---------- Console layout ---------- */
@@ -298,6 +298,12 @@
     <div id="telegramLoginContainer"></div>
 </div>
 
+<div id="subscribeScreen" style="display:none;">
+    <div class="login-eyebrow">GROUPCHAT · ALERT CONSOLE</div>
+    <h2>Subscribers Only</h2>
+    <p>This page is part of the paid subscription. Message the bot with <b>/subscribe</b> to get access.</p>
+</div>
+
 <div id="appScreen" style="display:none;">
     <div class="topbar">
         <div class="brand">
@@ -333,7 +339,11 @@
                 <div class="panel">
                     <div class="panel-head">
                         <div class="panel-title">⛓ Chain Settings</div>
-                        <div class="panel-desc">1st: enable/disable the chain. 2nd: tap to edit its min market cap floor. 3rd: mute just Trending for that chain.</div>
+                        <div class="panel-desc">
+                            <b>Chain:</b> tap to enable/disable it entirely.<br>
+                            <b>Min Market Cap:</b> tap to edit its minimum floor — blank means no minimum.<br>
+                            <b>Trending:</b> tap to mute just Trending alerts for that chain.
+                        </div>
                     </div>
                     <div class="panel-body">
                         <div class="chip-grid cols-3 chip-head">
@@ -406,11 +416,12 @@ let currentPlatform = 'all';
 let currentSettings = null;
 let currentChains = [];
 
-function showToast(msg) {
+function showToast(msg, durationMs = 1800) {
     const t = document.getElementById('toast');
     t.textContent = msg;
     t.classList.add('show');
-    setTimeout(() => t.classList.remove('show'), 1800);
+    clearTimeout(t._hideTimer);
+    t._hideTimer = setTimeout(() => t.classList.remove('show'), durationMs);
 }
 
 function escapeHtml(s) {
@@ -423,16 +434,30 @@ function traderProfileUrl(t) {
 }
 
 async function init() {
-    const me = await fetch(`${API}/api/manage/me`).then(r => r.ok ? r.json() : null).catch(() => null);
-    if (!me) {
+    const res = await fetch(`${API}/api/manage/me`).catch(() => null);
+    if (!res) { await showLogin(); return; }
+
+    if (res.status === 403) {
+        const body = await res.json().catch(() => null);
+        if (body?.code === 'subscription_required') { showSubscribeGate(); return; }
         await showLogin();
         return;
     }
-    showApp(me);
+
+    if (!res.ok) { await showLogin(); return; }
+
+    showApp(await res.json());
+}
+
+function showSubscribeGate() {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('subscribeScreen').style.display = 'block';
+    document.getElementById('appScreen').style.display = 'none';
 }
 
 async function showLogin() {
     document.getElementById('loginScreen').style.display = 'block';
+    document.getElementById('subscribeScreen').style.display = 'none';
     document.getElementById('appScreen').style.display = 'none';
 
     const res = await fetch(`${API}/api/auth/bot-username`).then(r => r.json()).catch(() => null);
@@ -465,6 +490,7 @@ async function showLogin() {
 
 function showApp(me) {
     document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('subscribeScreen').style.display = 'none';
     document.getElementById('appScreen').style.display = 'block';
 
     document.getElementById('whoami').innerHTML =
@@ -813,31 +839,57 @@ document.getElementById('clearStagedBtn').addEventListener('click', () => {
 document.getElementById('followAllBtn').addEventListener('click', async () => {
     if (!confirm('Follow every available trader? This also turns on FOMO + Pump auto-follow for new traders. Anyone you explicitly unfollowed before stays unfollowed.')) return;
 
-    const res = await fetch(`${API}/api/manage/follow-all`, { method: 'POST' });
-    if (!res.ok) { showToast('Failed to follow all'); return; }
+    const btn = document.getElementById('followAllBtn');
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Following all... (can take a minute)';
+    showToast('Working on it — following everyone not previously unfollowed...', 60000);
 
-    // FollowAllTradersAsync also flips both autofollow flags on server-side — mirror that here.
-    currentSettings.autoFollowFomoTraders = true;
-    currentSettings.autoFollowPumpTraders = true;
-    renderSettings();
+    try {
+        const res = await fetch(`${API}/api/manage/follow-all`, { method: 'POST' });
+        const body = await res.json().catch(() => null);
+        if (!res.ok) { showToast('Failed to follow all'); return; }
 
-    stagedIds.clear();
-    renderStaged();
-    await loadTraders();
-    showToast('Followed all available traders');
+        // FollowAllTradersAsync also flips both autofollow flags on server-side — mirror that here.
+        currentSettings.autoFollowFomoTraders = true;
+        currentSettings.autoFollowPumpTraders = true;
+        renderSettings();
+
+        stagedIds.clear();
+        renderStaged();
+        await loadTraders();
+        const newlyFollowed = body?.followedCount ?? '?';
+        showToast(`Done — followed ${newlyFollowed} new trader(s)`, 4000);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = original;
+    }
 });
 
 document.getElementById('unfollowAllBtn').addEventListener('click', async () => {
     if (!confirm('Unfollow every trader you currently follow? You can rebuild your list with the search box above.')) return;
 
-    const res = await fetch(`${API}/api/manage/unfollow-all`, { method: 'POST' });
-    if (!res.ok) { showToast('Failed to unfollow all'); return; }
+    const btn = document.getElementById('unfollowAllBtn');
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Unfollowing all...';
+    showToast('Working on it...', 60000);
 
-    allTraders.forEach(t => { t.isFollowing = false; t.minValueUsd = null; });
-    stagedIds.clear();
-    renderStaged();
-    renderTraders();
-    showToast('Unfollowed all traders');
+    try {
+        const res = await fetch(`${API}/api/manage/unfollow-all`, { method: 'POST' });
+        const body = await res.json().catch(() => null);
+        if (!res.ok) { showToast('Failed to unfollow all'); return; }
+
+        allTraders.forEach(t => { t.isFollowing = false; t.minValueUsd = null; });
+        stagedIds.clear();
+        renderStaged();
+        renderTraders();
+        const unfollowedCount = body?.unfollowedCount ?? '?';
+        showToast(`Done — unfollowed ${unfollowedCount} trader(s)`, 4000);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = original;
+    }
 });
 
 document.getElementById('logoutLink').addEventListener('click', async () => {

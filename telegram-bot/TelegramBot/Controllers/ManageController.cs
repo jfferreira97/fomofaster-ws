@@ -42,12 +42,28 @@ public class ManageController : ControllerBase
         return await _userService.GetUserByChatIdAsync(chatId.Value);
     }
 
-    [HttpGet("me")]
-    public async Task<IActionResult> GetMe()
+    // The manage page is a subscriber perk, not just a logged-in-with-Telegram perk — gate
+    // every action on it, not only "me", so there's no endpoint a non-subscriber can reach
+    // by skipping straight to it. Distinct from the 401 case: a non-subscriber IS a valid,
+    // authenticated user, just not a paying one, so the frontend needs to tell them to
+    // subscribe rather than show the "log in with Telegram" screen again.
+    private async Task<(Models.User? User, IActionResult? Error)> ResolveSubscriberAsync()
     {
         var user = await GetCurrentUserAsync();
         if (user == null)
-            return Unauthorized(new { status = "error", message = "Not logged in" });
+            return (null, Unauthorized(new { status = "error", message = "Not logged in" }));
+
+        if (!user.IsRegisteredNurse && !user.IsRN4L)
+            return (null, StatusCode(403, new { status = "error", code = "subscription_required", message = "This page is for subscribers only. Use /subscribe in the bot to get access." }));
+
+        return (user, null);
+    }
+
+    [HttpGet("me")]
+    public async Task<IActionResult> GetMe()
+    {
+        var (user, error) = await ResolveSubscriberAsync();
+        if (user == null) return error!;
 
         return Ok(new
         {
@@ -70,9 +86,8 @@ public class ManageController : ControllerBase
     [HttpPost("settings")]
     public async Task<IActionResult> UpdateSettings([FromBody] UpdateManageSettingsRequest request)
     {
-        var user = await GetCurrentUserAsync();
-        if (user == null)
-            return Unauthorized(new { status = "error", message = "Not logged in" });
+        var (user, error) = await ResolveSubscriberAsync();
+        if (user == null) return error!;
 
         // Flag-only, forward-looking (matches /autofollow and /settings in the bot): this
         // never backfills existing traders, so it can never silently undo an explicit
@@ -93,9 +108,8 @@ public class ManageController : ControllerBase
     [HttpGet("traders")]
     public async Task<IActionResult> GetTraders([FromQuery] string? platform)
     {
-        var user = await GetCurrentUserAsync();
-        if (user == null)
-            return Unauthorized(new { status = "error", message = "Not logged in" });
+        var (user, error) = await ResolveSubscriberAsync();
+        if (user == null) return error!;
 
         Platform? platformFilter = platform?.ToLowerInvariant() switch
         {
@@ -124,9 +138,8 @@ public class ManageController : ControllerBase
     [HttpPost("follow")]
     public async Task<IActionResult> Follow([FromBody] ManageTraderRequest request)
     {
-        var user = await GetCurrentUserAsync();
-        if (user == null)
-            return Unauthorized(new { status = "error", message = "Not logged in" });
+        var (user, error) = await ResolveSubscriberAsync();
+        if (user == null) return error!;
 
         var success = await _traderService.FollowTraderAsync(user.Id, request.TraderId);
         return Ok(new { status = "success", followed = success });
@@ -135,9 +148,8 @@ public class ManageController : ControllerBase
     [HttpPost("unfollow")]
     public async Task<IActionResult> Unfollow([FromBody] ManageTraderRequest request)
     {
-        var user = await GetCurrentUserAsync();
-        if (user == null)
-            return Unauthorized(new { status = "error", message = "Not logged in" });
+        var (user, error) = await ResolveSubscriberAsync();
+        if (user == null) return error!;
 
         var success = await _traderService.UnfollowTraderAsync(user.Id, request.TraderId);
         return Ok(new { status = "success", unfollowed = success });
@@ -146,9 +158,8 @@ public class ManageController : ControllerBase
     [HttpPost("follow-all")]
     public async Task<IActionResult> FollowAll()
     {
-        var user = await GetCurrentUserAsync();
-        if (user == null)
-            return Unauthorized(new { status = "error", message = "Not logged in" });
+        var (user, error) = await ResolveSubscriberAsync();
+        if (user == null) return error!;
 
         var count = await _traderService.FollowAllTradersAsync(user.Id);
         return Ok(new { status = "success", followedCount = count });
@@ -157,9 +168,8 @@ public class ManageController : ControllerBase
     [HttpPost("unfollow-all")]
     public async Task<IActionResult> UnfollowAll()
     {
-        var user = await GetCurrentUserAsync();
-        if (user == null)
-            return Unauthorized(new { status = "error", message = "Not logged in" });
+        var (user, error) = await ResolveSubscriberAsync();
+        if (user == null) return error!;
 
         var count = await _traderService.UnfollowAllTradersAsync(user.Id);
         return Ok(new { status = "success", unfollowedCount = count });
@@ -168,9 +178,8 @@ public class ManageController : ControllerBase
     [HttpPost("threshold")]
     public async Task<IActionResult> SetThreshold([FromBody] SetThresholdRequest request)
     {
-        var user = await GetCurrentUserAsync();
-        if (user == null)
-            return Unauthorized(new { status = "error", message = "Not logged in" });
+        var (user, error) = await ResolveSubscriberAsync();
+        if (user == null) return error!;
 
         var success = await _traderService.SetThresholdAsync(user.Id, request.TraderId, request.MinValueUsd);
         if (!success)
@@ -184,9 +193,8 @@ public class ManageController : ControllerBase
     [HttpGet("chains")]
     public async Task<IActionResult> GetChains()
     {
-        var user = await GetCurrentUserAsync();
-        if (user == null)
-            return Unauthorized(new { status = "error", message = "Not logged in" });
+        var (user, error) = await ResolveSubscriberAsync();
+        if (user == null) return error!;
 
         var settings = _chainSettingsService.GetSettingsForUser(user.Id);
 
@@ -208,9 +216,8 @@ public class ManageController : ControllerBase
     [HttpPost("chains/disabled")]
     public async Task<IActionResult> SetChainDisabled([FromBody] SetChainDisabledRequest request)
     {
-        var user = await GetCurrentUserAsync();
-        if (user == null)
-            return Unauthorized(new { status = "error", message = "Not logged in" });
+        var (user, error) = await ResolveSubscriberAsync();
+        if (user == null) return error!;
 
         await _chainSettingsService.SetDisabledAsync(user.Id, request.Chain, request.Disabled);
         return Ok(new { status = "success" });
@@ -219,9 +226,8 @@ public class ManageController : ControllerBase
     [HttpPost("chains/minmarketcap")]
     public async Task<IActionResult> SetChainMinMarketCap([FromBody] SetChainMinMarketCapRequest request)
     {
-        var user = await GetCurrentUserAsync();
-        if (user == null)
-            return Unauthorized(new { status = "error", message = "Not logged in" });
+        var (user, error) = await ResolveSubscriberAsync();
+        if (user == null) return error!;
 
         await _chainSettingsService.SetMinMarketCapAsync(user.Id, request.Chain, request.MinMarketCap);
         return Ok(new { status = "success" });
@@ -230,9 +236,8 @@ public class ManageController : ControllerBase
     [HttpPost("chains/trending")]
     public async Task<IActionResult> SetChainTrendingDisabled([FromBody] SetChainTrendingDisabledRequest request)
     {
-        var user = await GetCurrentUserAsync();
-        if (user == null)
-            return Unauthorized(new { status = "error", message = "Not logged in" });
+        var (user, error) = await ResolveSubscriberAsync();
+        if (user == null) return error!;
 
         await _chainSettingsService.SetTrendingDisabledAsync(user.Id, request.Chain, request.Disabled);
         return Ok(new { status = "success" });
