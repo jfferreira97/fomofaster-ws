@@ -12,6 +12,7 @@ public class AppDbContext : DbContext
     public DbSet<User> Users { get; set; }
     public DbSet<Trader> Traders { get; set; }
     public DbSet<UserTrader> UserTraders { get; set; }
+    public DbSet<UserChainSetting> UserChainSettings { get; set; }
     public DbSet<Notification> Notifications { get; set; }
     public DbSet<SentMessage> SentMessages { get; set; }
     public DbSet<PendingPayment> PendingPayments { get; set; }
@@ -70,6 +71,22 @@ public class AppDbContext : DbContext
             entity.HasOne(e => e.Trader)
                 .WithMany()
                 .HasForeignKey(e => e.TraderId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<UserChainSetting>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.UserId, e.Chain }).IsUnique();
+            entity.Property(e => e.UserId).IsRequired();
+            entity.Property(e => e.Chain).IsRequired().HasConversion<string>();
+            entity.Property(e => e.IsDisabled).IsRequired();
+            entity.Property(e => e.MinMarketCap).HasColumnType("decimal(18,2)");
+            entity.Property(e => e.TrendingDisabled).IsRequired();
+
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

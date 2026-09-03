@@ -16,18 +16,21 @@ public class TelegramService : ITelegramService
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<TelegramService> _logger;
     private readonly IHubContext<DashboardHub> _hubContext;
+    private readonly ChainSettingsCache _chainSettingsCache;
     private PaymentPollerService? _paymentPoller;
 
     public TelegramService(
         IOptions<TelegramSettings> settings,
         IServiceProvider serviceProvider,
         ILogger<TelegramService> logger,
-        IHubContext<DashboardHub> hubContext)
+        IHubContext<DashboardHub> hubContext,
+        ChainSettingsCache chainSettingsCache)
     {
         _settings = settings.Value;
         _serviceProvider = serviceProvider;
         _logger = logger;
         _hubContext = hubContext;
+        _chainSettingsCache = chainSettingsCache;
 
         if (!string.IsNullOrEmpty(_settings.BotToken))
         {
@@ -87,6 +90,30 @@ public class TelegramService : ITelegramService
         {
             // No trader specified - send to all active users (backward compatible)
             users = await userService.GetAllActiveUsersAsync();
+        }
+
+        // Per-user chain preferences, set via /chains: a user who disabled this chain gets
+        // nothing on it; one with a per-chain market cap floor set only gets it once the
+        // token's market cap (when known) meets that floor; one who muted just Trending for
+        // this chain (TrendingDisabled) keeps Buy/Sell/Callout but loses Trending here only.
+        // Users with no row for this chain are unaffected (default: enabled, no minimum).
+        // Reads straight from the in-memory ChainSettingsCache, not the DB — this runs on
+        // every notification, so it must stay a plain dictionary lookup rather than a query.
+        if (chain.HasValue)
+        {
+            var chainSettings = _chainSettingsCache.GetForChain(chain.Value);
+            if (chainSettings.Count > 0)
+            {
+                users = users.Where(u =>
+                {
+                    if (!chainSettings.TryGetValue(u.Id, out var setting)) return true;
+                    if (setting.IsDisabled) return false;
+                    if (notificationType == NotificationType.CUSTOM_Trending && setting.TrendingDisabled) return false;
+                    if (setting.MinMarketCap.HasValue && marketCap.HasValue)
+                        return marketCap.Value >= (double)setting.MinMarketCap.Value;
+                    return true;
+                }).ToList();
+            }
         }
 
         // Repeat window: skip users who already got a Buy/Sell alert for this exact

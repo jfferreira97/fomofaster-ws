@@ -23,6 +23,12 @@ public class TelegramBotPollingService : BackgroundService
     private long _ownerChatId;
     private string? _ownerUsername;
 
+    // ChatId -> chain currently awaiting a typed min-market-cap reply (via /chains' $ button,
+    // which sends a ForceReply prompt since Telegram buttons can't accept text input directly).
+    // Cleared once the reply is consumed. In-memory only — losing a pending prompt on restart
+    // just means the user re-taps the button, no real cost.
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<long, Chain> _pendingChainMcapInput = new();
+
     // GROUPCHAT token contract address - update this when token launches
     // private const string TOKEN_CONTRACT_ADDRESS = "6gCEGUjPisdGFc6FhRGL43hoD263dRF81i2L3bo5bonk";
 
@@ -146,10 +152,48 @@ public class TelegramBotPollingService : BackgroundService
         {
             await HandleCommandAsync(message, userService);
         }
+        else if (_pendingChainMcapInput.TryRemove(chatId, out var pendingChain))
+        {
+            await HandleChainMcapReplyAsync(message, pendingChain, userService);
+        }
         else
         {
             await HandleFreeTextAsync(message);
         }
+    }
+
+    private async Task HandleChainMcapReplyAsync(Message message, Chain chain, IUserService userService)
+    {
+        if (_botClient == null) return;
+
+        var chatId = message.Chat.Id;
+        var user = await userService.GetUserByChatIdAsync(chatId);
+        if (user == null) return;
+
+        if (!TryParseMarketCapArg(message.Text ?? "", out var value))
+        {
+            await _botClient.SendTextMessageAsync(
+                chatId: chatId,
+                text: "❌ Invalid amount. Send a number like 50k, 1.2m, or 0 for none. Tap the $ button on /chains to try again."
+            );
+            return;
+        }
+
+        using var scope = _serviceProvider.CreateScope();
+        var chainSettingsServiceForReply = scope.ServiceProvider.GetRequiredService<IChainSettingsService>();
+        await chainSettingsServiceForReply.SetMinMarketCapAsync(user.Id, chain, value);
+
+        var confirmText = value.HasValue
+            ? $"✅ Minimum market cap for {chain} set to ${value.Value:N0}"
+            : $"✅ Minimum market cap for {chain} cleared (no minimum)";
+
+        var updatedSettings = chainSettingsServiceForReply.GetSettingsForUser(user.Id);
+        await _botClient.SendTextMessageAsync(
+            chatId: chatId,
+            text: $"{confirmText}\n\n{ChainsText}",
+            parseMode: ParseMode.Markdown,
+            replyMarkup: BuildChainsKeyboard(updatedSettings)
+        );
     }
 
     private async Task HandleFreeTextAsync(Message message)
@@ -218,13 +262,120 @@ public class TelegramBotPollingService : BackgroundService
         });
     }
 
+    private static string FormatMarketCapShort(decimal value)
+    {
+        if (value >= 1_000_000m) return $"${value / 1_000_000m:0.#}M";
+        if (value >= 1_000m) return $"${value / 1_000m:0.#}K";
+        return "$0";
+    }
+
+    private const string ChainsText = "⛓ *Chain Settings*\n\nTap a chain (1st button) to enable/disable it entirely. Tap $ (2nd) to type a new minimum market cap floor — 0 means no minimum. Tap 🔥 (3rd) to mute just Trending alerts for that chain.";
+
+    private static InlineKeyboardMarkup BuildChainsKeyboard(Dictionary<Chain, UserChainSetting> settings)
+    {
+        var rows = new List<InlineKeyboardButton[]>();
+        foreach (var chain in Enum.GetValues<Chain>())
+        {
+            settings.TryGetValue(chain, out var s);
+            var isDisabled = s?.IsDisabled ?? false;
+            var minMarketCap = s?.MinMarketCap ?? 0m;
+            var trendingDisabled = s?.TrendingDisabled ?? false;
+
+            rows.Add(new[]
+            {
+                InlineKeyboardButton.WithCallbackData($"{(isDisabled ? "🔴" : "🟢")} {chain}", $"chains:toggle:{chain}"),
+                InlineKeyboardButton.WithCallbackData($"Min: {FormatMarketCapShort(minMarketCap)}", $"chains:mcap:{chain}"),
+                InlineKeyboardButton.WithCallbackData($"🔥 {(trendingDisabled ? "🔴" : "🟢")}", $"chains:trend:{chain}"),
+            });
+        }
+        return new InlineKeyboardMarkup(rows);
+    }
+
+    private async Task HandleChainsCallbackAsync(CallbackQuery callbackQuery, string data, Message message)
+    {
+        if (_botClient == null) return;
+
+        using var scope = _serviceProvider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var chainSettingsServiceForCallback = scope.ServiceProvider.GetRequiredService<IChainSettingsService>();
+
+        var user = await dbContext.Users.FirstOrDefaultAsync(u => u.ChatId == message.Chat.Id);
+        if (user == null)
+        {
+            await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id, "Please use /start first.");
+            return;
+        }
+
+        // "chains:toggle:SOL", "chains:mcap:SOL", or "chains:trend:SOL"
+        var parts = data.Split(':');
+        if (parts.Length != 3 || !Enum.TryParse<Chain>(parts[2], out var chain))
+        {
+            await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id);
+            return;
+        }
+
+        if (parts[1] == "mcap")
+        {
+            // Inline buttons can't accept typed input — prompt with a ForceReply instead and
+            // remember which chain this chat is answering for; HandleChainMcapReplyAsync picks
+            // it up off their next plain-text message.
+            _pendingChainMcapInput[message.Chat.Id] = chain;
+            await _botClient.SendTextMessageAsync(
+                chatId: message.Chat.Id,
+                text: $"💬 Reply with the minimum market cap for {chain} (e.g. 50k, 1.2m, or 0 for none):",
+                replyMarkup: new ForceReplyMarkup { Selective = true }
+            );
+            await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id);
+            return;
+        }
+
+        var settings = chainSettingsServiceForCallback.GetSettingsForUser(user.Id);
+        settings.TryGetValue(chain, out var existing);
+
+        switch (parts[1])
+        {
+            case "toggle":
+                await chainSettingsServiceForCallback.SetDisabledAsync(user.Id, chain, !(existing?.IsDisabled ?? false));
+                break;
+            case "trend":
+                await chainSettingsServiceForCallback.SetTrendingDisabledAsync(user.Id, chain, !(existing?.TrendingDisabled ?? false));
+                break;
+            default:
+                await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id);
+                return;
+        }
+
+        var updatedSettings = chainSettingsServiceForCallback.GetSettingsForUser(user.Id);
+        await _botClient.EditMessageTextAsync(
+            chatId: message.Chat.Id,
+            messageId: message.MessageId,
+            text: ChainsText,
+            parseMode: ParseMode.Markdown,
+            replyMarkup: BuildChainsKeyboard(updatedSettings)
+        );
+
+        await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id);
+    }
+
     private async Task HandleCallbackQueryAsync(CallbackQuery callbackQuery)
     {
         if (_botClient == null) return;
 
         var data = callbackQuery.Data;
         var message = callbackQuery.Message;
-        if (message == null || string.IsNullOrEmpty(data) || !data.StartsWith("settings:"))
+        if (message == null || string.IsNullOrEmpty(data))
+        {
+            await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id);
+            return;
+        }
+
+        if (data.StartsWith("chains:"))
+        {
+            await HandleChainsCallbackAsync(callbackQuery, data, message);
+            return;
+        }
+
+        if (!data.StartsWith("settings:"))
         {
             await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id);
             return;
@@ -276,6 +427,7 @@ public class TelegramBotPollingService : BackgroundService
 
         using var scope = _serviceProvider.CreateScope();
         var traderService = scope.ServiceProvider.GetRequiredService<ITraderService>();
+        var chainSettingsService = scope.ServiceProvider.GetRequiredService<IChainSettingsService>();
 
         switch (command)
         {
@@ -303,6 +455,7 @@ You're now following all {allTradersCount.Count} traders by default, configure a
 /autofollow <on/off> - check/toggle auto-follow for new traders (starts ON by default)
 /settings - full notification menu: auto-follow, buys/sells, thesis, pump callouts, verified-only mode, trending
 /repeatwindow <2h/30m/off> - limit repeat buy/sell alerts per trader+coin — buys and sells don't block each other (off by default)
+/chains - tap-button menu to enable/disable chains and set a minimum market cap per chain
 /top - view top tokens (e.g., /top 1h, /top sol 1d, /top sol,monad 6h)
 
 Follow us on twitter, stay tuned for major updates: https://x.com/groupchat__BOT
@@ -342,6 +495,7 @@ Follow us on twitter, stay tuned for major updates: https://x.com/groupchat__BOT
 /autofollow <on/off> - Check/toggle FOMO auto-follow for new traders (starts ON by default)
 /settings - Full notification menu: auto-follow (FOMO/Pump), buys/sells, thesis, pump callouts, verified-only mode, trending
 /repeatwindow <2h/30m/off> - Limit repeat buy/sell alerts per trader+coin — buys and sells don't block each other (off by default)
+/chains - Tap-button menu: enable/disable each chain, cycle its minimum market cap floor (also: /chains disable base, /chains minmcap sol 50k)
 /top [chains] <period> - Top tokens (e.g., /top 1h, /top sol 1d, /top sol,monad 6h)
 
 You'll only receive notifications from traders you follow!",
@@ -905,6 +1059,134 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                 );
                 break;
 
+            case "/chains":
+                var userForChains = await userService.GetUserByChatIdAsync(chatId);
+
+                if (userForChains == null)
+                {
+                    await _botClient.SendTextMessageAsync(
+                        chatId: chatId,
+                        text: "❌ Please use /start first to register.",
+                        parseMode: ParseMode.Markdown
+                    );
+                    break;
+                }
+
+                var chainsArgs = message.Text?.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+                // Just /chains - show the tap-to-toggle button menu
+                if (chainsArgs == null || chainsArgs.Length < 2)
+                {
+                    var currentChainSettings = chainSettingsService.GetSettingsForUser(userForChains.Id);
+                    await _botClient.SendTextMessageAsync(
+                        chatId: chatId,
+                        text: ChainsText,
+                        parseMode: ParseMode.Markdown,
+                        replyMarkup: BuildChainsKeyboard(currentChainSettings)
+                    );
+                    break;
+                }
+
+                var chainsSubcommand = chainsArgs[1].ToLowerInvariant();
+
+                if (chainsSubcommand is "enable" or "disable")
+                {
+                    if (chainsArgs.Length < 3)
+                    {
+                        await _botClient.SendTextMessageAsync(
+                            chatId: chatId,
+                            text: $"❌ Usage: /chains {chainsSubcommand} <chain>[,<chain2>...]",
+                            parseMode: ParseMode.Markdown
+                        );
+                        break;
+                    }
+
+                    var wantDisabled = chainsSubcommand == "disable";
+                    var chainNames = chainsArgs[2].Split(',', StringSplitOptions.RemoveEmptyEntries);
+                    var appliedChains = new List<Chain>();
+                    var unrecognizedChains = new List<string>();
+
+                    foreach (var name in chainNames)
+                    {
+                        var parsedChain = ChainInfo.FromAlias(name.Trim());
+                        if (parsedChain.HasValue)
+                        {
+                            await chainSettingsService.SetDisabledAsync(userForChains.Id, parsedChain.Value, wantDisabled);
+                            appliedChains.Add(parsedChain.Value);
+                        }
+                        else
+                        {
+                            unrecognizedChains.Add(name.Trim());
+                        }
+                    }
+
+                    var chainsResultLines = new List<string>();
+                    if (appliedChains.Count > 0)
+                        chainsResultLines.Add($"{(wantDisabled ? "❌ Disabled" : "✅ Enabled")}: {string.Join(", ", appliedChains)}");
+                    if (unrecognizedChains.Count > 0)
+                        chainsResultLines.Add($"⚠️ Unrecognized chain(s): {string.Join(", ", unrecognizedChains)}. Valid: {ChainInfo.ChainListForHelp()}");
+
+                    await _botClient.SendTextMessageAsync(
+                        chatId: chatId,
+                        text: string.Join("\n", chainsResultLines),
+                        parseMode: ParseMode.Markdown
+                    );
+                    break;
+                }
+
+                if (chainsSubcommand is "minmcap" or "minmarketcap")
+                {
+                    if (chainsArgs.Length < 4)
+                    {
+                        await _botClient.SendTextMessageAsync(
+                            chatId: chatId,
+                            text: "❌ Usage: /chains minmcap <chain> <amount> (e.g. /chains minmcap sol 50k, or /chains minmcap sol off)",
+                            parseMode: ParseMode.Markdown
+                        );
+                        break;
+                    }
+
+                    var minMcapChain = ChainInfo.FromAlias(chainsArgs[2].Trim());
+                    if (!minMcapChain.HasValue)
+                    {
+                        await _botClient.SendTextMessageAsync(
+                            chatId: chatId,
+                            text: $"❌ Unrecognized chain '{chainsArgs[2]}'. Valid: {ChainInfo.ChainListForHelp()}",
+                            parseMode: ParseMode.Markdown
+                        );
+                        break;
+                    }
+
+                    if (!TryParseMarketCapArg(chainsArgs[3], out var minMcapValue))
+                    {
+                        await _botClient.SendTextMessageAsync(
+                            chatId: chatId,
+                            text: "❌ Invalid amount. Examples: 50k, 1.2m, 250000, off",
+                            parseMode: ParseMode.Markdown
+                        );
+                        break;
+                    }
+
+                    await chainSettingsService.SetMinMarketCapAsync(userForChains.Id, minMcapChain.Value, minMcapValue);
+
+                    var minMcapConfirmText = minMcapValue.HasValue
+                        ? $"✅ Minimum market cap for {minMcapChain.Value} set to ${minMcapValue.Value:N0}"
+                        : $"✅ Minimum market cap for {minMcapChain.Value} cleared";
+                    await _botClient.SendTextMessageAsync(
+                        chatId: chatId,
+                        text: minMcapConfirmText,
+                        parseMode: ParseMode.Markdown
+                    );
+                    break;
+                }
+
+                await _botClient.SendTextMessageAsync(
+                    chatId: chatId,
+                    text: "❌ Unknown /chains subcommand. Use:\n/chains — show status\n/chains disable <chain>\n/chains enable <chain>\n/chains minmcap <chain> <amount>",
+                    parseMode: ParseMode.Markdown
+                );
+                break;
+
             // case "/ca":
             //     await _botClient.SendTextMessageAsync(
             //         chatId: chatId,
@@ -1120,6 +1402,32 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                 );
                 break;
         }
+    }
+
+    // "off"/"none" clear the floor (value = null, returns true). Otherwise parses a plain
+    // or k/m/b-suffixed number (e.g. "50k", "1.2m") into a dollar amount.
+    private static bool TryParseMarketCapArg(string input, out decimal? value)
+    {
+        var s = input.Trim().ToLowerInvariant();
+        if (s is "off" or "none" or "clear")
+        {
+            value = null;
+            return true;
+        }
+
+        var multiplier = 1m;
+        if (s.EndsWith("k")) { multiplier = 1_000m; s = s[..^1]; }
+        else if (s.EndsWith("m")) { multiplier = 1_000_000m; s = s[..^1]; }
+        else if (s.EndsWith("b")) { multiplier = 1_000_000_000m; s = s[..^1]; }
+
+        if (decimal.TryParse(s, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var num) && num >= 0)
+        {
+            value = num * multiplier;
+            return true;
+        }
+
+        value = null;
+        return false;
     }
 
     private static string FormatRepeatWindow(int minutes)

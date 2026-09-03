@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TelegramBot.Data;
 
@@ -10,9 +11,11 @@ using TelegramBot.Data;
 namespace TelegramBot.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260901045609_AddTrendingDisabledToUserChainSettings")]
+    partial class AddTrendingDisabledToUserChainSettings
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.10");
@@ -303,6 +306,31 @@ namespace TelegramBot.Migrations
                     b.ToTable("Traders");
                 });
 
+            modelBuilder.Entity("TelegramBot.Models.TraderFollowExclusion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("ExcludedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TraderId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TraderId");
+
+                    b.HasIndex("UserId", "TraderId")
+                        .IsUnique();
+
+                    b.ToTable("TraderFollowExclusions");
+                });
+
             modelBuilder.Entity("TelegramBot.Models.User", b =>
                 {
                     b.Property<int>("Id")
@@ -403,6 +431,9 @@ namespace TelegramBot.Migrations
 
                     b.Property<DateTime>("FollowedAt")
                         .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("MinValueUsd")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("TraderId")
                         .HasColumnType("INTEGER");
@@ -522,6 +553,21 @@ namespace TelegramBot.Migrations
                         .IsRequired();
 
                     b.Navigation("Notification");
+                });
+
+            modelBuilder.Entity("TelegramBot.Models.TraderFollowExclusion", b =>
+                {
+                    b.HasOne("TelegramBot.Models.Trader", null)
+                        .WithMany()
+                        .HasForeignKey("TraderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TelegramBot.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("TelegramBot.Models.UserChainSetting", b =>

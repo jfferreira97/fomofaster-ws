@@ -45,6 +45,8 @@ builder.Services.AddCors(options =>
 // Register services
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ITraderService, TraderService>();
+builder.Services.AddScoped<IChainSettingsService, ChainSettingsService>();
+builder.Services.AddSingleton<ChainSettingsCache>();
 builder.Services.AddSingleton<ITelegramService, TelegramService>();
 builder.Services.AddSingleton<AppConfigService>();
 builder.Services.AddHostedService<TelegramBotPollingService>(); // Background polling service
@@ -81,6 +83,10 @@ using (var scope = app.Services.CreateScope())
 // Seed default config values
 var appConfigService = app.Services.GetRequiredService<AppConfigService>();
 await appConfigService.SeedDefaultsAsync();
+
+// Warm the in-memory chain-settings cache so the notification hot path never hits the DB
+var chainSettingsCache = app.Services.GetRequiredService<ChainSettingsCache>();
+await chainSettingsCache.LoadAsync();
 
 // Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
