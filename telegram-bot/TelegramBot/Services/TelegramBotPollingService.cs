@@ -448,8 +448,7 @@ public class TelegramBotPollingService : BackgroundService
 You're now following all {allTradersCount.Count} traders by default, configure according to your preferences if needed:
 
 /help - show available commands
-/list - view all available traders
-/mytraders - view traders youre following
+/manage - open the web page to browse traders, see who you follow, and manage alerts
 /follow - follow specific traders
 /unfollow - unfollow specific traders
 /autofollow <on/off> - check/toggle auto-follow for new traders (starts ON by default)
@@ -486,8 +485,7 @@ Follow us on twitter, stay tuned for major updates: https://x.com/groupchat__BOT
 
 /start - Subscribe to notifications
 /help - Show this help message
-/list - View all available traders
-/mytraders - View traders you're following
+/manage - Open the web page to browse traders, see who you follow, and manage alerts
 /follow <ids/handles> - Follow traders (e.g., /follow 1,2,3 or /follow trader1,trader2)
 /follow all - Follow all traders
 /unfollow <ids/handles> - Unfollow traders (e.g., /unfollow 1,trader2)
@@ -497,7 +495,6 @@ Follow us on twitter, stay tuned for major updates: https://x.com/groupchat__BOT
 /repeatwindow <2h/30m/off> - Limit repeat buy/sell alerts per trader+coin — buys and sells don't block each other (off by default)
 /chains - Tap-button menu: enable/disable each chain, cycle its minimum market cap floor (also: /chains disable base, /chains minmcap sol 50k)
 /top [chains] <period> - Top tokens (e.g., /top 1h, /top sol 1d, /top sol,monad 6h)
-/manage - Open the web page to manage followed traders and alert thresholds
 
 You'll only receive notifications from traders you follow!",
                     parseMode: ParseMode.Markdown
@@ -513,107 +510,27 @@ You'll only receive notifications from traders you follow!",
                 );
                 break;
 
+            // Retired 2026-09-03 — browsing/filtering the full trader roster is now 100%
+            // handled by the manage page (search, platform filter, follow, thresholds, all
+            // in one scrollable table instead of chunked wall-of-text messages).
             case "/list":
-                var user = await userService.GetUserByChatIdAsync(chatId);
-
-                if (user == null)
-                {
-                    await _botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: "❌ Please use /start first to register.",
-                        parseMode: ParseMode.Markdown
-                    );
-                    break;
-                }
-
-                var allTraders = await traderService.GetAllTradersAsync();
-
-                if (allTraders.Count == 0)
-                {
-                    await _botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: "📭 No traders in the system yet. They'll appear as notifications come in!",
-                        parseMode: ParseMode.Markdown
-                    );
-                    break;
-                }
-
-                var traderLines = new List<string>();
-                foreach (var trader in allTraders)
-                {
-                    var isFollowing = await traderService.IsFollowingAsync(user.Id, trader.Id);
-                    var status = isFollowing ? "✅" : "❌";
-                    var platformTag = trader.Platform == Platform.Pump ? "💊" : "👀";
-                    var profileLink = trader.Platform == Platform.Pump
-                        ? $"https://pump.fun/profile/{trader.Handle}"
-                        : $"https://fomo.family/profile/{trader.Handle}";
-                    traderLines.Add($"{trader.Id} - {platformTag} [{trader.Handle}]({profileLink}) {status}");
-                }
-
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
-                    text: $"📊 All Traders ({allTraders.Count} total) — Use /follow 1,2,3 or /follow trader1,trader2 to follow traders.",
-                    parseMode: ParseMode.Markdown
+                    text: "The full trader list now lives on the manage page — search, filter by platform, and follow/unfollow from there.",
+                    replyMarkup: new InlineKeyboardMarkup(
+                        InlineKeyboardButton.WithUrl("Open Manage Page", "https://groupchat-bot.tech/manage"))
                 );
-
-                const int chunkSize = 150;
-                for (int i = 0; i < traderLines.Count; i += chunkSize)
-                {
-                    var chunk = traderLines.GetRange(i, Math.Min(chunkSize, traderLines.Count - i));
-                    await _botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: string.Join("\n", chunk),
-                        parseMode: ParseMode.Markdown,
-                        disableWebPagePreview: true
-                    );
-                }
                 break;
 
+            // Retired 2026-09-03, same as /list — the manage page already shows follow
+            // state inline for every trader, so a separate "just the ones I follow" view
+            // is redundant with it.
             case "/mytraders":
-                var userForMyTraders = await userService.GetUserByChatIdAsync(chatId);
-
-                if (userForMyTraders == null)
-                {
-                    await _botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: "❌ Please use /start first to register.",
-                        parseMode: ParseMode.Markdown
-                    );
-                    break;
-                }
-
-                var followedTraders = await traderService.GetTradersByUserIdAsync(userForMyTraders.Id);
-
-                if (followedTraders.Count == 0)
-                {
-                    await _botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: "📭 You're not following any traders yet.\n\nUse /list to see all available traders, then /follow to start following them!",
-                        parseMode: ParseMode.Markdown
-                    );
-                    break;
-                }
-
-                var myTraderLines = new List<string>();
-                foreach (var trader in followedTraders)
-                {
-                    var platformTag = trader.Platform == Platform.Pump ? "💊" : "👀";
-                    var profileLink = trader.Platform == Platform.Pump
-                        ? $"https://pump.fun/profile/{trader.Handle}"
-                        : $"https://fomo.family/profile/{trader.Handle}";
-                    myTraderLines.Add($"{trader.Id} - {platformTag} [{trader.Handle}]({profileLink}) ✅");
-                }
-
-                var myTradersMessage = $@"📊 Your Followed Traders ({followedTraders.Count} total)
-
-{string.Join("\n", myTraderLines)}
-
-Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
-
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
-                    text: myTradersMessage,
-                    parseMode: ParseMode.Markdown
+                    text: "Your followed traders are on the manage page now — same table as everyone else, just check who's followed.",
+                    replyMarkup: new InlineKeyboardMarkup(
+                        InlineKeyboardButton.WithUrl("Open Manage Page", "https://groupchat-bot.tech/manage"))
                 );
                 break;
 
