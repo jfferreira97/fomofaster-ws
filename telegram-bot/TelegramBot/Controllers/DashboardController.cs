@@ -165,10 +165,10 @@ public class DashboardController : ControllerBase
                     var confirmed = userPayments.FirstOrDefault(p => p.IsConfirmed);
 
                     string status;
-                    if (latestPending != null)
-                        status = "pending";
-                    else if (u.IsRN4L || u.IsRegisteredNurse)
+                    if (u.IsRN4L || u.IsRegisteredNurse)
                         status = "active";
+                    else if (latestPending != null)
+                        status = "pending";
                     else if (confirmed != null)
                         status = "expired_sub";
                     else if (latestExpiredRequest != null)
