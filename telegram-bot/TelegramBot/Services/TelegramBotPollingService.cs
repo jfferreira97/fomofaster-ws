@@ -175,7 +175,11 @@ public class TelegramBotPollingService : BackgroundService
         using var scope = _serviceProvider.CreateScope();
         var userService = scope.ServiceProvider.GetRequiredService<IUserService>();
 
-        if (text.StartsWith("/"))
+        if (message.ReplyToMessage != null && await TryHandleNotificationReplyAsync(message, text, userService))
+        {
+            return;
+        }
+        else if (text.StartsWith("/"))
         {
             await HandleCommandAsync(message, userService);
         }
@@ -187,6 +191,89 @@ public class TelegramBotPollingService : BackgroundService
         {
             await HandleFreeTextAsync(message);
         }
+    }
+
+    // Lets a user unfollow a trader, or set that trader's per-trader alert floor, by simply
+    // replying "unfollow" / "setmin <amount>" (with or without a leading slash) to one of
+    // that trader's notifications — no need to know or type the handle. Only intercepts
+    // replies to a notification that actually has a Trader attached (Buy/Sell/Thesis/
+    // Callout/Repost/Reply); Trending alerts have Trader=null (they're cross-platform, not
+    // tied to one trader — see ConfluenceService), so a reply to one just falls through to
+    // normal handling, same as a reply to anything else the bot ever sent.
+    private async Task<bool> TryHandleNotificationReplyAsync(Message message, string text, IUserService userService)
+    {
+        if (_botClient == null) return false;
+
+        var normalized = text.TrimStart('/').Trim();
+        var spaceIdx = normalized.IndexOf(' ');
+        var word = (spaceIdx < 0 ? normalized : normalized[..spaceIdx]).ToLowerInvariant();
+
+        var isUnfollow = word == "unfollow";
+        var isSetMin = word == "setmin";
+        if (!isUnfollow && !isSetMin) return false;
+
+        var chatId = message.Chat.Id;
+        var repliedMessageId = message.ReplyToMessage!.MessageId;
+
+        using var scope = _serviceProvider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var traderService = scope.ServiceProvider.GetRequiredService<ITraderService>();
+
+        var sent = await dbContext.SentMessages
+            .Include(s => s.Notification)
+            .FirstOrDefaultAsync(s => s.ChatId == chatId && s.MessageId == repliedMessageId);
+
+        var traderHandle = sent?.Notification.Trader;
+        if (sent == null || string.IsNullOrEmpty(traderHandle))
+            return false; // not a reply to a trader notification — let it fall through
+
+        var trader = await traderService.GetTraderByHandleIgnoreCaseAsync(traderHandle, sent.Notification.Platform);
+        if (trader == null)
+        {
+            await _botClient.SendTextMessageAsync(chatId, $"❌ Couldn't find {traderHandle} anymore — they may have been removed.");
+            return true;
+        }
+
+        var user = await userService.GetUserByChatIdAsync(chatId);
+        if (user == null)
+        {
+            await _botClient.SendTextMessageAsync(chatId, "❌ Please use /start first to register.");
+            return true;
+        }
+
+        if (isUnfollow)
+        {
+            var unfollowed = await traderService.UnfollowTraderAsync(user.Id, trader.Id);
+            await _botClient.SendTextMessageAsync(
+                chatId,
+                unfollowed ? $"✅ Unfollowed {trader.Handle}." : $"You weren't following {trader.Handle}."
+            );
+            return true;
+        }
+
+        // setmin
+        var arg = spaceIdx < 0 ? "" : normalized[(spaceIdx + 1)..].Trim();
+        if (arg.Length == 0 || !TryParseMarketCapArg(arg, out var minValue))
+        {
+            await _botClient.SendTextMessageAsync(
+                chatId,
+                "❌ Reply with setmin <amount>, e.g. \"setmin 50k\", \"setmin 1.2m\", or \"setmin off\" to clear it."
+            );
+            return true;
+        }
+
+        var ok = await traderService.SetThresholdAsync(user.Id, trader.Id, minValue);
+        if (!ok)
+        {
+            await _botClient.SendTextMessageAsync(chatId, $"❌ You're not following {trader.Handle}, so there's no threshold to set. Use /follow {trader.Handle} first.");
+            return true;
+        }
+
+        var confirmText = minValue.HasValue
+            ? $"✅ Minimum alert size for {trader.Handle} set to ${minValue.Value:N0}"
+            : $"✅ Minimum alert size for {trader.Handle} cleared (alerts on everything)";
+        await _botClient.SendTextMessageAsync(chatId, confirmText);
+        return true;
     }
 
     private async Task HandleChainMcapReplyAsync(Message message, Chain chain, IUserService userService)
