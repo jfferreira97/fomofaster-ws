@@ -3,7 +3,7 @@ groupchat-bot.tech {
     # (admin dashboard, /api/users, /api/traders, /api/dashboard/*, etc.)
     # has no authentication of its own — it was built trusting "only
     # reachable via localhost" — so it must never be proxied here.
-    @public path /manage /api/auth/* /api/manage/*
+    @public path /manage /api/auth/* /api/manage/* /groupchat-logo.png
     handle @public {
         reverse_proxy localhost:8000
     }
