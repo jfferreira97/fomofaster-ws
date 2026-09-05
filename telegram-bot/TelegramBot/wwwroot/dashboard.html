@@ -593,7 +593,14 @@
 
                     <!-- Active Users List Section -->
                     <div class="settings-section">
-                        <div class="settings-section-title">Active Users</div>
+                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                            <div class="settings-section-title" style="margin-bottom:0;">Active Users</div>
+                            <select id="usersBotFilter" onchange="renderUsersTable()" style="padding:6px 10px;background:#0e1621;border:1px solid #2b5278;border-radius:6px;color:#e8e9ea;font-size:13px;">
+                                <option value="all">All bots</option>
+                                <option value="new">New bot only</option>
+                                <option value="old">Old bot only</option>
+                            </select>
+                        </div>
                         <div id="userCountBadge" style="color: #8a96a0; margin-bottom: 12px;">Loading...</div>
                         <table id="usersTable">
                             <thead>
@@ -604,12 +611,13 @@
                                     <th>Traders Tracking</th>
                                     <th>Auto-Follow New</th>
                                     <th>Active</th>
+                                    <th>Bot</th>
                                     <th>Joined At</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="usersTableBody">
-                                <tr><td colspan="8" style="text-align: center; color: #8a96a0;">Loading...</td></tr>
+                                <tr><td colspan="9" style="text-align: center; color: #8a96a0;">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -632,6 +640,11 @@
                                 <option value="expired_sub">Expired Sub</option>
                                 <option value="blocked">Blocked</option>
                             </select>
+                            <select id="paymentsBotFilter" onchange="renderPaymentsTable()" style="padding:6px 10px;background:#0e1621;border:1px solid #2b5278;border-radius:6px;color:#e8e9ea;font-size:13px;">
+                                <option value="all">All bots</option>
+                                <option value="new">New bot only</option>
+                                <option value="old">Old bot only</option>
+                            </select>
                             <button onclick="loadPayments()" class="btn btn-secondary" style="padding:6px 12px;font-size:13px;">Refresh</button>
                             <button onclick="sweepPayments()" class="btn btn-danger" style="padding:6px 12px;font-size:13px;">💸 Sweep All</button>
                         </div>
@@ -640,6 +653,7 @@
                                 <tr>
                                     <th>User</th>
                                     <th>Status</th>
+                                    <th>Bot</th>
                                     <th>Wallet</th>
                                     <th>Requested At</th>
                                     <th>Payment Date</th>
@@ -648,7 +662,7 @@
                                 </tr>
                             </thead>
                             <tbody id="paymentsTableBody">
-                                <tr><td colspan="6" style="text-align:center;color:#8a96a0;">Loading...</td></tr>
+                                <tr><td colspan="8" style="text-align:center;color:#8a96a0;">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -1036,51 +1050,71 @@
         let selectedUserChatId = null;
         let selectedUserName = null;
 
+        let usersData = [];
+
         async function loadUsers() {
             try {
                 const response = await fetch('/api/users');
                 const data = await response.json();
-
-                const badge = document.getElementById('userCountBadge');
-                const tbody = document.getElementById('usersTableBody');
-
-                if (data.count === 0) {
-                    badge.textContent = 'No active users';
-                    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #8a96a0;">No users found</td></tr>';
-                    return;
-                }
-
-                badge.textContent = `Total: ${data.count} user${data.count !== 1 ? 's' : ''}`;
-
-                tbody.innerHTML = data.users.map(user => {
-                    const joinedDate = new Date(user.joinedAt).toLocaleString();
-                    const displayName = user.username || user.firstName || 'Unknown';
-                    const tradersTracking = `${user.trackingCount}/${user.totalTraders}`;
-                    const isActiveDisplay = user.isActive
-                        ? '<span style="color: #4ade80;">✓ Active</span>'
-                        : '<span style="color: #f87171;">✗ Inactive</span>';
-                    const autoFollowCheckbox = `<input type="checkbox" ${user.autoFollowNewTraders ? 'checked' : ''} onchange="toggleAutoFollow(${user.chatId}, this.checked)" style="cursor: pointer; width: 18px; height: 18px;">`;
-                    return `
-                        <tr>
-                            <td>${user.chatId}</td>
-                            <td>${user.username || 'N/A'}</td>
-                            <td>${user.firstName || 'N/A'}</td>
-                            <td>${tradersTracking}</td>
-                            <td style="text-align: center;">${autoFollowCheckbox}</td>
-                            <td>${isActiveDisplay}</td>
-                            <td>${joinedDate}</td>
-                            <td style="display: flex; gap: 6px; flex-wrap: wrap;">
-                                <button class="btn btn-secondary" onclick="showSendMessageModal(${user.chatId}, '${displayName}')">Send Message</button>
-                                <button class="btn btn-primary" onclick="followAllPublicTraders(${user.chatId}, '${displayName}')">Follow All</button>
-                                <button class="btn btn-danger" onclick="unfollowAllTraders(${user.chatId}, '${displayName}')">Unfollow All</button>
-                            </td>
-                        </tr>
-                    `;
-                }).join('');
+                usersData = data.users || [];
+                renderUsersTable();
             } catch (error) {
                 console.error('Error loading users:', error);
                 document.getElementById('userCountBadge').textContent = 'Error loading users';
             }
+        }
+
+        function renderUsersTable() {
+            const botFilter = document.getElementById('usersBotFilter').value;
+            const badge = document.getElementById('userCountBadge');
+            const tbody = document.getElementById('usersTableBody');
+
+            const rows = botFilter === 'all' ? usersData
+                : botFilter === 'new' ? usersData.filter(u => u.isOnNewBot)
+                : usersData.filter(u => !u.isOnNewBot);
+
+            if (usersData.length === 0) {
+                badge.textContent = 'No active users';
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #8a96a0;">No users found</td></tr>';
+                return;
+            }
+
+            badge.textContent = `Showing ${rows.length} of ${usersData.length} user${usersData.length !== 1 ? 's' : ''}`;
+
+            if (rows.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #8a96a0;">No users match this filter</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = rows.map(user => {
+                const joinedDate = new Date(user.joinedAt).toLocaleString();
+                const displayName = user.username || user.firstName || 'Unknown';
+                const tradersTracking = `${user.trackingCount}/${user.totalTraders}`;
+                const isActiveDisplay = user.isActive
+                    ? '<span style="color: #4ade80;">✓ Active</span>'
+                    : '<span style="color: #f87171;">✗ Inactive</span>';
+                const botDisplay = user.isOnNewBot
+                    ? '<span style="color: #4ade80;">New</span>'
+                    : '<span style="color: #8a96a0;">Old</span>';
+                const autoFollowCheckbox = `<input type="checkbox" ${user.autoFollowNewTraders ? 'checked' : ''} onchange="toggleAutoFollow(${user.chatId}, this.checked)" style="cursor: pointer; width: 18px; height: 18px;">`;
+                return `
+                    <tr>
+                        <td>${user.chatId}</td>
+                        <td>${user.username || 'N/A'}</td>
+                        <td>${user.firstName || 'N/A'}</td>
+                        <td>${tradersTracking}</td>
+                        <td style="text-align: center;">${autoFollowCheckbox}</td>
+                        <td>${isActiveDisplay}</td>
+                        <td>${botDisplay}</td>
+                        <td>${joinedDate}</td>
+                        <td style="display: flex; gap: 6px; flex-wrap: wrap;">
+                            <button class="btn btn-secondary" onclick="showSendMessageModal(${user.chatId}, '${displayName}')">Send Message</button>
+                            <button class="btn btn-primary" onclick="followAllPublicTraders(${user.chatId}, '${displayName}')">Follow All</button>
+                            <button class="btn btn-danger" onclick="unfollowAllTraders(${user.chatId}, '${displayName}')">Unfollow All</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
         }
 
         function showSendMessageModal(chatId, userName) {
@@ -1311,11 +1345,15 @@
 
         function renderPaymentsTable() {
             const filter = document.getElementById('paymentsFilter').value;
+            const botFilter = document.getElementById('paymentsBotFilter').value;
             const tbody = document.getElementById('paymentsTableBody');
-            const rows = filter === 'all' ? paymentsData : paymentsData.filter(p => p.status === filter);
+            let rows = filter === 'all' ? paymentsData : paymentsData.filter(p => p.status === filter);
+            rows = botFilter === 'all' ? rows
+                : botFilter === 'new' ? rows.filter(p => p.isOnNewBot)
+                : rows.filter(p => !p.isOnNewBot);
 
             if (rows.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#8a96a0;">No records</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#8a96a0;">No records</td></tr>';
                 return;
             }
 
@@ -1335,9 +1373,13 @@
 
             tbody.innerHTML = rows.map(p => {
                 const userDisplay = (p.username ? `@${p.username}` : p.firstName || '') + `<br><span style="color:#6c7883;font-size:11px;">${p.chatId}</span>`;
+                const botDisplay = p.isOnNewBot
+                    ? '<span style="color: #4ade80;">New</span>'
+                    : '<span style="color: #8a96a0;">Old</span>';
                 return `<tr>
                     <td>${userDisplay}</td>
                     <td>${statusBadge(p.status)}</td>
+                    <td>${botDisplay}</td>
                     <td title="${p.wallet || ''}" style="font-family:monospace;font-size:12px;">${shortWallet(p.wallet)}</td>
                     <td>${fmt(p.requestedAt)}</td>
                     <td>${fmt(p.paymentDate)}</td>

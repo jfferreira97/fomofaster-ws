@@ -19,6 +19,11 @@ public class TelegramBotPollingService : BackgroundService
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<TelegramBotPollingService> _logger;
     private readonly IHubContext<DashboardHub> _hubContext;
+
+    // Which bot identity this instance is polling. During the GROUPCHAT relaunch, two
+    // instances of this class run side by side — one per token — sharing everything else
+    // (DB, services). Only /start's IsOnNewBot flip cares about the distinction.
+    private readonly bool _isNewBotInstance;
     private int _offset = 0;
     private long _ownerChatId;
     private string? _ownerUsername;
@@ -36,20 +41,27 @@ public class TelegramBotPollingService : BackgroundService
         IOptions<TelegramSettings> settings,
         IServiceProvider serviceProvider,
         ILogger<TelegramBotPollingService> logger,
-        IHubContext<DashboardHub> hubContext)
+        IHubContext<DashboardHub> hubContext,
+        string? botToken = null,
+        bool isNewBotInstance = true)
     {
         _settings = settings.Value;
         _serviceProvider = serviceProvider;
         _logger = logger;
         _hubContext = hubContext;
+        _isNewBotInstance = isNewBotInstance;
 
         if (!string.IsNullOrEmpty(_settings.AdminBotToken))
             _adminBotClient = new TelegramBotClient(_settings.AdminBotToken);
 
-        if (!string.IsNullOrEmpty(_settings.BotToken))
+        // botToken lets Program.cs stand up a second instance of this same service against
+        // the deprecated bot during the relaunch migration; omitted (normal/single-bot case)
+        // falls back to the configured primary token, same as before this existed.
+        var effectiveToken = botToken ?? _settings.BotToken;
+        if (!string.IsNullOrEmpty(effectiveToken))
         {
-            _botClient = new TelegramBotClient(_settings.BotToken);
-            _logger.LogInformation("Telegram polling service initialized");
+            _botClient = new TelegramBotClient(effectiveToken);
+            _logger.LogInformation("Telegram polling service initialized ({Identity})", _isNewBotInstance ? "new bot" : "deprecated bot");
         }
         else
         {
@@ -450,7 +462,8 @@ public class TelegramBotPollingService : BackgroundService
                 var newUser = await userService.AddOrUpdateUserAsync(
                     chatId,
                     message.From?.Username,
-                    message.From?.FirstName
+                    message.From?.FirstName,
+                    isNewBot: _isNewBotInstance
                 );
 
                 await traderService.FollowAllTradersAsync(newUser.Id);
@@ -471,8 +484,6 @@ You're now following all {allTradersCount.Count} traders by default, configure a
 /repeatwindow <2h/30m/off> - limit repeat buy/sell alerts per trader+coin — buys and sells don't block each other (off by default)
 /chains - tap-button menu to enable/disable chains and set a minimum market cap per chain
 /top - view top tokens (e.g., /top 1h, /top sol 1d, /top sol,monad 6h)
-
-Follow us on twitter, stay tuned for major updates: https://x.com/groupchat__BOT
 
 {BuildSettingsText(newUser)}",
                     parseMode: ParseMode.Markdown,
@@ -1393,5 +1404,21 @@ You'll only receive notifications from traders you follow!",
             PublicKey: account.PublicKey.Key,
             PrivateKey: Convert.ToBase64String(account.PrivateKey.KeyBytes)
         );
+    }
+}
+
+// A distinct concrete type is required here, not just a second factory-based
+// registration of TelegramBotPollingService itself — the generic host collapses two
+// IHostedService registrations that resolve to the same concrete implementation type
+// down to one, silently dropping the second. Subclassing sidesteps that entirely.
+public class DeprecatedTelegramBotPollingService : TelegramBotPollingService
+{
+    public DeprecatedTelegramBotPollingService(
+        IOptions<TelegramSettings> settings,
+        IServiceProvider serviceProvider,
+        ILogger<TelegramBotPollingService> logger,
+        IHubContext<DashboardHub> hubContext)
+        : base(settings, serviceProvider, logger, hubContext, settings.Value.DeprecatedBotToken, isNewBotInstance: false)
+    {
     }
 }

@@ -12,7 +12,15 @@ public class TraderService : ITraderService
     private readonly AppDbContext _dbContext;
     private readonly ILogger<TraderService> _logger;
     private readonly TelegramBotClient? _botClient;
+    private readonly TelegramBotClient? _deprecatedBotClient;
     private readonly IServiceProvider _serviceProvider;
+
+    // Same relaunch banner as TelegramService — kept in sync manually since this is the
+    // other place that messages users directly rather than through it (new-trader
+    // broadcast uses Markdown links the plain-text ITelegramService send doesn't support).
+    private const string DeprecationBanner =
+        "🚨 THIS BOT IS BEING DEPRECATED. MOVE TO @GROUPCHAT\\_ALERTS\\_BOT 🚨\n" +
+        "Just /start it — your whole setup (followed traders, settings, subscription) carries over automatically. Nothing is lost, nothing is destructive. Once you've switched, you can mute or block this old bot.";
 
     public TraderService(
         AppDbContext dbContext,
@@ -28,6 +36,18 @@ public class TraderService : ITraderService
         {
             _botClient = new TelegramBotClient(settings.Value.BotToken);
         }
+        if (!string.IsNullOrEmpty(settings.Value.DeprecatedBotToken))
+        {
+            _deprecatedBotClient = new TelegramBotClient(settings.Value.DeprecatedBotToken);
+        }
+    }
+
+    private (TelegramBotClient? client, string message) ResolveForUser(bool isOnNewBot, string message)
+    {
+        if (isOnNewBot || _deprecatedBotClient == null)
+            return (_botClient, message);
+
+        return (_deprecatedBotClient, $"{DeprecationBanner}\n\n{message}");
     }
 
     public async Task<Trader?> GetTraderByHandleIgnoreCaseAsync(string handle, Platform platform = Platform.Fomo)
@@ -193,9 +213,12 @@ Use /follow {escapedHandle} or /follow {trader.Id} if you want to follow them.
 Use /settings to manage auto-follow and notification preferences.";
                 }
 
-                await _botClient.SendTextMessageAsync(
+                var (targetClient, finalMessage) = ResolveForUser(user.IsOnNewBot, message);
+                if (targetClient == null) continue;
+
+                await targetClient.SendTextMessageAsync(
                     chatId: user.ChatId,
-                    text: message,
+                    text: finalMessage,
                     parseMode: ParseMode.Markdown,
                     disableWebPagePreview: true
                 );

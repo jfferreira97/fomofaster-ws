@@ -50,6 +50,7 @@ public class UsersController : ControllerBase
                     firstName = u.FirstName,
                     joinedAt = u.JoinedAt,
                     isActive = u.IsActive,
+                    isOnNewBot = u.IsOnNewBot,
                     autoFollowNewTraders = u.AutoFollowFomoTraders,
                     trackingCount = userTraderCounts.GetValueOrDefault(u.Id, 0),
                     totalTraders = totalTraders

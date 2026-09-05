@@ -38,4 +38,10 @@ public class User
     public bool IsRegisteredNurse { get; set; }
     public bool IsRN4L { get; set; }
     public DateTime? RNExpiresAt { get; set; }
+
+    // Set the moment this chat sends anything to the NEW bot (the GROUPCHAT relaunch,
+    // migrating off the old bot token). Same ChatId either way — Telegram private-chat
+    // ids are per-user, not per-bot — so this is purely a routing flag: false = still
+    // only reachable via the deprecated bot, true = message via the new bot instead.
+    public bool IsOnNewBot { get; set; }
 }

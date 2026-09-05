@@ -30,7 +30,7 @@ public class UserService : IUserService
         return await _dbContext.Users.ToListAsync();
     }
 
-    public async Task<User> AddOrUpdateUserAsync(long chatId, string? username, string? firstName)
+    public async Task<User> AddOrUpdateUserAsync(long chatId, string? username, string? firstName, bool isNewBot = false)
     {
         var user = await GetUserByChatIdAsync(chatId);
 
@@ -47,7 +47,8 @@ public class UserService : IUserService
                 // Pump preference defaults to off via migration (see User.cs), only new
                 // signups get opted in here.
                 AutoFollowFomoTraders = true,
-                AutoFollowPumpTraders = true
+                AutoFollowPumpTraders = true,
+                IsOnNewBot = isNewBot
             };
 
             _dbContext.Users.Add(user);
@@ -58,6 +59,9 @@ public class UserService : IUserService
             user.Username = username;
             user.FirstName = firstName;
             user.IsActive = true;
+            // Only ever flips false -> true (this chat reached the new bot), never back —
+            // an existing new-bot user still poking the old bot shouldn't get demoted.
+            if (isNewBot) user.IsOnNewBot = true;
             _logger.LogInformation("User updated: ChatId={ChatId}, Username={Username}", chatId, username);
         }
 

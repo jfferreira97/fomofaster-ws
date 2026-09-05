@@ -7,7 +7,7 @@ public interface IUserService
     Task<User?> GetUserByChatIdAsync(long chatId);
     Task<List<User>> GetAllActiveUsersAsync();
     Task<List<User>> GetAllUsersAsync();
-    Task<User> AddOrUpdateUserAsync(long chatId, string? username, string? firstName);
+    Task<User> AddOrUpdateUserAsync(long chatId, string? username, string? firstName, bool isNewBot = false);
     Task DeactivateUserAsync(long chatId);
     Task GrantRegisteredNurseAsync(long chatId, DateTime expiresAt);
     Task RevokeExpiredSubscriptionsAsync();

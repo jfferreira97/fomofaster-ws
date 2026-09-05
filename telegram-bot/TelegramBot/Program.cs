@@ -50,7 +50,12 @@ builder.Services.AddSingleton<ChainSettingsCache>();
 builder.Services.AddSingleton<ITelegramService, TelegramService>();
 builder.Services.AddSingleton<AppConfigService>();
 builder.Services.AddSingleton<WebSessionService>();
-builder.Services.AddHostedService<TelegramBotPollingService>(); // Background polling service
+// Background polling service(s). Normally just the one, against the primary bot token.
+// During the GROUPCHAT relaunch migration, a second instance also runs against the
+// deprecated (old) bot token so existing users aren't cut off mid-transition — both
+// share the same DB/services, only /start's IsOnNewBot flip differs between them.
+builder.Services.AddHostedService<TelegramBotPollingService>(); // primary bot, default params
+builder.Services.AddHostedService<DeprecatedTelegramBotPollingService>(); // distinct type so the host doesn't collapse it with the primary registration above
 builder.Services.AddSingleton<PaymentPollerService>();
 builder.Services.AddHostedService(provider => provider.GetRequiredService<PaymentPollerService>()); // Solana payment polling + subscription expiry
 builder.Services.AddSingleton<ConfluenceService>();

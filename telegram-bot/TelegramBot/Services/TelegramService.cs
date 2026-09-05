@@ -13,6 +13,7 @@ public class TelegramService : ITelegramService
 {
     private readonly TelegramSettings _settings;
     private readonly TelegramBotClient? _botClient;
+    private readonly TelegramBotClient? _deprecatedBotClient;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<TelegramService> _logger;
     private readonly IHubContext<DashboardHub> _hubContext;
@@ -51,6 +52,40 @@ public class TelegramService : ITelegramService
         {
             _logger.LogWarning("Telegram bot token not configured");
         }
+
+        // Deprecated (old) bot client — only present during the relaunch migration window.
+        // Empty token = single-bot mode, same behavior as before this existed.
+        if (!string.IsNullOrEmpty(_settings.DeprecatedBotToken))
+        {
+            try
+            {
+                _deprecatedBotClient = new TelegramBotClient(_settings.DeprecatedBotToken);
+                _logger.LogInformation("Deprecated Telegram bot client initialized successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to initialize deprecated Telegram bot client");
+            }
+        }
+    }
+
+    // GROUPCHAT relaunch banner: users still on the deprecated bot get this prepended to
+    // every message it sends them, until they /start the new bot (IsOnNewBot flips true —
+    // see UserService.AddOrUpdateUserAsync — and this stops appearing for them entirely).
+    private const string DeprecationBanner =
+        "🚨 THIS BOT IS BEING DEPRECATED. MOVE TO @GROUPCHAT\\_ALERTS\\_BOT 🚨\n" +
+        "Just /start it — your whole setup (followed traders, settings, subscription) carries over automatically. Nothing is lost, nothing is destructive. Once you've switched, you can mute or block this old bot.";
+
+    // Picks which bot client should message this user, and whether the deprecation
+    // banner needs to ride along. Falls back to the primary client when there's no
+    // deprecated one configured (single-bot mode) even if isOnNewBot is false — no live
+    // migration in progress means nothing to nag about.
+    private (TelegramBotClient? client, string message) ResolveForUser(bool isOnNewBot, string message)
+    {
+        if (isOnNewBot || _deprecatedBotClient == null)
+            return (_botClient, message);
+
+        return (_deprecatedBotClient, $"{DeprecationBanner}\n\n{message}");
     }
 
     public bool IsConfigured()
@@ -330,9 +365,12 @@ To get full details: /subscribe";
                         ? obfuscatedMessage + $"\n\nYour pending payment wallet:\n`{pendingWallet}`"
                         : obfuscatedMessage;
                 }
-                var sentMessage = await _botClient.SendTextMessageAsync(
+                var (targetClient, finalUserMessage) = ResolveForUser(user.IsOnNewBot, userMessage);
+                if (targetClient == null) { failCount++; continue; }
+
+                var sentMessage = await targetClient.SendTextMessageAsync(
                     chatId: user.ChatId,
-                    text: userMessage,
+                    text: finalUserMessage,
                     parseMode: ParseMode.Markdown,
                     disableWebPagePreview: true
                 );
@@ -457,9 +495,19 @@ To get full details: /subscribe";
 
         try
         {
-            await _botClient.SendTextMessageAsync(
+            bool isOnNewBot = true;
+            if (_deprecatedBotClient != null)
+            {
+                using var lookupScope = _serviceProvider.CreateScope();
+                var db = lookupScope.ServiceProvider.GetRequiredService<AppDbContext>();
+                isOnNewBot = await db.Users.Where(u => u.ChatId == chatId).Select(u => u.IsOnNewBot).FirstOrDefaultAsync();
+            }
+            var (targetClient, finalMessage) = ResolveForUser(isOnNewBot, message);
+            if (targetClient == null) return false;
+
+            await targetClient.SendTextMessageAsync(
                 chatId: chatId,
-                text: message,
+                text: finalMessage,
                 disableWebPagePreview: true
             );
 

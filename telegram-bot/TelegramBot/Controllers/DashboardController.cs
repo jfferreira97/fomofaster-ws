@@ -189,6 +189,7 @@ public class DashboardController : ControllerBase
                         isRegisteredNurse = u.IsRegisteredNurse,
                         rnExpiresAt = u.RNExpiresAt,
                         isActive = u.IsActive,
+                        isOnNewBot = u.IsOnNewBot,
                         status,
                         wallet = relevantPayment?.WalletPublicKey,
                         requestedAt = relevantPayment?.CreatedAt,

@@ -52,3 +52,6 @@ appsettings.*.json
 # OS
 .DS_Store
 Thumbs.db
+
+# Local dev-restart output, not part of the app
+TelegramBot/bot-restart-log.txt*
