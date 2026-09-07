@@ -92,6 +92,17 @@ public class UserService : IUserService
         }
     }
 
+    public async Task GrantTrialAsync(long chatId, DateTime expiresAt)
+    {
+        var user = await GetUserByChatIdAsync(chatId);
+        if (user != null)
+        {
+            user.TrialExpiresAt = expiresAt;
+            await _dbContext.SaveChangesAsync();
+            _logger.LogInformation("Trial granted: ChatId={ChatId}, ExpiresAt={ExpiresAt}", chatId, expiresAt);
+        }
+    }
+
     public async Task RevokeExpiredSubscriptionsAsync()
     {
         var expired = await _dbContext.Users

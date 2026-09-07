@@ -316,6 +316,15 @@ To get full details: /subscribe";
         static bool IsRNActive(Models.User u) =>
             u.IsRN4L || (u.IsRegisteredNurse && u.RNExpiresAt > DateTime.UtcNow);
 
+        // Trial rides the same "full alerts" path as an active subscription — a live
+        // in-memory DateTime comparison against the User object already loaded from
+        // ActiveUserCache, no extra query. Naturally stops applying the instant the clock
+        // passes TrialExpiresAt; nothing needs to "flip" this for the send-time decision
+        // (PaymentPollerService's periodic sweep only exists to fire the one-time expiry
+        // notice, not to maintain this check).
+        static bool HasFullAccess(Models.User u) =>
+            IsRNActive(u) || (u.TrialExpiresAt.HasValue && u.TrialExpiresAt.Value > DateTime.UtcNow);
+
         _paymentPoller ??= _serviceProvider.GetService<PaymentPollerService>();
 
         int successCount = 0;
@@ -344,7 +353,7 @@ To get full details: /subscribe";
         // actually be looking at Telegram right now.
         users = users
             .OrderByDescending(u => u.IsRN4L)
-            .ThenByDescending(u => IsRNActive(u))
+            .ThenByDescending(u => HasFullAccess(u))
             .ThenByDescending(u => u.LastActiveAt ?? DateTime.MinValue)
             .ToList();
 
@@ -354,7 +363,7 @@ To get full details: /subscribe";
             try
             {
                 string userMessage;
-                if (IsRNActive(user))
+                if (HasFullAccess(user))
                 {
                     userMessage = fullMessage;
                 }

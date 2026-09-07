@@ -13,6 +13,7 @@ public class AppConfigService
     {
         ["TreasuryWalletAddress"]  = "",
         ["SubscriptionPriceSol"]   = "0.3",
+        ["NewBotTrialHours"]       = "12",
         ["ConfluenceEnabled"]                  = "true",
         ["ConfluenceMinTraders"]               = "3",
         ["ConfluenceWindowMinutes"]            = "30",
@@ -79,6 +80,7 @@ public class AppConfigService
                     {
                         "TreasuryWalletAddress" => "Solana wallet address to sweep payments into",
                         "SubscriptionPriceSol"  => "SOL required for a 30-day subscription",
+                        "NewBotTrialHours"      => "Hours of free full-detail alerts granted once, on a user's first /start on the new bot (only if not already subscribed)",
                         "ConfluenceEnabled"                => "Enable TRENDING confluence alerts (multiple followed traders buying the same token)",
                         "ConfluenceMinTraders"             => "Minimum distinct traders buying the same token to trigger a TRENDING alert",
                         "ConfluenceWindowMinutes"          => "Initial confluence window length in minutes",
@@ -101,6 +103,12 @@ public class AppConfigService
     {
         var raw = await GetAsync("SubscriptionPriceSol");
         return decimal.TryParse(raw, out var val) ? val : 0.3m;
+    }
+
+    public async Task<int> GetNewBotTrialHoursAsync()
+    {
+        var raw = await GetAsync("NewBotTrialHours");
+        return int.TryParse(raw, out var val) && val > 0 ? val : 12;
     }
 
     // Signing key for the manage-page session cookie (HMAC over "chatId|expiry"). Generated

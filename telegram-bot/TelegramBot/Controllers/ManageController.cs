@@ -63,7 +63,8 @@ public class ManageController : ControllerBase
         if (user == null)
             return (null, Unauthorized(new { status = "error", message = "Not logged in" }));
 
-        if (!user.IsRegisteredNurse && !user.IsRN4L)
+        var onActiveTrial = user.TrialExpiresAt.HasValue && user.TrialExpiresAt.Value > DateTime.UtcNow;
+        if (!user.IsRegisteredNurse && !user.IsRN4L && !onActiveTrial)
             return (null, StatusCode(403, new { status = "error", code = "subscription_required", message = "This page is for subscribers only. Use /subscribe in the bot to get access." }));
 
         return (user, null);

@@ -339,6 +339,9 @@ public class TelegramBotPollingService : BackgroundService
         }
     }
 
+    private static bool HasActiveSubscription(Models.User u) =>
+        u.IsRN4L || (u.IsRegisteredNurse && u.RNExpiresAt > DateTime.UtcNow);
+
     private static string OnOff(bool on) => on ? "✅" : "❌";
     private static string ModeWord(bool verifiedOnly) => verifiedOnly ? "Verified Only" : "All";
 
@@ -556,10 +559,31 @@ public class TelegramBotPollingService : BackgroundService
                 await traderService.FollowAllTradersAsync(newUser.Id);
                 var allTradersCount = await traderService.GetAllTradersAsync();
 
+                // One-shot free trial: only on the NEW bot, only if this chat has never had
+                // one before (TrialExpiresAt still null), and only if they're not already a
+                // paying subscriber (no point granting a trial on top of real access). Applies
+                // equally to a brand-new signup and an old-bot user migrating over for the
+                // first time — both look identical here (TrialExpiresAt null either way).
+                var trialNotice = "";
+                if (_isNewBotInstance
+                    && newUser.TrialExpiresAt == null
+                    && !HasActiveSubscription(newUser))
+                {
+                    var appConfig = scope.ServiceProvider.GetRequiredService<AppConfigService>();
+                    var trialHours = await appConfig.GetNewBotTrialHoursAsync();
+                    var trialExpiresAt = DateTime.UtcNow.AddHours(trialHours);
+                    await userService.GrantTrialAsync(chatId, trialExpiresAt);
+                    newUser.TrialExpiresAt = trialExpiresAt; // keep the in-memory copy consistent for BuildSettingsText below
+
+                    trialNotice = $@"
+🎁 *Free trial active* — full, unobfuscated alerts (contract addresses, real trade links) for the next {trialHours} hours. After that, alerts go back to limited details unless you /subscribe.
+";
+                }
+
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
                     text: $@"🎉 Welcome to GROUPCHAT!
-
+{trialNotice}
 You're now following all {allTradersCount.Count} traders by default, configure according to your preferences if needed:
 
 /help - show available commands

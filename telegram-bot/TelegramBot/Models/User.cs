@@ -44,4 +44,16 @@ public class User
     // ids are per-user, not per-bot — so this is purely a routing flag: false = still
     // only reachable via the deprecated bot, true = message via the new bot instead.
     public bool IsOnNewBot { get; set; }
+
+    // One-shot free trial granted on a user's first /start on the NEW bot only (see
+    // TelegramBotPollingService), regardless of whether they're a brand-new signup or an
+    // old-bot user migrating over. Null = never granted. Non-null and in the future = full
+    // (non-obfuscated) alerts, same as an active subscription — see TelegramService's
+    // HasFullAccess. Non-null and in the past = trial used up; never re-granted since the
+    // grant check requires this to still be null.
+    public DateTime? TrialExpiresAt { get; set; }
+
+    // Flips true once PaymentPollerService has sent the "your trial ended" notice for this
+    // expiry, so that one-time message doesn't re-fire on every subsequent poll tick.
+    public bool TrialExpiryNotified { get; set; }
 }

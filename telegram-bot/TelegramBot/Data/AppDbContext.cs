@@ -31,6 +31,7 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => e.ChatId).IsUnique();
+            entity.HasIndex(e => e.TrialExpiresAt).HasFilter("\"TrialExpiresAt\" IS NOT NULL");
             entity.Property(e => e.ChatId).IsRequired();
             entity.Property(e => e.JoinedAt).IsRequired();
             entity.Property(e => e.IsActive).IsRequired();

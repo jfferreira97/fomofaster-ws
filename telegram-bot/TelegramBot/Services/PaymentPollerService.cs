@@ -40,6 +40,7 @@ public class PaymentPollerService : BackgroundService
             {
                 await PollPendingPaymentsAsync();
                 await RevokeExpiredSubscriptionsAsync();
+                await NotifyExpiredTrialsAsync();
             }
             catch (Exception ex)
             {
@@ -125,6 +126,38 @@ public class PaymentPollerService : BackgroundService
         {
             await dbContext.SaveChangesAsync();
             _logger.LogInformation("Revoked {Count} expired RN subscriptions", expired.Count);
+        }
+    }
+
+    // Runs on the same 5-second tick as the rest of this loop — no separate timer, no new
+    // BackgroundService. The query is a narrow indexed filter (TrialExpiresAt has a partial
+    // index) that only ever matches trials that expired since the last tick and haven't been
+    // notified yet, so cost stays O(recently-expired), never O(all users).
+    private async Task NotifyExpiredTrialsAsync()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var now = DateTime.UtcNow;
+        var justExpired = await dbContext.Users
+            .Where(u => u.TrialExpiresAt != null && u.TrialExpiresAt < now && !u.TrialExpiryNotified
+                     && !u.IsRN4L && !(u.IsRegisteredNurse && u.RNExpiresAt > now))
+            .ToListAsync();
+
+        foreach (var user in justExpired)
+        {
+            user.TrialExpiryNotified = true;
+
+            await _telegramService.SendPlainMessageAsync(
+                user.ChatId,
+                "⌛ Your free trial has ended — alerts are back to limited details (ticker/contract hidden). Use /subscribe to get full details again."
+            );
+        }
+
+        if (justExpired.Count > 0)
+        {
+            await dbContext.SaveChangesAsync();
+            _logger.LogInformation("Notified {Count} user(s) their trial expired", justExpired.Count);
         }
     }
 
