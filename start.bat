@@ -20,8 +20,11 @@ start "FomoFaster-Backend" cmd /k "cd /d "%BACKEND_DIR%" && dotnet run"
 echo [start] Waiting for backend to come up...
 timeout /t 8 /nobreak >nul
 
-echo [start] Starting sidecar...
+echo [start] Starting sidecar (account 1)...
 start "FomoFaster-Sidecar" cmd /k "cd /d "%SIDECAR_DIR%" && npm start"
 
-echo [start] Both processes launched in separate windows.
+echo [start] Starting sidecar (account 2)...
+start "FomoFaster-Sidecar-2" cmd /k "set "PROFILE_DIR=./chromium-profile-2" && set "ACCOUNT_NAME=account-2" && cd /d "%SIDECAR_DIR%" && npm start"
+
+echo [start] All processes launched in separate windows.
 endlocal

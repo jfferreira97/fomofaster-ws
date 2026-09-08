@@ -8,4 +8,5 @@ start "TelegramBot" cmd /k "%~dp0start-telegram-bot.bat"
 echo Waiting 10s for backend to bind :8000...
 timeout /t 10 /nobreak >nul
 start "ws-sidecar" cmd /k "%~dp0start-ws-sidecar.bat"
+start "ws-sidecar-2" cmd /k "%~dp0start-ws-sidecar-2.bat"
 start "pump-sidecar" cmd /k "%~dp0start-pump-sidecar.bat"

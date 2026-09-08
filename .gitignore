@@ -13,7 +13,7 @@ appsettings.*.json
 # Node / sidecar
 ws-sidecar/node_modules/
 ws-sidecar/dist/
-ws-sidecar/chromium-profile/
+ws-sidecar/chromium-profile*/
 
 # Misc
 .DS_Store

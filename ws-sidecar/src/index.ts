@@ -2,10 +2,14 @@ import { chromium } from 'playwright';
 import { attachWsInterceptor } from './ws-intercept';
 import { postStructured, heartbeat } from './client';
 
-const ts = () => { const d = new Date(); return `[${new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().replace('T', ' ').slice(0, 19)}]`; };
+const ts = () => { const d = new Date(); return `[${new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().replace('T', ' ').slice(0, 19)}] [${ACCOUNT_NAME}]`; };
 
 const HEADLESS = process.env.HEADLESS === 'true';
-const PROFILE_DIR = './chromium-profile';
+// Each fomo.family account (distinct followings, no overlap) gets its own persistent
+// profile dir so multiple accounts can run concurrently as separate processes, all
+// posting to the same backend. Defaults preserve the original single-session setup.
+const PROFILE_DIR = process.env.PROFILE_DIR ?? './chromium-profile';
+const ACCOUNT_NAME = process.env.ACCOUNT_NAME ?? 'default';
 const FOMO_URL = 'https://fomo.family/';
 const HEARTBEAT_INTERVAL_MS = 30_000;
 // Renderer health check: a crashed ("Aw, Snap!") page rejects evaluate() with "Target crashed"
