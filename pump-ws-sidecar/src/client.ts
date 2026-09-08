@@ -53,7 +53,7 @@ export async function postStructuredPump(req: StructuredPumpNotificationRequest)
 
 export async function heartbeat(): Promise<void> {
   try {
-    await fetch(`${BACKEND_URL}/api/sidecar/heartbeat?source=pump-sidecar`, { method: 'POST' });
+    await fetch(`${BACKEND_URL}/api/sidecar/heartbeat?source=pump-ws-sidecar`, { method: 'POST' });
   } catch {
     console.warn(`${ts()} [client] ❌ heartbeat POST failed — backend unreachable?`);
   }

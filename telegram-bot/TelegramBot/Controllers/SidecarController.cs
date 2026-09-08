@@ -14,7 +14,7 @@ public class SidecarController : ControllerBase
     }
 
     [HttpPost("heartbeat")]
-    public IActionResult Heartbeat([FromQuery] string source = "ws-sidecar")
+    public IActionResult Heartbeat([FromQuery] string source = "fomo-ws-sidecar")
     {
         _logger.LogInformation("Sidecar heartbeat received from {Source} at {Time}", source, DateTime.UtcNow);
         return Ok(new { received = true, serverTime = DateTime.UtcNow });

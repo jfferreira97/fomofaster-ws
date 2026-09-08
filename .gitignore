@@ -11,9 +11,9 @@ appsettings.*.json
 !appsettings.json
 
 # Node / sidecar
-ws-sidecar/node_modules/
-ws-sidecar/dist/
-ws-sidecar/chromium-profile*/
+fomo-ws-sidecar/node_modules/
+fomo-ws-sidecar/dist/
+fomo-ws-sidecar/chromium-profile*/
 
 # Misc
 .DS_Store

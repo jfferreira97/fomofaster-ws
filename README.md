@@ -8,10 +8,10 @@ Real-time trade notifications to Telegram, sourced directly from the FOMO and Pu
 flowchart TB
     subgraph Windows["Windows Machine"]
         subgraph ChromeWS["Chrome (Playwright)"]
-            FOMO["fomo.family"] -->|WebSocket| WsSidecar["ws-sidecar"]
+            FOMO["fomo.family"] -->|WebSocket| WsSidecar["fomo-ws-sidecar"]
         end
         subgraph ChromePump["Chrome (Playwright)"]
-            Pump["pump.fun"] -->|polling| PumpSidecar["pump-sidecar"]
+            Pump["pump.fun"] -->|polling| PumpSidecar["pump-ws-sidecar"]
         end
         WsSidecar -->|HTTP POST| Backend["TelegramBot Backend :8000"]
         PumpSidecar -->|HTTP POST| Backend
@@ -27,8 +27,8 @@ flowchart TB
 
 | Folder | Purpose |
 |--------|---------|
-| `ws-sidecar/` | Node.js + Playwright process that opens fomo.family in Chrome, intercepts the `wss://prod-api.fomo.family/ws` WebSocket feed, transforms trade events into structured JSON, and POSTs them to the backend. |
-| `pump-sidecar/` | Node.js + Playwright process that polls pump.fun for followed-trader activity (callouts, reposts, replies) and POSTs structured events to the backend. |
+| `fomo-ws-sidecar/` | Node.js + Playwright process that opens fomo.family in Chrome, intercepts the `wss://prod-api.fomo.family/ws` WebSocket feed, transforms trade events into structured JSON, and POSTs them to the backend. |
+| `pump-ws-sidecar/` | Node.js + Playwright process that polls pump.fun for followed-trader activity (callouts, reposts, replies) and POSTs structured events to the backend. |
 | `telegram-bot/TelegramBot/` | C# backend — Telegram bot, structured-notification ingestion, SQLite storage, and the API behind `/manage` and `/dashboard`. |
 | `deploy/` | `Caddyfile` — reverse proxy config that terminates TLS for `groupchat-bot.tech` and exposes only `/manage` and its API, nothing else. |
 
@@ -74,10 +74,10 @@ Now listening on: http://0.0.0.0:8000
 
 ### 4. Install & Run the Sidecars
 
-Same steps for both `ws-sidecar/` and `pump-sidecar/`:
+Same steps for both `fomo-ws-sidecar/` and `pump-ws-sidecar/`:
 
 ```cmd
-cd ws-sidecar
+cd fomo-ws-sidecar
 npm install
 npx playwright install chrome
 npm start
@@ -97,8 +97,8 @@ Chrome opens to the target site. **On first run**, log in by hand — the sessio
 
 ```
 fomofaster-ws/
-├── ws-sidecar/          # FOMO WebSocket interceptor
-├── pump-sidecar/        # Pump.fun poller
+├── fomo-ws-sidecar/     # FOMO WebSocket interceptor
+├── pump-ws-sidecar/     # Pump.fun poller
 ├── telegram-bot/
 │   └── TelegramBot/     # C# backend + /manage and /dashboard web pages
 ├── deploy/              # Caddy reverse proxy config
@@ -107,8 +107,8 @@ fomofaster-ws/
 
 ## How the Feeds Work
 
-**FOMO**: `fomo.family` connects to `wss://prod-api.fomo.family/ws` and subscribes to `trading_activity` for the authenticated user — every trade made by traders that user follows, as structured JSON with contract address, chain, USD amount, and market cap already resolved. `ws-sidecar` intercepts these frames at the Playwright level and POSTs to `/api/notifications/structured`.
+**FOMO**: `fomo.family` connects to `wss://prod-api.fomo.family/ws` and subscribes to `trading_activity` for the authenticated user — every trade made by traders that user follows, as structured JSON with contract address, chain, USD amount, and market cap already resolved. `fomo-ws-sidecar` intercepts these frames at the Playwright level and POSTs to `/api/notifications/structured`.
 
-**Pump.fun**: has no equivalent WebSocket feed, so `pump-sidecar` polls the authenticated account's alerts endpoint instead, transforms callout/repost/reply events, and POSTs to `/api/notifications/pump-structured`.
+**Pump.fun**: has no equivalent WebSocket feed, so `pump-ws-sidecar` polls the authenticated account's alerts endpoint instead, transforms callout/repost/reply events, and POSTs to `/api/notifications/pump-structured`.
 
 Either way: no ticker parsing, no contract address lookups, no retries — the backend stores the notification and broadcasts to Telegram subscribers.
