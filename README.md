@@ -91,7 +91,7 @@ Chrome opens to the target site. **On first run**, log in by hand — the sessio
 
 ## Running Everything
 
-`start-all.bat` launches the backend and both sidecars, each in its own window. Individual `start-*.bat` scripts exist per component.
+`scripts\start-all.bat` launches the backend and both sidecars, each in its own window. Individual `scripts\start-*.bat` scripts exist per component.
 
 ## Project Structure
 
@@ -102,6 +102,7 @@ fomofaster-ws/
 ├── telegram-bot/
 │   └── TelegramBot/     # C# backend + /manage and /dashboard web pages
 ├── deploy/              # Caddy reverse proxy config
+├── scripts/             # start-*.bat launchers
 └── README.md
 ```
 

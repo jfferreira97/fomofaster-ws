@@ -1,5 +1,5 @@
 @echo off
-REM Drop this file at the ROOT of the cloned fomofaster-ws repo.
+REM Lives in scripts\ alongside the other start-*.bat files it launches.
 REM Launches backend first, waits for it to come up, then both sidecars. Each in its own window.
 REM NOTE: on pump-ws-sidecar's very first run ever, its window pops up a visible Chrome
 REM pointed at pump.fun and waits up to 5 min for you to log in by hand. After that

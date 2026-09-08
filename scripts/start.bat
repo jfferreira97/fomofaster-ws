@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-set "REPO=%~dp0"
+set "REPO=%~dp0..\"
 set "BACKEND_DIR=%REPO%telegram-bot\TelegramBot"
 set "SIDECAR_DIR=%REPO%fomo-ws-sidecar"
 

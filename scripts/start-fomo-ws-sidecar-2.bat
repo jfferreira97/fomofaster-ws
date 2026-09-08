@@ -7,5 +7,5 @@ REM Start the backend (start-telegram-bot.bat) FIRST — this posts to it on :80
 set "PATH=C:\Program Files\nodejs;%PATH%"
 set "PROFILE_DIR=./chromium-profile-2"
 set "ACCOUNT_NAME=account-2"
-cd /d "%~dp0fomo-ws-sidecar"
+cd /d "%~dp0..\fomo-ws-sidecar"
 npm start
