@@ -280,6 +280,76 @@ public class DashboardController : ControllerBase
         return Ok(new { status = "success", configs });
     }
 
+    // Ranks Fomo handles seen trading in our own WsEvent history that we've never
+    // added as tracked Traders. EV per handle = mean forward return of their buys,
+    // where "forward return" is the token's peak MarketCap in the following window
+    // (any trader's events on that token) vs. MarketCap at their buy — i.e. "what if
+    // you bought the instant they did and sold at the local top". Optimistic upper
+    // bound (no slippage/exact-timing), but a clean relative ranking signal since
+    // MarketCap-at-trade is the platform's own number, not something we estimate.
+    [HttpGet("trader-ev-suggestions")]
+    public async Task<IActionResult> TraderEvSuggestions([FromQuery] int minBuys = 3, [FromQuery] int windowHours = 72, [FromQuery] int topN = 50)
+    {
+        var swapTypes = new[] { "swap_buy", "swap_sell" };
+        var events = await _dbContext.WsEvents
+            .Where(e => swapTypes.Contains(e.Type) && e.UserHandle != null && e.TokenAddress != null && e.MarketCap != null && e.CreatedAt != null)
+            .Select(e => new { e.Type, Handle = e.UserHandle!, e.TokenAddress, MarketCap = e.MarketCap!.Value, CreatedAt = e.CreatedAt!.Value, e.Ticker })
+            .ToListAsync();
+
+        var trackedHandles = (await _dbContext.Traders.Select(t => t.Handle).ToListAsync())
+            .Select(h => h.ToLowerInvariant()).ToHashSet();
+
+        var byToken = events.GroupBy(e => e.TokenAddress)
+            .ToDictionary(g => g.Key!, g => g.OrderBy(e => e.CreatedAt).ToList());
+
+        var window = TimeSpan.FromHours(windowHours);
+        var buyMultiples = new Dictionary<string, List<(double Multiple, string Ticker)>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var buy in events.Where(e => e.Type == "swap_buy"))
+        {
+            if (buy.MarketCap <= 0) continue;
+            var timeline = byToken[buy.TokenAddress!];
+            var peak = timeline
+                .Where(e => e.CreatedAt > buy.CreatedAt && e.CreatedAt <= buy.CreatedAt + window)
+                .Select(e => (decimal?)e.MarketCap)
+                .DefaultIfEmpty(null)
+                .Max();
+
+            if (peak == null) continue;
+            var multiple = (double)(peak.Value / buy.MarketCap);
+
+            if (!buyMultiples.TryGetValue(buy.Handle, out var list))
+                buyMultiples[buy.Handle] = list = new List<(double, string)>();
+            list.Add((multiple, buy.Ticker ?? "?"));
+        }
+
+        var results = buyMultiples
+            .Where(kv => !trackedHandles.Contains(kv.Key.ToLowerInvariant()) && kv.Value.Count >= minBuys)
+            .Select(kv =>
+            {
+                var multiples = kv.Value.Select(x => x.Multiple).OrderBy(x => x).ToList();
+                var winRate = multiples.Count(m => m >= 2.0) / (double)multiples.Count;
+                var avgReturn = multiples.Average(m => m - 1.0);
+                var median = multiples[multiples.Count / 2];
+                var topTickers = kv.Value.OrderByDescending(x => x.Multiple).Take(5).Select(x => $"{x.Ticker} ({x.Multiple:0.0}x)");
+                return new
+                {
+                    Handle = kv.Key,
+                    Buys = multiples.Count,
+                    WinRate = Math.Round(winRate * 100, 1),
+                    AvgReturnPct = Math.Round(avgReturn * 100, 1),
+                    MedianMultiple = Math.Round(median, 2),
+                    TopCalls = topTickers,
+                    ProfileUrl = $"https://fomo.family/profile/{kv.Key}"
+                };
+            })
+            .OrderByDescending(r => r.AvgReturnPct)
+            .Take(topN)
+            .ToList();
+
+        return Ok(new { status = "success", windowHours, minBuys, candidatesEvaluated = buyMultiples.Count, results });
+    }
+
     [HttpPost("config")]
     public async Task<IActionResult> SetConfig([FromBody] SetConfigRequest request)
     {

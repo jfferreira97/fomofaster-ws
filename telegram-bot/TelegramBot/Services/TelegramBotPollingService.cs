@@ -1427,7 +1427,7 @@ You'll only receive notifications from traders you follow!",
                             : $"{(int)timeLeft.TotalMinutes}m";
                         await _botClient.SendTextMessageAsync(
                             chatId: chatId,
-                            text: $"💳 You have a pending payment \\(expires in {expiryDisplay}\\)\\. Send {priceDisplay} SOL to:\n\n`{existing.WalletPublicKey}`\n\nGrants 30 days of full access, automatically within seconds of payment\\.\nRefundable within the first 3 days — just message us\\.",
+                            text: $"💎 Your payment address is still active — *{expiryDisplay}* left:\n\n`{existing.WalletPublicKey}`\n\nSend *{priceDisplay} SOL* to unlock everything: full contract addresses, live trade links, every call the instant it happens\\. Activates automatically within seconds — refundable within 7 days, zero risk\\.",
                             parseMode: ParseMode.MarkdownV2
                         );
                         break;
@@ -1452,7 +1452,7 @@ You'll only receive notifications from traders you follow!",
 
                     await _botClient.SendTextMessageAsync(
                         chatId: chatId,
-                        text: $"💳 Send {priceDisplay} SOL to:\n\n`{keypair.PublicKey}`\n\nGrants 30 days of full access, automatically within seconds of payment\\.\nRefundable within the first 7 days\\.\nThis address expires in 1 hour\\.",
+                        text: $"💎 *Your unique payment address* — generated just for you, live for the next hour:\n\n`{keypair.PublicKey}`\n\nSend *{priceDisplay} SOL* to unlock everything: full contract addresses, live trade links, every call the instant it happens\\. Activates automatically within seconds — refundable within 7 days, zero risk\\.\n\n⏳ Expires in 1h — don't sleep on it\\.",
                         parseMode: ParseMode.MarkdownV2
                     );
                 }
