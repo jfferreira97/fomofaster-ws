@@ -342,6 +342,46 @@ public class TelegramBotPollingService : BackgroundService
     private static bool HasActiveSubscription(Models.User u) =>
         u.IsRN4L || (u.IsRegisteredNurse && u.RNExpiresAt > DateTime.UtcNow);
 
+    // Parses one /follow or /unfollow token into (handle, platform). A null platform means
+    // "look on every platform" — a bare handle should just find the trader, since a user has
+    // no reason to know or care which platform someone posts on. The optional "pump:" /
+    // "fomo:" prefixes are only needed to disambiguate a handle that exists on both.
+    private static (string Handle, Platform? Platform) ParseTraderRef(string part)
+    {
+        var raw = part.Trim().TrimStart('@');
+
+        if (raw.StartsWith("pump:", StringComparison.OrdinalIgnoreCase))
+            return (raw["pump:".Length..].TrimStart('@'), Models.Platform.Pump);
+
+        if (raw.StartsWith("fomo:", StringComparison.OrdinalIgnoreCase))
+            return (raw["fomo:".Length..].TrimStart('@'), Models.Platform.Fomo);
+
+        return (raw, null);
+    }
+
+    // Resolves a token to the actual trader rows it names. A bare handle present on both
+    // platforms resolves to BOTH, so "/follow cap" follows every trader called cap rather
+    // than silently picking one and leaving the other behind.
+    private static async Task<List<Trader>> ResolveTradersAsync(ITraderService traderService, string part)
+    {
+        var (handle, platform) = ParseTraderRef(part);
+        var found = new List<Trader>();
+
+        foreach (var p in platform.HasValue
+                     ? new[] { platform.Value }
+                     : new[] { Models.Platform.Fomo, Models.Platform.Pump })
+        {
+            var t = await traderService.GetTraderByHandleIgnoreCaseAsync(handle, p);
+            if (t != null) found.Add(t);
+        }
+        return found;
+    }
+
+    // "koy (FOMO)" when the same handle lives on both platforms, plain "koy" when it doesn't -
+    // so the common case stays clean and only genuinely ambiguous names get qualified.
+    private static string Label(Trader t, IReadOnlyCollection<Trader> siblings) =>
+        siblings.Count > 1 ? $"{t.Handle} ({t.Platform.ToString().ToUpperInvariant()})" : t.Handle;
+
     private static string OnOff(bool on) => on ? "✅" : "❌";
     private static string ModeWord(bool verifiedOnly) => verifiedOnly ? "Verified Only" : "All";
 
@@ -588,8 +628,9 @@ You're now following all {allTradersCount.Count} traders by default, configure a
 
 /help - show available commands
 /manage - open the web page to browse traders, see who you follow, and manage alerts
-/follow - follow specific traders
-/unfollow - unfollow specific traders
+/follow cap - follow a trader (comma-separate for several)
+/unfollow cap - unfollow one
+/unfollow - reply it to any alert to drop that trader
 /autofollow <on/off> - check/toggle auto-follow for new traders (starts ON by default)
 /settings - full notification menu: auto-follow, buys/sells, thesis, pump callouts, verified-only mode, trending
 /repeatwindow <2h/30m/off> - limit repeat buy/sell alerts per trader+coin — buys and sells don't block each other (off by default)
@@ -623,10 +664,11 @@ You're now following all {allTradersCount.Count} traders by default, configure a
 /start - Subscribe to notifications
 /help - Show this help message
 /manage - Open the web page to browse traders, see who you follow, and manage alerts
-/follow <ids/handles> - Follow traders (e.g., /follow 1,2,3 or /follow trader1,trader2)
-/follow all - Follow all traders
-/unfollow <ids/handles> - Unfollow traders (e.g., /unfollow 1,trader2)
-/unfollow all - Unfollow all traders
+/follow <handles> - e.g. /follow cap or /follow cap,koy (pump:cap or fomo:cap if the name is on both)
+/unfollow <handles> - same format
+/follow all | /unfollow all - everything at once
+/unfollow - reply it to any alert to drop that trader
+setmin 50k - reply it to any alert to set that trader's minimum alert size
 /autofollow <on/off> - Check/toggle FOMO auto-follow for new traders (starts ON by default)
 /settings - Full notification menu: auto-follow (FOMO/Pump), buys/sells, thesis, pump callouts, verified-only mode, trending
 /repeatwindow <2h/30m/off> - Limit repeat buy/sell alerts per trader+coin — buys and sells don't block each other (off by default)
@@ -743,59 +785,34 @@ You'll only receive notifications from traders you follow!",
                 var followedNames = new List<string>();
                 var alreadyFollowingNames = new List<string>();
                 var notFoundList = new List<string>();
+                var crossPlatformHints = new List<string>();
 
                 foreach (var part in followParts)
                 {
-                    bool success;
-                    string? traderHandle = null;
-
-                    // Check if it's an ID (number) or handle
+                    // Numeric input is an exact trader id; anything else is a handle, which
+                    // may resolve to a trader on either platform (or both).
+                    List<Trader> matches;
                     if (int.TryParse(part, out var traderId))
                     {
-                        // Follow by ID
-                        var trader = await traderService.GetTraderByIdAsync(traderId);
-                        if (trader == null)
-                        {
-                            notFoundList.Add(part);
-                            continue;
-                        }
-                        traderHandle = trader.Handle;
-                        success = await traderService.FollowTraderAsync(userForFollow.Id, traderId);
+                        var byId = await traderService.GetTraderByIdAsync(traderId);
+                        matches = byId == null ? new List<Trader>() : new List<Trader> { byId };
                     }
                     else
                     {
-                        // Follow by handle (strip @ if present). "pump:handle" targets the
-                        // Pump platform; a bare handle defaults to FOMO as it always has.
-                        var raw = part.TrimStart('@');
-                        var platform = Platform.Fomo;
-                        if (raw.StartsWith("pump:", StringComparison.OrdinalIgnoreCase))
-                        {
-                            platform = Platform.Pump;
-                            raw = raw["pump:".Length..];
-                        }
-                        var handle = raw;
-                        success = await traderService.FollowTraderByHandleAsync(userForFollow.Id, handle, platform);
-
-                        if (!success)
-                        {
-                            // Check if trader exists
-                            var trader = await traderService.GetTraderByHandleIgnoreCaseAsync(handle, platform);
-                            if (trader == null)
-                            {
-                                notFoundList.Add(part);
-                                continue;
-                            }
-                            // Trader exists but already following
-                            alreadyFollowingNames.Add(trader.Handle);
-                            continue;
-                        }
-                        traderHandle = handle;
+                        matches = await ResolveTradersAsync(traderService, part);
                     }
 
-                    if (success && traderHandle != null)
-                        followedNames.Add(traderHandle);
-                    else if (traderHandle != null)
-                        alreadyFollowingNames.Add(traderHandle);
+                    if (matches.Count == 0) { notFoundList.Add(part); continue; }
+
+                    foreach (var trader in matches)
+                    {
+                        var ok = await traderService.FollowTraderAsync(userForFollow.Id, trader.Id);
+                        if (ok) followedNames.Add(Label(trader, matches));
+                        else alreadyFollowingNames.Add(Label(trader, matches));
+                    }
+
+                    if (matches.Count > 1)
+                        crossPlatformHints.Add($"ℹ️ {matches[0].Handle} exists on both platforms — followed both. Use pump:{matches[0].Handle} or fomo:{matches[0].Handle} to target one.");
                 }
 
                 var followResultParts = new List<string>();
@@ -805,6 +822,8 @@ You'll only receive notifications from traders you follow!",
                     followResultParts.Add($"Already following {string.Join(", ", alreadyFollowingNames)}");
                 if (notFoundList.Count > 0)
                     followResultParts.Add($"Not found: {string.Join(", ", notFoundList)}");
+                if (crossPlatformHints.Count > 0)
+                    followResultParts.Add(string.Join("\n", crossPlatformHints.Distinct()));
 
                 var followResultMessage = string.Join("\n", followResultParts);
 
@@ -876,58 +895,32 @@ You'll only receive notifications from traders you follow!",
                 var unfollowedNames = new List<string>();
                 var notFollowingNames = new List<string>();
                 var unfollowNotFoundList = new List<string>();
+                var unfollowHints = new List<string>();
 
                 foreach (var part in unfollowParts)
                 {
-                    bool success;
-                    string? traderHandle = null;
-
-                    // Check if it's an ID (number) or handle
+                    List<Trader> matches;
                     if (int.TryParse(part, out var traderId))
                     {
-                        // Unfollow by ID
-                        var trader = await traderService.GetTraderByIdAsync(traderId);
-                        if (trader == null)
-                        {
-                            unfollowNotFoundList.Add(part);
-                            continue;
-                        }
-                        traderHandle = trader.Handle;
-                        success = await traderService.UnfollowTraderAsync(userForUnfollow.Id, traderId);
+                        var byId = await traderService.GetTraderByIdAsync(traderId);
+                        matches = byId == null ? new List<Trader>() : new List<Trader> { byId };
                     }
                     else
                     {
-                        // Unfollow by handle (strip @ if present). Same "pump:handle" convention as /follow.
-                        var raw = part.TrimStart('@');
-                        var platform = Platform.Fomo;
-                        if (raw.StartsWith("pump:", StringComparison.OrdinalIgnoreCase))
-                        {
-                            platform = Platform.Pump;
-                            raw = raw["pump:".Length..];
-                        }
-                        var handle = raw;
-                        success = await traderService.UnfollowTraderByHandleAsync(userForUnfollow.Id, handle, platform);
-
-                        if (!success)
-                        {
-                            // Check if trader exists
-                            var trader = await traderService.GetTraderByHandleIgnoreCaseAsync(handle, platform);
-                            if (trader == null)
-                            {
-                                unfollowNotFoundList.Add(part);
-                                continue;
-                            }
-                            // Trader exists but not following
-                            notFollowingNames.Add(trader.Handle);
-                            continue;
-                        }
-                        traderHandle = handle;
+                        matches = await ResolveTradersAsync(traderService, part);
                     }
 
-                    if (success && traderHandle != null)
-                        unfollowedNames.Add(traderHandle);
-                    else if (traderHandle != null)
-                        notFollowingNames.Add(traderHandle);
+                    if (matches.Count == 0) { unfollowNotFoundList.Add(part); continue; }
+
+                    foreach (var trader in matches)
+                    {
+                        var ok = await traderService.UnfollowTraderAsync(userForUnfollow.Id, trader.Id);
+                        if (ok) unfollowedNames.Add(Label(trader, matches));
+                        else notFollowingNames.Add(Label(trader, matches));
+                    }
+
+                    if (matches.Count > 1)
+                        unfollowHints.Add($"ℹ️ {matches[0].Handle} exists on both platforms — unfollowed both. Use pump:{matches[0].Handle} or fomo:{matches[0].Handle} to target one.");
                 }
 
                 var unfollowResultParts = new List<string>();
@@ -937,6 +930,8 @@ You'll only receive notifications from traders you follow!",
                     unfollowResultParts.Add($"Weren't following {string.Join(", ", notFollowingNames)}");
                 if (unfollowNotFoundList.Count > 0)
                     unfollowResultParts.Add($"Not found: {string.Join(", ", unfollowNotFoundList)}");
+                if (unfollowHints.Count > 0)
+                    unfollowResultParts.Add(string.Join("\n", unfollowHints.Distinct()));
 
                 var unfollowResultMessage = string.Join("\n", unfollowResultParts);
 
