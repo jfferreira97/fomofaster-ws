@@ -98,6 +98,18 @@ var chainSettingsCache = app.Services.GetRequiredService<ChainSettingsCache>();
 await chainSettingsCache.LoadAsync();
 
 // Configure the HTTP request pipeline
+
+// Must be the first middleware so it wraps everything below it. This also suppresses the
+// developer exception page that the host auto-adds in Development — without it, any
+// unhandled exception on a Caddy-exposed route (/api/auth/*, /api/manage/*) renders the
+// full stack trace, absolute source paths, and the caller's own request headers straight
+// back to the internet. Errors are still logged server-side; only the body is withheld.
+app.UseExceptionHandler(b => b.Run(async ctx =>
+{
+    ctx.Response.StatusCode = 500;
+    await ctx.Response.WriteAsJsonAsync(new { status = "error", message = "Internal error" });
+}));
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
