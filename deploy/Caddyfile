@@ -3,6 +3,17 @@ groupchat-bot.tech {
     # (admin dashboard, /api/users, /api/traders, /api/dashboard/*, etc.)
     # has no authentication of its own — it was built trusting "only
     # reachable via localhost" — so it must never be proxied here.
+    # HSTS deliberately omits preload (effectively irreversible once submitted) and
+    # includeSubDomains (would force HTTPS on every subdomain for a year). -Server strips
+    # the upstream "Server: Kestrel" banner that Kestrel adds.
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer"
+        -Server
+    }
+
     @public path /manage /api/auth/* /api/manage/* /groupchat-logo.png
     handle @public {
         reverse_proxy localhost:8000
