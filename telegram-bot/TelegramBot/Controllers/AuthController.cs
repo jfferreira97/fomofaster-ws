@@ -106,6 +106,13 @@ public class AuthController : ControllerBase
         if (string.IsNullOrEmpty(botToken) || string.IsNullOrEmpty(payload.Hash))
             return false;
 
+        // FromUnixTimeSeconds throws outside this range, and it runs before any signature
+        // check — so an unauthenticated caller could turn a hostile auth_date into an
+        // unhandled 500. Range-check first and treat anything out of bounds as a failed
+        // login, which is what it is.
+        if (payload.AuthDate < -62135596800L || payload.AuthDate > 253402300799L)
+            return false;
+
         // Reject stale login attempts (widget popup left open, replayed payload, etc.)
         var authTime = DateTimeOffset.FromUnixTimeSeconds(payload.AuthDate);
         if (DateTimeOffset.UtcNow - authTime > TimeSpan.FromDays(1))
