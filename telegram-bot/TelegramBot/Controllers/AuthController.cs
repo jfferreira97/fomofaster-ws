@@ -60,7 +60,11 @@ public class AuthController : ControllerBase
         Response.Cookies.Append(WebSessionService.CookieName, token, new CookieOptions
         {
             HttpOnly = true,
-            Secure = Request.IsHttps,
+            // Hardcoded rather than Request.IsHttps: Caddy terminates TLS and proxies to
+            // Kestrel over plain HTTP, so IsHttps is false for every real request and the
+            // flag would never be emitted. Kestrel is never reached directly, so there is
+            // no case where sending this cookie without Secure is correct.
+            Secure = true,
             SameSite = SameSiteMode.Lax,
             Expires = DateTimeOffset.UtcNow.AddDays(30),
             Path = "/"
