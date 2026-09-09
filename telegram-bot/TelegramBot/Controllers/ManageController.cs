@@ -152,6 +152,12 @@ public class ManageController : ControllerBase
         var (user, error) = await ResolveSubscriberAsync();
         if (user == null) return error!;
 
+        // FollowTraderAsync inserts straight into UserTraders, so an unknown id hits the
+        // foreign key and surfaces as an unhandled DbUpdateException. Unfollow and threshold
+        // already fail cleanly on a missing trader; match them.
+        if (await _traderService.GetTraderByIdAsync(request.TraderId) is null)
+            return NotFound(new { status = "error", message = "No such trader" });
+
         var success = await _traderService.FollowTraderAsync(user.Id, request.TraderId);
         return Ok(new { status = "success", followed = success });
     }
