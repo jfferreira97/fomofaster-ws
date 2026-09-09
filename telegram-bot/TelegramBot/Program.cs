@@ -19,7 +19,12 @@ builder.Logging.AddSimpleConsole(options =>
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
-        options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+        // allowIntegerValues: false — the default accepts raw numbers for enum fields, so a
+        // request could bind Chain/Platform to an undefined value like 999 and have it
+        // persisted. The manage page only ever sends enum names, so nothing legitimate
+        // depends on the integer form.
+        options.JsonSerializerOptions.Converters.Add(
+            new System.Text.Json.Serialization.JsonStringEnumConverter(namingPolicy: null, allowIntegerValues: false));
     });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

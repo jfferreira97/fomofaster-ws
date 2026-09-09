@@ -230,11 +230,19 @@ public class ManageController : ControllerBase
         return Ok(new { status = "success", chains });
     }
 
+    // Belt-and-braces alongside allowIntegerValues: false in Program.cs. GetOrCreateAsync
+    // will happily insert a row for any Chain value it's handed, and those rows are
+    // invisible in the UI (GetChains iterates the enum), so they'd accumulate unnoticed.
+    private static bool IsValidChain(Chain chain) => Enum.IsDefined(chain);
+
     [HttpPost("chains/disabled")]
     public async Task<IActionResult> SetChainDisabled([FromBody] SetChainDisabledRequest request)
     {
         var (user, error) = await ResolveSubscriberAsync();
         if (user == null) return error!;
+
+        if (!IsValidChain(request.Chain))
+            return BadRequest(new { status = "error", message = "Unknown chain" });
 
         await _chainSettingsService.SetDisabledAsync(user.Id, request.Chain, request.Disabled);
         return Ok(new { status = "success" });
@@ -246,6 +254,9 @@ public class ManageController : ControllerBase
         var (user, error) = await ResolveSubscriberAsync();
         if (user == null) return error!;
 
+        if (!IsValidChain(request.Chain))
+            return BadRequest(new { status = "error", message = "Unknown chain" });
+
         await _chainSettingsService.SetMinMarketCapAsync(user.Id, request.Chain, request.MinMarketCap);
         return Ok(new { status = "success" });
     }
@@ -256,6 +267,9 @@ public class ManageController : ControllerBase
         var (user, error) = await ResolveSubscriberAsync();
         if (user == null) return error!;
 
+        if (!IsValidChain(request.Chain))
+            return BadRequest(new { status = "error", message = "Unknown chain" });
+
         await _chainSettingsService.SetTrendingDisabledAsync(user.Id, request.Chain, request.Disabled);
         return Ok(new { status = "success" });
     }
@@ -265,6 +279,9 @@ public class ManageController : ControllerBase
     {
         var (user, error) = await ResolveSubscriberAsync();
         if (user == null) return error!;
+
+        if (!Enum.IsDefined(request.Platform))
+            return BadRequest(new { status = "error", message = "Unknown platform" });
 
         var handle = request.Handle?.Trim().TrimStart('@');
         if (string.IsNullOrWhiteSpace(handle) || handle.Length > 100)
