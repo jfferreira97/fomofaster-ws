@@ -129,6 +129,17 @@
         border: 1px solid rgba(224,163,92,0.3); border-radius: var(--radius);
         padding: 8px 10px; margin-top: 10px; line-height: 1.4;
     }
+    /* Green counterpart to .modal-warning — the auto-follow guarantee on the sent-confirmation. */
+    .modal-note {
+        font-size: 12px; color: var(--good); background: rgba(56,201,143,0.1);
+        border: 1px solid rgba(56,201,143,0.28); border-radius: var(--radius);
+        padding: 9px 11px; line-height: 1.5;
+    }
+    .modal-link {
+        font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+        color: var(--text); text-decoration: none; border-bottom: 1px solid var(--border);
+    }
+    .modal-link:hover { color: var(--accent); border-bottom-color: var(--accent); }
 
     /* ---------- Toggle chips (Settings / Chains) ---------- */
     .chip-grid { display: grid; gap: 6px; }
@@ -391,17 +402,29 @@
 
 <div class="modal-overlay" id="suggestModal" style="display:none;">
     <div class="modal-card">
-        <div class="modal-title">Suggest a trader</div>
-        <div class="modal-desc">Not tracking someone yet? Send a request straight to the team.</div>
-        <input type="text" class="search-input" id="suggestHandleInput" placeholder="trader handle...">
-        <select class="search-input select-input" id="suggestPlatformSelect">
-            <option value="Fomo">👀 FOMO</option>
-            <option value="Pump">💊 Pump</option>
-        </select>
-        <div class="modal-warning" id="suggestWarning" style="display:none;"></div>
-        <div class="modal-actions">
-            <button class="logout-btn" id="suggestCancelBtn" type="button">Cancel</button>
-            <button class="ghost-btn" id="suggestSubmitBtn" type="button">Send suggestion</button>
+        <div id="suggestFormPane">
+            <div class="modal-title">Suggest a trader</div>
+            <div class="modal-desc">Not tracking someone yet? Send a request straight to the team.</div>
+            <input type="text" class="search-input" id="suggestHandleInput" placeholder="trader handle...">
+            <select class="search-input select-input" id="suggestPlatformSelect">
+                <option value="Fomo">👀 FOMO</option>
+                <option value="Pump">💊 Pump</option>
+            </select>
+            <div class="modal-warning" id="suggestWarning" style="display:none;"></div>
+            <div class="modal-actions">
+                <button class="logout-btn" id="suggestCancelBtn" type="button">Cancel</button>
+                <button class="ghost-btn" id="suggestSubmitBtn" type="button">Send suggestion</button>
+            </div>
+        </div>
+        <div id="suggestDonePane" style="display:none;">
+            <div class="modal-title">Suggestion sent</div>
+            <div class="modal-desc">The team has your request for <a class="modal-link" id="suggestDoneLink" target="_blank" rel="noopener noreferrer"></a>.</div>
+            <div class="modal-note">
+                ✅ As soon as they're added, you'll be following them automatically — regardless of your auto-follow setting.
+            </div>
+            <div class="modal-actions">
+                <button class="ghost-btn" id="suggestDoneBtn" type="button">Got it</button>
+            </div>
         </div>
     </div>
 </div>
@@ -821,6 +844,9 @@ let suggestPlatform = 'Fomo';
 
 function openSuggestModal() {
     document.getElementById('suggestModal').style.display = 'flex';
+    // Reopening always lands back on the form, never on a previous send's confirmation.
+    document.getElementById('suggestFormPane').style.display = '';
+    document.getElementById('suggestDonePane').style.display = 'none';
     document.getElementById('suggestHandleInput').value = '';
     document.getElementById('suggestPlatformSelect').value = 'Fomo';
     suggestPlatform = 'Fomo';
@@ -849,6 +875,7 @@ document.getElementById('suggestHandleInput').addEventListener('keydown', (e) =>
     if (e.key === 'Escape') closeSuggestModal();
 });
 document.getElementById('suggestSubmitBtn').addEventListener('click', submitSuggestion);
+document.getElementById('suggestDoneBtn').addEventListener('click', closeSuggestModal);
 
 // Checks against the trader list already loaded client-side — instant, no round trip.
 // The server re-checks at submit time regardless, in case this list is stale.
@@ -906,8 +933,15 @@ async function submitSuggestion() {
         return;
     }
 
-    closeSuggestModal();
-    showToast('Sent — thanks for the suggestion!', 3000);
+    // Swap to the confirmation in place rather than closing behind a toast — the auto-follow
+    // guarantee is the one thing the user needs to read, and a 3s toast is the wrong surface
+    // for it. textContent, not innerHTML: the handle is whatever they typed.
+    const link = document.getElementById('suggestDoneLink');
+    link.textContent = `@${handle.replace(/^@/, '')}`;
+    link.href = traderProfileUrl({ handle: handle.replace(/^@/, ''), platform: suggestPlatform });
+
+    document.getElementById('suggestFormPane').style.display = 'none';
+    document.getElementById('suggestDonePane').style.display = '';
 }
 
 init();

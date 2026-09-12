@@ -106,12 +106,49 @@ public class TraderService : ITraderService
 
         await _dbContext.SaveChangesAsync();
 
-        if (isNewTrader && _botClient != null)
+        if (isNewTrader)
         {
-            await BroadcastNewTraderMessageAsync(trader);
+            // Runs before the broadcast so the announcement can tell requesters they're
+            // already following, rather than pointing them at /follow for a trader they asked for.
+            var requesterIds = await FollowSuggestionRequestersAsync(trader);
+
+            if (_botClient != null)
+            {
+                await BroadcastNewTraderMessageAsync(trader, requesterIds);
+            }
         }
 
         return trader;
+    }
+
+    // A /manage suggestion is a standing request for one specific trader, which is a stronger
+    // signal than a blanket auto-follow preference — so whoever asked gets followed the moment
+    // the trader lands, whatever their settings say. FollowTraderAsync rather than
+    // TryAutoFollowTraderAsync for the same reason: this is an explicit choice, so it should
+    // clear a prior explicit unfollow too. Suggestion rows are left in place; they're the
+    // per-user rate limit and the audit trail.
+    private async Task<HashSet<int>> FollowSuggestionRequestersAsync(Trader trader)
+    {
+        var handle = trader.Handle.ToLower();
+        var requesterIds = await _dbContext.SuggestedTraders
+            .Where(s => s.Handle.ToLower() == handle && s.Platform == trader.Platform)
+            .Select(s => s.UserId)
+            .Distinct()
+            .ToListAsync();
+
+        foreach (var userId in requesterIds)
+        {
+            await FollowTraderAsync(userId, trader.Id);
+        }
+
+        if (requesterIds.Count > 0)
+        {
+            _logger.LogInformation(
+                "Followed {Count} requester(s) onto suggested trader {Handle} ({Platform}), bypassing auto-follow settings",
+                requesterIds.Count, trader.Handle, trader.Platform);
+        }
+
+        return requesterIds.ToHashSet();
     }
 
     // Silent upsert counterpart to AddOrUpdateTraderAsync — no broadcast, no "just
@@ -122,6 +159,7 @@ public class TraderService : ITraderService
     public async Task<BulkRegisterResult> BulkRegisterTradersAsync(IEnumerable<TraderSeedEntry> traders, Platform platform)
     {
         int added = 0, updated = 0;
+        var newTraders = new List<Trader>();
         foreach (var entry in traders)
         {
             if (string.IsNullOrWhiteSpace(entry.Handle)) continue;
@@ -129,14 +167,16 @@ public class TraderService : ITraderService
             var existing = await GetTraderByHandleIgnoreCaseAsync(entry.Handle, platform);
             if (existing == null)
             {
-                _dbContext.Traders.Add(new Trader
+                var created = new Trader
                 {
                     Handle = entry.Handle,
                     Platform = platform,
                     FirstSeenAt = DateTime.UtcNow,
                     LastSeenAt = DateTime.UtcNow,
                     IsPumpVerified = entry.IsVerified,
-                });
+                };
+                _dbContext.Traders.Add(created);
+                newTraders.Add(created);
                 added++;
             }
             else if (existing.IsPumpVerified != entry.IsVerified)
@@ -148,11 +188,20 @@ public class TraderService : ITraderService
         }
 
         await _dbContext.SaveChangesAsync();
+
+        // Still silent, but a suggestion is a promise the manage page already made to the
+        // requester — it shouldn't go unkept just because the roster sync found the trader
+        // first instead of the live feed.
+        foreach (var created in newTraders)
+        {
+            await FollowSuggestionRequestersAsync(created);
+        }
+
         _logger.LogInformation("Bulk-registered {Added} new / updated {Updated} existing {Platform} traders (silent, no broadcast)", added, updated, platform);
         return new BulkRegisterResult(added, updated);
     }
 
-    private async Task BroadcastNewTraderMessageAsync(Trader trader)
+    private async Task BroadcastNewTraderMessageAsync(Trader trader, HashSet<int> requesterIds)
     {
         if (_botClient == null)
             return;
@@ -183,7 +232,19 @@ public class TraderService : ITraderService
                     ? user.AutoFollowPumpTraders
                     : user.AutoFollowFomoTraders) && !restrictedByVerifiedOnly;
 
-                if (autoFollowForPlatform)
+                // Checked first: the follow already happened in FollowSuggestionRequestersAsync
+                // and it outranks both auto-follow OFF and Verified Only, so neither of the
+                // branches below describes this user's actual state.
+                if (requesterIds.Contains(user.Id))
+                {
+                    message = $@"🔔 A new sharp {platformLabel} trader, [{escapedHandle}]({profileLink}), was just added to our services!
+
+✅ You suggested this trader, so you're following them automatically — regardless of your auto-follow setting.
+
+Use /unfollow {escapedHandle} or /unfollow {trader.Id} if you've changed your mind.
+Use /settings to manage auto-follow and notification preferences.";
+                }
+                else if (autoFollowForPlatform)
                 {
                     await TryAutoFollowTraderAsync(user.Id, trader.Id);
 
