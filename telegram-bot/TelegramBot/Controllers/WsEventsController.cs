@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 using System.Text.Json;
 using TelegramBot.Data;
 using TelegramBot.Models;
@@ -28,6 +29,17 @@ public class WsEventsController : ControllerBase
 
             static string? Str(JsonElement el, string key) =>
                 el.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+
+            // Source timestamps arrive ISO-8601 with a trailing Z. Bare DateTime.TryParse
+            // converts those to server LOCAL time, which on this box (UTC+1) stored every
+            // CreatedAt an hour ahead of ReceivedAt and made source-to-ingest lag
+            // unmeasurable. Force UTC so it shares a clock with ReceivedAt = DateTime.UtcNow.
+            static DateTime? Utc(JsonElement el, string key) =>
+                el.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.String
+                && DateTime.TryParse(v.GetString(), CultureInfo.InvariantCulture,
+                    DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var parsed)
+                    ? parsed : null;
+
             static double? Num(JsonElement el, string key) =>
                 el.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : null;
             static bool? Bool(JsonElement el, string key) =>
@@ -58,7 +70,7 @@ public class WsEventsController : ControllerBase
                 TokenAddress = Str(payload, "tokenAddress"),
                 NetworkId    = payload.TryGetProperty("networkId", out var nid) && nid.ValueKind == JsonValueKind.Number ? nid.GetInt32() : null,
                 Ticker       = Str(payload, "ticker") ?? (body.HasValue ? Str(body.Value, "ticker") : null),
-                CreatedAt    = payload.TryGetProperty("createdAt", out var ca) && ca.ValueKind == JsonValueKind.String && DateTime.TryParse(ca.GetString(), out var caVal) ? caVal : null,
+                CreatedAt    = Utc(payload, "createdAt"),
                 ReceivedAt   = DateTime.UtcNow,
                 Equity       = (decimal?)Num(payload, "equity"),
                 Price        = (decimal?)(Num(payload, "price") ?? (body.HasValue ? Num(body.Value, "price") : null)),
@@ -68,7 +80,7 @@ public class WsEventsController : ControllerBase
                 TotalCostBasis   = (decimal?)(body.HasValue ? Num(body.Value, "totalCostBasis") : null),
                 TotalPnlUsd      = (decimal?)(body.HasValue ? Num(body.Value, "totalPnlUsd") : null),
                 TotalPercentagePnl = (decimal?)(body.HasValue ? Num(body.Value, "totalPercentagePnl") : null),
-                EntryTime        = body.HasValue && body.Value.TryGetProperty("entryTime", out var et) && et.ValueKind == JsonValueKind.String && DateTime.TryParse(et.GetString(), out var etVal) ? etVal : null,
+                EntryTime        = body.HasValue ? Utc(body.Value, "entryTime") : null,
                 ShowAbsolutePnl  = body.HasValue ? Bool(body.Value, "showAbsolutePnl") : null,
                 RawJson      = payload.GetRawText(),
                 Handled      = false,

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 using System.Text.Json;
 using TelegramBot.Data;
 using TelegramBot.Models;
@@ -27,6 +28,16 @@ public class PumpEventsController : ControllerBase
             static string? Str(JsonElement el, string key) =>
                 el.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
 
+            // Source timestamps arrive ISO-8601 with a trailing Z. Bare DateTime.TryParse converts
+            // those to server LOCAL time, which on this box (UTC+1) stored every CreatedAt an hour
+            // ahead of ReceivedAt and made source-to-ingest lag unmeasurable. Force UTC so the
+            // parsed value shares a clock with ReceivedAt = DateTime.UtcNow.
+            static DateTime? Utc(JsonElement el, string key) =>
+                el.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.String
+                && DateTime.TryParse(v.GetString(), CultureInfo.InvariantCulture,
+                    DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var parsed)
+                    ? parsed : null;
+
             var externalId = Str(payload, "externalId");
             var kind = Str(payload, "kind");
             if (externalId is null || kind is null)
@@ -46,7 +57,7 @@ public class PumpEventsController : ControllerBase
                 CoinMint    = Str(payload, "coinMint"),
                 ChainId     = payload.TryGetProperty("chainId", out var cid) && cid.ValueKind == JsonValueKind.Number ? cid.GetInt32() : null,
                 Symbol      = Str(payload, "symbol"),
-                CreatedAt   = payload.TryGetProperty("createdAt", out var ca) && ca.ValueKind == JsonValueKind.String && DateTime.TryParse(ca.GetString(), out var caVal) ? caVal : null,
+                CreatedAt   = Utc(payload, "createdAt"),
                 ReceivedAt  = DateTime.UtcNow,
                 RawJson     = payload.GetRawText(),
                 Handled     = false,
