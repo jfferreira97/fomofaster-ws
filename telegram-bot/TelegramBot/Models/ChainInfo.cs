@@ -5,6 +5,8 @@ public static class ChainInfo
     // PadreSlug is null until confirmed against padre.gg for that chain — do not guess it,
     // Terminal (Padre) link is omitted for chains where it's null. Confirmed 2026-08-30:
     // Padre has no Monad slug at all; Axiom has no Monad or Base support (AxiomSupported=false).
+    // Same rule for AxiomSupported: false until confirmed, because a wrong true ships a dead
+    // link to a paying user while a wrong false only omits one.
     private sealed record Info(int NetworkId, string DexScreenerSlug, string[] Aliases, string? PadreSlug = null, bool AxiomSupported = true);
 
     private static readonly Dictionary<Chain, Info> Map = new()
@@ -15,6 +17,13 @@ public static class ChainInfo
         [Chain.MONAD]     = new(143,        "monad",     ["monad"],        AxiomSupported: false),
         [Chain.ETH]       = new(1,          "ethereum",  ["eth", "ethereum"], PadreSlug: "eth"),
         [Chain.ROBINHOOD] = new(4663,       "robinhood", ["robinhood", "rh"], PadreSlug: "robinhood"),
+        // Arc (Circle's stablecoin-native L1, gas paid in USDC) — mainnet launched 2026-09-16,
+        // the same day it started showing up on both feeds. EVM addresses, networkId 5042 on
+        // fomo and chainId 5042 on pump. Slug "arc" confirmed against DexScreener's token API
+        // (it returns chainId "arc" for these mints), not guessed. Padre still advertises only
+        // Solana/Ethereum/BNB/Base and Axiom's Arc support is unconfirmed, so both links stay
+        // off until someone checks — DexScreener alone is correct today.
+        [Chain.ARC]       = new(5042,       "arc",       ["arc"],          AxiomSupported: false),
     };
 
     private static readonly Dictionary<int, Chain> ByNetworkId =

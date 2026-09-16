@@ -92,6 +92,9 @@ public class NotificationsController : ControllerBase
             }
 
             var chain = ChainInfo.FromNetworkId(req.NetworkId);
+            if (chain is null)
+                _logger.LogWarning("Unmapped networkId {NetworkId} on {Ticker} ({ContractAddress}) — the alert still ships, but without chain links or per-chain settings. Add it to ChainInfo.",
+                    req.NetworkId, req.Ticker, req.ContractAddress);
 
             var notifType = req.WsType switch
             {
@@ -188,7 +191,10 @@ public class NotificationsController : ControllerBase
                 return Ok(new { accepted = false, reason = "duplicate" });
             }
 
-            var chain = ChainInfo.FromNetworkId(req.ChainId) ?? Chain.SOL;
+            var chain = ChainInfo.FromNetworkId(req.ChainId);
+            if (chain is null)
+                _logger.LogWarning("Unmapped chainId {ChainId} on {Symbol} ({CoinMint}) — the alert still ships, but without chain links or per-chain settings. Add it to ChainInfo.",
+                    req.ChainId, req.Symbol, req.CoinMint);
             var mc = req.MarketCap.HasValue ? $" (${FormatMarketCap(req.MarketCap.Value)} MC)" : "";
 
             var notifType = req.Kind switch

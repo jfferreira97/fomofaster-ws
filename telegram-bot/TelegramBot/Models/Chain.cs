@@ -7,5 +7,6 @@ public enum Chain
     BASE,
     MONAD,
     ETH,
-    ROBINHOOD
+    ROBINHOOD,
+    ARC
 }

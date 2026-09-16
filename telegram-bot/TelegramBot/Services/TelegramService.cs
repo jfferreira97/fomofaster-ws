@@ -243,7 +243,9 @@ public class TelegramService : ITelegramService
         string fullMessage;
         string obfuscatedMessage;
 
-        var chainLabel = (chain ?? Chain.SOL).ToString();
+        // "?" rather than a default: labelling an unmapped chain SOL is exactly how Arc alerts
+        // went out looking like Solana. Unknown should read as unknown.
+        var chainLabel = chain?.ToString() ?? "?";
 
         // Fire bubble still marks Trending in the link line; buy/sell no longer gets one there.
         var typeBubble = notificationType switch
@@ -274,12 +276,16 @@ public class TelegramService : ITelegramService
 
         if (!string.IsNullOrEmpty(contractAddress))
         {
-            var resolvedChain = chain ?? Chain.SOL;
+            // No mapping means ChainInfo has no slug, so every per-chain link we could build
+            // would point at the wrong chain — the old Chain.SOL fallback sent Arc holders to
+            // dexscreener.com/solana/0x…, a dead link. Fall back to the generic links, which
+            // are at least true, rather than fabricating a chain.
+            var tradeLinks = chain.HasValue ? TradeLinks(chain.Value, contractAddress) : GenericTradeLinks;
 
             fullMessage = $@"{processedMessage}
 
 📝 Contract: `{contractAddress}`
-🔗 {chainLabel} | {typeBubble}{TradeLinks(resolvedChain, contractAddress)}";
+🔗 {chainLabel} | {typeBubble}{tradeLinks}";
 
             var redactedCa = contractAddress.Length > 4
                 ? contractAddress[..2] + new string('*', contractAddress.Length - 4) + contractAddress[^2..]
