@@ -48,7 +48,6 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Platform).IsRequired().HasConversion<string>();
             entity.Property(e => e.FirstSeenAt).IsRequired();
             entity.Property(e => e.LastSeenAt).IsRequired();
-            entity.Property(e => e.IsPumpVerified).IsRequired();
         });
 
         modelBuilder.Entity<UserTrader>(entity =>

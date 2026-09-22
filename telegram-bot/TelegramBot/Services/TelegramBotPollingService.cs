@@ -383,34 +383,29 @@ public class TelegramBotPollingService : BackgroundService
         siblings.Count > 1 ? $"{t.Handle} ({t.Platform.ToString().ToUpperInvariant()})" : t.Handle;
 
     private static string OnOff(bool on) => on ? "✅" : "❌";
-    private static string ModeWord(bool verifiedOnly) => verifiedOnly ? "Verified Only" : "All";
-
     private static string BuildSettingsText(Models.User user) => "⚙️ *Notification Settings* — tap a button below to toggle.";
 
-    // Two columns (FOMO left, Pump right) stacked to the same height for visual symmetry,
-    // then one full-width row for Trending. Pump's mode (All/Verified Only) is a single
-    // shared toggle — its current value is echoed in both the Pump Auto-Follow and
-    // Callouts labels, and governs BOTH which new Pump traders get auto-followed and
-    // which Pump notifications get delivered (see TraderService/TelegramService).
+    // Grouped by platform, mirroring the manage page: a FOMO header over its three
+    // toggles, a Pump.fun header over its two, then Trending (which spans both).
+    // Headers are inert — "settings:noop" falls through the handler's default case.
+    // Status goes first in each label so it survives when Telegram ellipsizes a
+    // three-across row on a narrow phone.
     private static InlineKeyboardMarkup BuildSettingsKeyboard(Models.User user)
     {
-        var mode = ModeWord(user.PumpVerifiedOnly);
         return new(new[]
         {
+            new[] { InlineKeyboardButton.WithCallbackData("— FOMO —", "settings:noop") },
             new[]
             {
-                InlineKeyboardButton.WithCallbackData($"FOMO Auto-Follow: {OnOff(user.AutoFollowFomoTraders)}", "settings:af_fomo"),
-                InlineKeyboardButton.WithCallbackData($"Pump Auto-Follow ({mode}): {OnOff(user.AutoFollowPumpTraders)}", "settings:af_pump"),
+                InlineKeyboardButton.WithCallbackData($"{OnOff(user.AutoFollowFomoTraders)} Auto-Follow", "settings:af_fomo"),
+                InlineKeyboardButton.WithCallbackData($"{OnOff(user.NotifyFomoBuySell)} Transactions", "settings:fomo_bs"),
+                InlineKeyboardButton.WithCallbackData($"{OnOff(user.NotifyFomoThesis)} Thesis", "settings:fomo_thesis"),
             },
+            new[] { InlineKeyboardButton.WithCallbackData("— PUMP.FUN —", "settings:noop") },
             new[]
             {
-                InlineKeyboardButton.WithCallbackData($"Buys/Sells: {OnOff(user.NotifyFomoBuySell)}", "settings:fomo_bs"),
-                InlineKeyboardButton.WithCallbackData($"Callouts ({mode}): {OnOff(user.NotifyPumpCallouts)}", "settings:pump_callouts"),
-            },
-            new[]
-            {
-                InlineKeyboardButton.WithCallbackData($"Thesis: {OnOff(user.NotifyFomoThesis)}", "settings:fomo_thesis"),
-                InlineKeyboardButton.WithCallbackData($"Mode: {mode}", "settings:pump_mode"),
+                InlineKeyboardButton.WithCallbackData($"{OnOff(user.AutoFollowPumpTraders)} Auto-Follow", "settings:af_pump"),
+                InlineKeyboardButton.WithCallbackData($"{OnOff(user.NotifyPumpCallouts)} Callouts", "settings:pump_callouts"),
             },
             new[]
             {
@@ -554,7 +549,6 @@ public class TelegramBotPollingService : BackgroundService
             case "settings:fomo_bs": user.NotifyFomoBuySell = !user.NotifyFomoBuySell; break;
             case "settings:fomo_thesis": user.NotifyFomoThesis = !user.NotifyFomoThesis; break;
             case "settings:pump_callouts": user.NotifyPumpCallouts = !user.NotifyPumpCallouts; break;
-            case "settings:pump_mode": user.PumpVerifiedOnly = !user.PumpVerifiedOnly; break;
             case "settings:trending": user.NotifyTrending = !user.NotifyTrending; break;
             default:
                 await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id);
@@ -632,7 +626,7 @@ You're now following all {allTradersCount.Count} traders by default, configure a
 /unfollow cap - unfollow one
 /unfollow - reply it to any alert to drop that trader
 /autofollow <on/off> - check/toggle auto-follow for new traders (starts ON by default)
-/settings - full notification menu: auto-follow, buys/sells, thesis, pump callouts, verified-only mode, trending
+/settings - full notification menu: auto-follow, transactions, thesis, pump callouts, trending
 /repeatwindow <2h/30m/off> - limit repeat buy/sell alerts per trader+coin — buys and sells don't block each other (off by default)
 /chains - tap-button menu to enable/disable chains and set a minimum market cap per chain
 /top - view top tokens (e.g., /top 1h, /top sol 1d, /top sol,monad 6h)
@@ -670,7 +664,7 @@ You're now following all {allTradersCount.Count} traders by default, configure a
 /unfollow - reply it to any alert to drop that trader
 setmin 50k - reply it to any alert to set that trader's minimum alert size
 /autofollow <on/off> - Check/toggle FOMO auto-follow for new traders (starts ON by default)
-/settings - Full notification menu: auto-follow (FOMO/Pump), buys/sells, thesis, pump callouts, verified-only mode, trending
+/settings - Full notification menu: auto-follow (FOMO/Pump), transactions, thesis, pump callouts, trending
 /repeatwindow <2h/30m/off> - Limit repeat buy/sell alerts per trader+coin — buys and sells don't block each other (off by default)
 /chains - Tap-button menu: enable/disable each chain, cycle its minimum market cap floor (also: /chains disable base, /chains minmcap sol 50k)
 /top [chains] <period> - Top tokens (e.g., /top 1h, /top sol 1d, /top sol,monad 6h)

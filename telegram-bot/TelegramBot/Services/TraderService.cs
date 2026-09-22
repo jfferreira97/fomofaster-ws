@@ -153,9 +153,9 @@ public class TraderService : ITraderService
 
     // Silent upsert counterpart to AddOrUpdateTraderAsync — no broadcast, no "just
     // discovered live" framing. For seeding/re-syncing known-external trader rosters
-    // (e.g. a platform's own verified-trader list) where per-handle announcements to
-    // every active user would be pure noise. Updates IsPumpVerified on existing rows
-    // too, since this is meant to be called routinely, not just once.
+    // (e.g. a platform's own trader leaderboard) where per-handle announcements to
+    // every active user would be pure noise. Handles already on file are left alone;
+    // `updated` is kept in the result shape for callers but is always 0 now.
     public async Task<BulkRegisterResult> BulkRegisterTradersAsync(IEnumerable<TraderSeedEntry> traders, Platform platform)
     {
         int added = 0, updated = 0;
@@ -173,17 +173,10 @@ public class TraderService : ITraderService
                     Platform = platform,
                     FirstSeenAt = DateTime.UtcNow,
                     LastSeenAt = DateTime.UtcNow,
-                    IsPumpVerified = entry.IsVerified,
                 };
                 _dbContext.Traders.Add(created);
                 newTraders.Add(created);
                 added++;
-            }
-            else if (existing.IsPumpVerified != entry.IsVerified)
-            {
-                existing.IsPumpVerified = entry.IsVerified;
-                existing.LastSeenAt = DateTime.UtcNow;
-                updated++;
             }
         }
 
@@ -223,18 +216,13 @@ public class TraderService : ITraderService
                     ? $"https://pump.fun/profile/{trader.Handle}"
                     : $"https://fomo.family/profile/{trader.Handle}";
 
-                // Pump's Verified-Only mode gates auto-follow eligibility too, not just
-                // notification delivery — a "Verified Only" user shouldn't get auto-followed
-                // onto an unverified trader just because a new one showed up.
-                var restrictedByVerifiedOnly = trader.Platform == Platform.Pump
-                    && user.PumpVerifiedOnly && !trader.IsPumpVerified;
-                var autoFollowForPlatform = (trader.Platform == Platform.Pump
+                var autoFollowForPlatform = trader.Platform == Platform.Pump
                     ? user.AutoFollowPumpTraders
-                    : user.AutoFollowFomoTraders) && !restrictedByVerifiedOnly;
+                    : user.AutoFollowFomoTraders;
 
                 // Checked first: the follow already happened in FollowSuggestionRequestersAsync
-                // and it outranks both auto-follow OFF and Verified Only, so neither of the
-                // branches below describes this user's actual state.
+                // and it outranks auto-follow OFF, so neither of the branches below describes
+                // this user's actual state.
                 if (requesterIds.Contains(user.Id))
                 {
                     message = $@"🔔 A new sharp {platformLabel} trader, [{escapedHandle}]({profileLink}), was just added to our services!
@@ -253,15 +241,6 @@ Use /settings to manage auto-follow and notification preferences.";
 ✅ This trader's trades will be tracked by you since you have {platformLabel} auto-follow ON.
 
 Use /unfollow {escapedHandle} or /unfollow {trader.Id} if you do not desire this trader.
-Use /settings to manage auto-follow and notification preferences.";
-                }
-                else if (restrictedByVerifiedOnly)
-                {
-                    message = $@"🔔 A new {platformLabel} trader, [{escapedHandle}]({profileLink}), was just added to our services!
-
-⚠️ Not auto-followed — they're not a verified trader and you have Pump mode set to Verified Only.
-
-Use /follow {escapedHandle} or /follow {trader.Id} if you want to follow them anyway.
 Use /settings to manage auto-follow and notification preferences.";
                 }
                 else
@@ -463,7 +442,6 @@ Use /settings to manage auto-follow and notification preferences.";
             t.Id,
             t.Handle,
             t.Platform,
-            t.IsPumpVerified,
             IsFollowing: follows.ContainsKey(t.Id),
             MinValueUsd: follows.GetValueOrDefault(t.Id)
         )).ToList();

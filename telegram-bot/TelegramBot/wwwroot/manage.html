@@ -173,6 +173,57 @@
     .chip:active { background: var(--bg); }
     .chip.full { grid-column: 1 / -1; }
     .chip.on { border-color: var(--accent-dim); }
+    /* space-between pins the ✅/❌ to the chip's bottom edge, so states line up across a
+       row even when one label wraps to two lines (Auto-follow new traders). */
+    .chip.stack { display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 5px; }
+    .chip-state { font-size: 13px; line-height: 1; }
+
+    /* Info tip on a toggle. The ⓘ is a sibling of the chip button, not a child — a focusable
+       element nested in a <button> is invalid and unfocusable in some browsers. It opens
+       below the chip: .panel clips with overflow:hidden, and below always has room.
+       Hover/focus on desktop, tap on touch (JS). */
+    .tip-wrap { position: relative; display: flex; }
+    .tip-wrap > .chip { flex: 1; padding-right: 18px; }
+    .tip-icon {
+        position: absolute; top: 4px; right: 4px;
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 15px; height: 15px;
+        border: 1px solid var(--text-faint); border-radius: 50%;
+        font-size: 10px; font-weight: 700; font-style: normal; color: var(--text-dim);
+        cursor: help;
+    }
+    .tip-icon:hover, .tip-icon:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
+    /* Inline variant: sits in a text row rather than a chip corner. */
+    .tip-anchor { position: relative; display: inline-flex; align-items: center; gap: 5px; }
+    .tip-icon.inline { position: static; }
+    /* Opens upward, for a tip on the last row of a panel (.panel clips with overflow:hidden). */
+    .tip.up { top: auto; bottom: calc(100% + 6px); }
+    .tip {
+        position: absolute; top: calc(100% + 6px); left: 0; z-index: 20;
+        width: max-content; max-width: 240px;
+        background: var(--surface-3); border: 1px solid var(--border); border-radius: var(--radius);
+        padding: 9px 11px; box-shadow: 0 6px 18px rgba(0,0,0,.45);
+        font-size: 12px; font-weight: 500; line-height: 1.45; color: var(--text); text-align: left;
+        opacity: 0; visibility: hidden; transition: opacity .12s;
+        pointer-events: none;
+    }
+    .tip-icon:hover + .tip, .tip-icon:focus-visible + .tip, .tip.show { opacity: 1; visibility: visible; }
+    @media (prefers-reduced-motion: reduce) { .tip { transition: none; } }
+    .chip-grid.even-3 { grid-template-columns: repeat(3, 1fr); }
+
+    /* ---------- Notification settings, grouped by platform ---------- */
+    .plat + .plat { margin-top: 12px; }
+    .plat-head {
+        display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+        font-size: 13px; font-weight: 700;
+    }
+    .plat-head img { width: 20px; height: 20px; border-radius: 5px; flex-shrink: 0; }
+    .section-label {
+        font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em;
+        color: var(--text-faint); font-weight: 700; margin-bottom: 8px;
+    }
+    .general { margin-top: 12px; padding-top: 11px; border-top: 1px solid var(--border); }
+    .general .field-row { margin-top: 9px; padding-top: 0; border-top: none; }
     input.chip { outline: none; font-family: 'IBM Plex Mono', monospace; }
     input.chip:focus { border-color: var(--accent); }
 
@@ -250,12 +301,11 @@
         white-space: nowrap;
     }
     .trader-handle:hover { color: var(--accent); }
-    .verified-mark { color: var(--good); font-size: 12px; flex-shrink: 0; }
 
     .threshold-cell { text-align: center; }
     .threshold-input {
         width: 92px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
-        border-radius: var(--radius); padding: 6px 6px; font-size: 12px; text-align: center; outline: none;
+        border-radius: var(--radius); padding: 4px 6px; font-size: 12px; text-align: center; outline: none;
         font-family: 'IBM Plex Mono', monospace;
     }
     .threshold-input::placeholder { color: var(--text-faint); }
@@ -324,16 +374,28 @@
                 <div class="panel">
                     <div class="panel-head">
                         <div class="panel-title">⚙️ Notification Settings</div>
-                        <div class="panel-desc">Tap a button below to toggle.</div>
                     </div>
                     <div class="panel-body">
-                        <div class="chip-grid cols-2" id="settingsGrid"></div>
-                        <div class="field-row">
-                            <div>
-                                <div class="field-label">Repeat window (min)</div>
-                                <div class="field-hint">0 = alert every time</div>
+                        <div id="settingsGrid"></div>
+                        <div class="general">
+                            <div class="chip-grid" id="generalGrid"></div>
+                            <div class="field-row">
+                                <div>
+                                    <div class="field-label tip-anchor">
+                                        Repeat cooldown (min)
+                                        <i class="tip-icon inline" tabindex="0" role="button" aria-label="What is the repeat cooldown?" aria-describedby="tip-repeat">i</i>
+                                        <span class="tip up" role="tooltip" id="tip-repeat">
+                                            Silences repeat alerts for the <b>same trader on the same token</b>.
+                                            Set it to 30 and if they buy that token three times in 30 minutes,
+                                            only the first one reaches you.<br><br>
+                                            Buys and sells count separately — a buy followed by a sell still
+                                            sends both.
+                                        </span>
+                                    </div>
+                                    <div class="field-hint">0 = alert on every trade</div>
+                                </div>
+                                <input type="number" min="0" id="repeatWindowInput">
                             </div>
-                            <input type="number" min="0" id="repeatWindowInput">
                         </div>
                     </div>
                 </div>
@@ -532,20 +594,70 @@ function showApp(me) {
 
 function renderSettings() {
     const s = currentSettings;
-    const mode = s.pumpVerifiedOnly ? 'Verified Only' : 'All';
     const onOff = v => v ? '✅' : '❌';
-    const grid = document.getElementById('settingsGrid');
-    grid.innerHTML = `
-        <button class="chip ${s.autoFollowFomoTraders ? 'on' : ''}" data-field="autoFollowFomoTraders">FOMO Auto-Follow: ${onOff(s.autoFollowFomoTraders)}</button>
-        <button class="chip ${s.autoFollowPumpTraders ? 'on' : ''}" data-field="autoFollowPumpTraders">Pump Auto-Follow (${mode}): ${onOff(s.autoFollowPumpTraders)}</button>
-        <button class="chip ${s.notifyFomoBuySell ? 'on' : ''}" data-field="notifyFomoBuySell">Buys/Sells: ${onOff(s.notifyFomoBuySell)}</button>
-        <button class="chip ${s.notifyPumpCallouts ? 'on' : ''}" data-field="notifyPumpCallouts">Callouts (${mode}): ${onOff(s.notifyPumpCallouts)}</button>
-        <button class="chip ${s.notifyFomoThesis ? 'on' : ''}" data-field="notifyFomoThesis">Thesis: ${onOff(s.notifyFomoThesis)}</button>
-        <button class="chip ${s.pumpVerifiedOnly ? 'on' : ''}" data-field="pumpVerifiedOnly">Mode: ${mode}</button>
-        <button class="chip full ${s.notifyTrending ? 'on' : ''}" data-field="notifyTrending">🔥 Trending Alerts: ${onOff(s.notifyTrending)}</button>
-    `;
-    grid.querySelectorAll('.chip').forEach(btn => btn.addEventListener('click', onSettingToggle));
+    const toggle = (field, label, tip) => {
+        const btn = `
+        <button class="chip stack ${s[field] ? 'on' : ''}" data-field="${field}" aria-pressed="${s[field]}">
+            <span>${label}</span><span class="chip-state">${onOff(s[field])}</span>
+        </button>`;
+        if (!tip) return btn;
+        const tipId = `tip-${field}`;
+        return `<div class="tip-wrap">${btn}<i class="tip-icon" tabindex="0" role="button" aria-label="What does ${label} do?" aria-describedby="${tipId}">i</i><span class="tip" role="tooltip" id="${tipId}">${tip}</span></div>`;
+    };
+    // Mirrors the backend: the flag is forward-looking only (never backfills existing
+    // traders) and never re-follows someone the user explicitly unfollowed.
+    const autoFollowTip = platform =>
+        `When a new ${platform} trader is added to GROUPCHAT, follow them automatically. ` +
+        `Traders you already follow or unfollowed aren't touched.`;
+
+    document.getElementById('settingsGrid').innerHTML = `
+        <section class="plat">
+            <div class="plat-head"><img src="/logos/fomo.png" alt="" width="20" height="20">FOMO</div>
+            <div class="chip-grid even-3">
+                ${toggle('autoFollowFomoTraders', 'Auto&#8209;follow new traders', autoFollowTip('FOMO'))}
+                ${toggle('notifyFomoBuySell', 'Transactions')}
+                ${toggle('notifyFomoThesis', 'Thesis')}
+            </div>
+        </section>
+        <section class="plat">
+            <div class="plat-head"><img src="/logos/pump.png" alt="" width="20" height="20">Pump.fun</div>
+            <div class="chip-grid cols-2">
+                ${toggle('autoFollowPumpTraders', 'Auto&#8209;follow new traders', autoFollowTip('Pump.fun'))}
+                ${toggle('notifyPumpCallouts', 'Callouts')}
+            </div>
+        </section>`;
+
+
+    document.getElementById('generalGrid').innerHTML = `
+        <button class="chip full ${s.notifyTrending ? 'on' : ''}" data-field="notifyTrending" aria-pressed="${s.notifyTrending}">🔥 Trending Alerts: ${onOff(s.notifyTrending)}</button>`;
+
+    document.querySelectorAll('#settingsGrid .chip, #generalGrid .chip')
+        .forEach(btn => btn.addEventListener('click', onSettingToggle));
 }
+
+// Tapping the ⓘ explains, it doesn't toggle whatever sits under it. Touch screens have no
+// hover, so a tap opens the tip; a tap anywhere else closes it. Delegated from the document
+// so it covers both the static tips and the ones renderSettings() rebuilds.
+function closeAllTips() {
+    document.querySelectorAll('.tip.show').forEach(t => t.classList.remove('show'));
+}
+
+function onTipActivate(e) {
+    const icon = e.target.closest('.tip-icon');
+    if (!icon) { closeAllTips(); return; }
+    e.preventDefault();
+    e.stopPropagation();
+    const tip = icon.nextElementSibling;
+    const wasOpen = tip.classList.contains('show');
+    closeAllTips();
+    if (!wasOpen) tip.classList.add('show');
+}
+
+document.addEventListener('click', onTipActivate);
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { closeAllTips(); return; }
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('.tip-icon')) onTipActivate(e);
+});
 
 async function onSettingToggle(e) {
     const field = e.currentTarget.dataset.field;
@@ -713,7 +825,6 @@ function renderTraders() {
                 <div class="trader-cell">
                     <span class="platform-mark" title="${t.platform}">${t.platform === 'Pump' ? '💊' : '👀'}</span>
                     <a class="trader-handle" href="${traderProfileUrl(t)}" target="_blank" rel="noopener noreferrer">${escapeHtml(t.handle)}</a>
-                    ${t.isPumpVerified ? '<span class="verified-mark" title="Verified">✓</span>' : ''}
                 </div>
             </td>
             <td class="threshold-cell">

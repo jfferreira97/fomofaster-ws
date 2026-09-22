@@ -6,6 +6,5 @@ public record TraderBrowseEntry(
     int Id,
     string Handle,
     Platform Platform,
-    bool IsPumpVerified,
     bool IsFollowing,
     decimal? MinValueUsd);

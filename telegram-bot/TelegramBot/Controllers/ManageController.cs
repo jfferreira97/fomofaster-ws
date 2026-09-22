@@ -87,7 +87,6 @@ public class ManageController : ControllerBase
                 notifyFomoBuySell = user.NotifyFomoBuySell,
                 notifyFomoThesis = user.NotifyFomoThesis,
                 notifyPumpCallouts = user.NotifyPumpCallouts,
-                pumpVerifiedOnly = user.PumpVerifiedOnly,
                 notifyTrending = user.NotifyTrending,
                 repeatWindowMinutes = user.RepeatWindowMinutes
             }
@@ -108,7 +107,6 @@ public class ManageController : ControllerBase
         user.NotifyFomoBuySell = request.NotifyFomoBuySell;
         user.NotifyFomoThesis = request.NotifyFomoThesis;
         user.NotifyPumpCallouts = request.NotifyPumpCallouts;
-        user.PumpVerifiedOnly = request.PumpVerifiedOnly;
         user.NotifyTrending = request.NotifyTrending;
         user.RepeatWindowMinutes = request.RepeatWindowMinutes;
 
@@ -139,7 +137,6 @@ public class ManageController : ControllerBase
                 id = t.Id,
                 handle = t.Handle,
                 platform = t.Platform.ToString(),
-                isPumpVerified = t.IsPumpVerified,
                 isFollowing = t.IsFollowing,
                 minValueUsd = t.MinValueUsd
             })
@@ -360,7 +357,6 @@ public record UpdateManageSettingsRequest(
     bool NotifyFomoBuySell,
     bool NotifyFomoThesis,
     bool NotifyPumpCallouts,
-    bool PumpVerifiedOnly,
     bool NotifyTrending,
     int RepeatWindowMinutes);
 

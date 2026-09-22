@@ -29,8 +29,6 @@ public class User
     // Covers Callout, Repost, AND Reply — bundled under one toggle by design, since to a
     // subscriber they're all just "pump activity from people you follow."
     public bool NotifyPumpCallouts { get; set; } = true;
-    // Only meaningful when NotifyPumpCallouts is on: restrict to IsPumpVerified traders.
-    public bool PumpVerifiedOnly { get; set; } = false;
 
     public bool NotifyTrending { get; set; } = true;
 

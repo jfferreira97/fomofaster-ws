@@ -195,23 +195,13 @@ public class TelegramService : ITelegramService
 
         // Per-user notification-type preferences, set via /settings. Callout/Repost/Reply
         // share one Pump toggle by design — to a subscriber they're all just "pump activity
-        // from people you follow" — and PumpVerifiedOnly additionally requires the trader
-        // be IsPumpVerified when set. Types with no toggle (Deposit/Verified/Unknown) pass
+        // from people you follow". Types with no toggle (Deposit/Verified/Unknown) pass
         // through unfiltered.
-        bool? traderIsPumpVerified = null;
-        if (notificationType is NotificationType.Callout or NotificationType.Repost or NotificationType.Reply
-            && !string.IsNullOrEmpty(traderHandle))
-        {
-            var trader = await traderService.GetTraderByHandleIgnoreCaseAsync(traderHandle, platform);
-            traderIsPumpVerified = trader?.IsPumpVerified ?? false;
-        }
-
         users = users.Where(u => notificationType switch
         {
             NotificationType.Buy or NotificationType.Sell => u.NotifyFomoBuySell,
             NotificationType.Thesis                        => u.NotifyFomoThesis,
-            NotificationType.Callout or NotificationType.Repost or NotificationType.Reply =>
-                u.NotifyPumpCallouts && (!u.PumpVerifiedOnly || traderIsPumpVerified == true),
+            NotificationType.Callout or NotificationType.Repost or NotificationType.Reply => u.NotifyPumpCallouts,
             NotificationType.CUSTOM_Trending => u.NotifyTrending,
             _ => true
         }).ToList();
