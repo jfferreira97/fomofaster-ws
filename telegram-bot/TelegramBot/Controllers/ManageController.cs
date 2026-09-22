@@ -24,7 +24,9 @@ public class ManageController : ControllerBase
     private readonly AppDbContext _dbContext;
     private readonly TelegramSettings _telegramSettings;
 
-    private const int SuggestionRateLimit = 5;
+    // Budget is per SUBMISSION, not per handle — see SuggestTrader.
+    private const int SubmissionRateLimit = 24;
+    private const int MaxSuggestionsPerSubmission = 25;
     private static readonly TimeSpan SuggestionWindow = TimeSpan.FromHours(24);
 
     public ManageController(
@@ -271,46 +273,95 @@ public class ManageController : ControllerBase
         return Ok(new { status = "success" });
     }
 
+    // One submission may carry many handles and costs a single unit of the daily budget,
+    // so filling twenty rows at once is not twenty times more expensive than filling one.
+    // Rows are judged individually: bad ones come back annotated, good ones still land.
     [HttpPost("suggest-trader")]
     public async Task<IActionResult> SuggestTrader([FromBody] SuggestTraderRequest request)
     {
         var (user, error) = await ResolveSubscriberAsync();
         if (user == null) return error!;
 
-        if (!Enum.IsDefined(request.Platform))
-            return BadRequest(new { status = "error", message = "Unknown platform" });
-
-        var handle = request.Handle?.Trim().TrimStart('@');
-        if (string.IsNullOrWhiteSpace(handle) || handle.Length > 100)
-            return BadRequest(new { status = "error", message = "Enter a valid trader handle" });
-
-        var existingTrader = await _traderService.GetTraderByHandleIgnoreCaseAsync(handle, request.Platform);
-        if (existingTrader != null)
-            return Conflict(new { status = "error", code = "already_tracked", message = "This trader is already tracked — follow them from the list instead." });
+        var items = request.Items ?? new List<SuggestTraderItem>();
+        if (items.Count == 0)
+            return BadRequest(new { status = "error", message = "Enter at least one trader handle" });
+        if (items.Count > MaxSuggestionsPerSubmission)
+            return BadRequest(new { status = "error", message = $"Up to {MaxSuggestionsPerSubmission} traders per submission." });
 
         var windowStart = DateTime.UtcNow - SuggestionWindow;
-        var recentCount = await _dbContext.SuggestedTraders
-            .CountAsync(s => s.UserId == user.Id && s.CreatedAt >= windowStart);
-        if (recentCount >= SuggestionRateLimit)
-            return StatusCode(429, new { status = "error", message = $"You can suggest up to {SuggestionRateLimit} traders per day — try again later." });
+        var recentSubmissions = await _dbContext.SuggestedTraders
+            .Where(s => s.UserId == user.Id && s.CreatedAt >= windowStart)
+            .Select(s => s.BatchId)
+            .Distinct()
+            .CountAsync();
+        if (recentSubmissions >= SubmissionRateLimit)
+            return StatusCode(429, new { status = "error", code = "rate_limited", message = $"You can send up to {SubmissionRateLimit} suggestion batches per day — try again later." });
 
-        _dbContext.SuggestedTraders.Add(new SuggestedTrader
+        var batchId = Guid.NewGuid();
+        var now = DateTime.UtcNow;
+        var results = new List<object>();
+        var accepted = new List<(string Handle, Platform Platform)>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        for (var i = 0; i < items.Count; i++)
         {
-            UserId = user.Id,
-            Handle = handle,
-            Platform = request.Platform,
-            CreatedAt = DateTime.UtcNow
-        });
+            var item = items[i];
+            var handle = item.Handle?.Trim().TrimStart('@');
+
+            if (!Enum.IsDefined(item.Platform))
+            {
+                results.Add(new { index = i, handle, ok = false, code = "invalid_platform", message = "Unknown platform." });
+                continue;
+            }
+            if (string.IsNullOrWhiteSpace(handle) || handle.Length > 100)
+            {
+                results.Add(new { index = i, handle, ok = false, code = "invalid", message = "Not a valid handle." });
+                continue;
+            }
+            if (!seen.Add($"{item.Platform}:{handle}"))
+            {
+                results.Add(new { index = i, handle, ok = false, code = "duplicate", message = "Listed twice in this batch." });
+                continue;
+            }
+            if (await _traderService.GetTraderByHandleIgnoreCaseAsync(handle, item.Platform) != null)
+            {
+                results.Add(new { index = i, handle, ok = false, code = "already_tracked", message = "Already tracked — follow them from the list instead." });
+                continue;
+            }
+
+            _dbContext.SuggestedTraders.Add(new SuggestedTrader
+            {
+                UserId = user.Id,
+                Handle = handle,
+                Platform = item.Platform,
+                CreatedAt = now,
+                BatchId = batchId
+            });
+            accepted.Add((handle, item.Platform));
+            results.Add(new { index = i, handle, ok = true, code = "sent", message = (string?)null });
+        }
+
+        // Nothing usable means nothing was stored, so the budget is untouched — a batch of
+        // typos shouldn't burn one of the day's submissions.
+        if (accepted.Count == 0)
+            return Ok(new { status = "success", accepted = 0, remaining = SubmissionRateLimit - recentSubmissions, results });
+
         await _dbContext.SaveChangesAsync();
+        await NotifyOwnerOfSuggestionsAsync(user, accepted);
 
-        await NotifyOwnerOfSuggestionAsync(user, handle, request.Platform);
-
-        return Ok(new { status = "success" });
+        return Ok(new
+        {
+            status = "success",
+            accepted = accepted.Count,
+            remaining = SubmissionRateLimit - recentSubmissions - 1,
+            results
+        });
     }
 
     // Reuses the same admin-bot DM channel HandleFreeTextAsync already forwards non-command
     // messages through — one place the owner checks, not a second notification surface.
-    private async Task NotifyOwnerOfSuggestionAsync(Models.User user, string handle, Platform platform)
+    // One DM per submission, not per handle — a 20-row batch used to mean 20 messages.
+    private async Task NotifyOwnerOfSuggestionsAsync(Models.User user, List<(string Handle, Platform Platform)> suggestions)
     {
         if (string.IsNullOrEmpty(_telegramSettings.AdminBotToken))
             return;
@@ -319,20 +370,25 @@ public class ManageController : ControllerBase
         if (owner == null)
             return;
 
-        static string EscapeMarkdown(string text) =>
-            text.Replace("_", "\\_").Replace("*", "\\*").Replace("`", "\\`").Replace("[", "\\[");
+        // HTML, not Markdown: trader handles are full of underscores, and legacy Markdown
+        // renders the backslash escapes for them literally ("zz\_batch\_test\_a").
+        static string Esc(string text) =>
+            text.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
 
-        var profileUrl = platform == Platform.Pump
+        static string ProfileUrl(string handle, Platform platform) => platform == Platform.Pump
             ? $"https://pump.fun/profile/{Uri.EscapeDataString(handle)}"
             : $"https://fomo.family/profile/{Uri.EscapeDataString(handle)}";
 
         // @username auto-links in Telegram's own rendering when present; tg://user deep-links
         // work even without one, so a requester is always clickable either way.
         var requester = !string.IsNullOrEmpty(user.Username)
-            ? $"@{user.Username}"
-            : $"[{EscapeMarkdown(user.FirstName ?? "a user")}](tg://user?id={user.ChatId})";
+            ? $"@{Esc(user.Username)}"
+            : $"<a href=\"tg://user?id={user.ChatId}\">{Esc(user.FirstName ?? "a user")}</a>";
 
-        var text = $"📬 *Trader suggestion*\n\n{requester} suggests adding [{EscapeMarkdown(handle)}]({profileUrl}) on *{platform}*";
+        var lines = suggestions.Select(s =>
+            $"• <a href=\"{Esc(ProfileUrl(s.Handle, s.Platform))}\">{Esc(s.Handle)}</a> on <b>{s.Platform}</b>");
+        var heading = suggestions.Count == 1 ? "Trader suggestion" : $"Trader suggestions ({suggestions.Count})";
+        var text = $"📬 <b>{Esc(heading)}</b>\n\nfrom {requester}\n\n{string.Join("\n", lines)}";
 
         try
         {
@@ -340,7 +396,7 @@ public class ManageController : ControllerBase
             await adminBot.SendTextMessageAsync(
                 chatId: owner.ChatId,
                 text: text,
-                parseMode: ParseMode.Markdown,
+                parseMode: ParseMode.Html,
                 disableWebPagePreview: true
             );
         }
@@ -365,4 +421,5 @@ public record SetThresholdRequest(int TraderId, decimal? MinValueUsd);
 public record SetChainDisabledRequest(Chain Chain, bool Disabled);
 public record SetChainMinMarketCapRequest(Chain Chain, decimal? MinMarketCap);
 public record SetChainTrendingDisabledRequest(Chain Chain, bool Disabled);
-public record SuggestTraderRequest(string Handle, Platform Platform);
+public record SuggestTraderItem(string Handle, Platform Platform);
+public record SuggestTraderRequest(List<SuggestTraderItem> Items);

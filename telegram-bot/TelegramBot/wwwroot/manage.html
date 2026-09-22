@@ -157,12 +157,51 @@
     }
     .modal-card {
         background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
-        padding: 22px; width: 380px; max-width: 100%;
+        padding: 22px; width: 440px; max-width: 100%;
         box-shadow: 0 24px 70px rgba(0,0,0,0.55);
     }
     .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
     .modal-desc { font-size: 12.5px; color: var(--text-dim); margin-bottom: 16px; line-height: 1.5; }
-    .modal-card .search-input { margin-bottom: 10px; }
+    /* ---------- Suggest rows ---------- */
+    .sg-row { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; }
+    .sg-row + .sg-row { margin-top: 8px; }
+    .sg-row .search-input { min-width: 0; flex: none; margin: 0; }
+    .sg-msg { grid-column: 1 / -1; font-size: 11.5px; line-height: 1.4; margin: -1px 0 2px; }
+    .sg-msg.err { color: var(--bad); }
+    .sg-msg.ok  { color: var(--good); }
+    .sg-del {
+        width: 30px; height: 30px; flex-shrink: 0;
+        background: transparent; border: 1px solid var(--border); color: var(--text-faint);
+        border-radius: var(--radius); cursor: pointer; font-size: 15px; line-height: 1; font-family: inherit;
+    }
+    .sg-del:hover { color: var(--bad); border-color: rgba(234,90,110,.5); }
+    .sg-row.is-only .sg-del { visibility: hidden; }
+
+    /* Platform picker: a two-stop slider rather than a dropdown — both options stay visible
+       and switching is one tap, which matters when filling several rows in a row. */
+    .seg { position: relative; display: flex; padding: 2px; flex-shrink: 0;
+           background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); }
+    .seg-thumb {
+        position: absolute; top: 2px; bottom: 2px; left: 2px; width: calc(50% - 2px);
+        background: var(--accent-dim); border-radius: 5px;
+        transition: transform .18s cubic-bezier(.3,.8,.3,1);
+    }
+    .seg[data-plat="Pump"] .seg-thumb { transform: translateX(100%); }
+    .seg-opt {
+        position: relative; z-index: 1; background: none; border: none; cursor: pointer;
+        font-family: inherit; font-size: 12px; font-weight: 600; color: var(--text-dim);
+        padding: 6px 11px; transition: color .15s;
+    }
+    .seg-opt.is-on { color: var(--text); }
+    @media (prefers-reduced-motion: reduce) { .seg-thumb { transition: none; } }
+
+    .sg-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
+    .sg-add {
+        background: none; border: none; padding: 0; cursor: pointer; font-family: inherit;
+        font-size: 12.5px; font-weight: 600; color: var(--accent);
+    }
+    .sg-add:disabled { color: var(--text-faint); cursor: default; }
+    .sg-quota { font-size: 11.5px; color: var(--text-faint); }
     .select-input {
         appearance: none; -webkit-appearance: none;
         cursor: pointer;
@@ -574,22 +613,21 @@
 <div class="modal-overlay" id="suggestModal" style="display:none;">
     <div class="modal-card">
         <div id="suggestFormPane">
-            <div class="modal-title">Suggest a trader</div>
+            <div class="modal-title">Suggest traders</div>
             <div class="modal-desc">Not tracking someone yet? Send a request straight to the team.</div>
-            <input type="text" class="search-input" id="suggestHandleInput" placeholder="trader handle...">
-            <select class="search-input select-input" id="suggestPlatformSelect">
-                <option value="Fomo">👀 FOMO</option>
-                <option value="Pump">💊 Pump</option>
-            </select>
-            <div class="modal-warning" id="suggestWarning" style="display:none;"></div>
+            <div id="suggestRows"></div>
+            <div class="sg-foot">
+                <button class="sg-add" id="suggestAddRow" type="button">＋ Add another</button>
+                <span class="sg-quota" id="suggestQuota"></span>
+            </div>
             <div class="modal-actions">
                 <button class="logout-btn" id="suggestCancelBtn" type="button">Cancel</button>
-                <button class="ghost-btn" id="suggestSubmitBtn" type="button">Send suggestion</button>
+                <button class="ghost-btn" id="suggestSubmitBtn" type="button">Send</button>
             </div>
         </div>
         <div id="suggestDonePane" style="display:none;">
-            <div class="modal-title">Suggestion sent</div>
-            <div class="modal-desc">The team has your request for <a class="modal-link" id="suggestDoneLink" target="_blank" rel="noopener noreferrer"></a>.</div>
+            <div class="modal-title" id="suggestDoneTitle">Suggestion sent</div>
+            <div class="modal-desc">The team has your request for <span id="suggestDoneList"></span>.</div>
             <div class="modal-note">
                 ✅ As soon as they're added, you'll be following them automatically — regardless of your auto-follow setting.
             </div>
@@ -1159,111 +1197,206 @@ document.getElementById('logoutLink').addEventListener('click', async () => {
     init();
 });
 
-/* ---------- Suggest a trader ---------- */
 
-let suggestPlatform = 'Fomo';
+/* ---------- Suggest traders ---------- */
+
+const SUGGEST_MAX_ROWS = 25;                    // mirrors MaxSuggestionsPerSubmission
+const SUGGEST_PLATFORM_KEY = 'gc_suggest_platform';
+
+// Remembered so a run of suggestions for the same platform isn't a run of dropdown taps.
+function lastSuggestPlatform() {
+    try { return localStorage.getItem(SUGGEST_PLATFORM_KEY) === 'Pump' ? 'Pump' : 'Fomo'; }
+    catch { return 'Fomo'; }
+}
+function rememberSuggestPlatform(platform) {
+    try { localStorage.setItem(SUGGEST_PLATFORM_KEY, platform); } catch { /* private mode */ }
+}
+
+function suggestRows() {
+    return [...document.querySelectorAll('#suggestRows .sg-row')];
+}
+
+function setRowMsg(row, text, kind) {
+    const el = row.querySelector('.sg-msg');
+    el.textContent = text || '';
+    el.className = 'sg-msg' + (kind ? ' ' + kind : '');
+}
+
+function refreshSuggestChrome() {
+    const rows = suggestRows();
+    rows.forEach(r => r.classList.toggle('is-only', rows.length === 1));
+    const add = document.getElementById('suggestAddRow');
+    add.disabled = rows.length >= SUGGEST_MAX_ROWS;
+    document.getElementById('suggestQuota').textContent =
+        rows.length >= SUGGEST_MAX_ROWS ? `${SUGGEST_MAX_ROWS} max` : 'all of these send as one request';
+}
+
+function addSuggestRow(platform) {
+    const row = document.createElement('div');
+    row.className = 'sg-row';
+    const plat = platform || lastSuggestPlatform();
+    row.innerHTML = `
+        <input type="text" class="search-input sg-handle" placeholder="trader handle...">
+        <div class="seg" data-plat="${plat}">
+            <span class="seg-thumb"></span>
+            <button type="button" class="seg-opt ${plat === 'Fomo' ? 'is-on' : ''}" data-opt="Fomo">FOMO</button>
+            <button type="button" class="seg-opt ${plat === 'Pump' ? 'is-on' : ''}" data-opt="Pump">Pump</button>
+        </div>
+        <button type="button" class="sg-del" aria-label="Remove this row">×</button>
+        <div class="sg-msg"></div>`;
+
+    const seg = row.querySelector('.seg');
+    seg.querySelectorAll('.seg-opt').forEach(opt => {
+        opt.addEventListener('click', () => {
+            seg.dataset.plat = opt.dataset.opt;
+            seg.querySelectorAll('.seg-opt').forEach(o => o.classList.toggle('is-on', o === opt));
+            rememberSuggestPlatform(opt.dataset.opt);
+            checkSuggestRow(row);
+        });
+    });
+
+    row.querySelector('.sg-del').addEventListener('click', () => {
+        if (suggestRows().length === 1) return;
+        row.remove();
+        refreshSuggestChrome();
+    });
+
+    const input = row.querySelector('.sg-handle');
+    input.addEventListener('input', () => checkSuggestRow(row));
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') { closeSuggestModal(); return; }
+        if (e.key !== 'Enter') return;
+        // Enter fills the next row rather than submitting — the whole point is entering several.
+        const rows = suggestRows();
+        const next = rows[rows.indexOf(row) + 1];
+        if (next) next.querySelector('.sg-handle').focus();
+        else if (rows.length < SUGGEST_MAX_ROWS) addSuggestRow()?.querySelector('.sg-handle').focus();
+        else submitSuggestion();
+    });
+
+    document.getElementById('suggestRows').appendChild(row);
+    refreshSuggestChrome();
+    return row;
+}
+
+// Checked against the trader list already loaded client-side — instant, no round trip.
+// The server re-checks every row at submit time regardless, in case this list is stale.
+function checkSuggestRow(row) {
+    const handle = row.querySelector('.sg-handle').value.trim().replace(/^@/, '').toLowerCase();
+    const platform = row.querySelector('.seg').dataset.plat;
+    if (!handle) { setRowMsg(row, '', ''); return; }
+
+    const existing = allTraders.find(t => t.handle.toLowerCase() === handle && t.platform === platform);
+    if (existing) {
+        setRowMsg(row, existing.isFollowing
+            ? 'Already tracked — you already follow them.'
+            : 'Already tracked — follow them from the list instead.', 'err');
+    } else {
+        setRowMsg(row, '', '');
+    }
+}
 
 function openSuggestModal() {
     document.getElementById('suggestModal').style.display = 'flex';
     // Reopening always lands back on the form, never on a previous send's confirmation.
     document.getElementById('suggestFormPane').style.display = '';
     document.getElementById('suggestDonePane').style.display = 'none';
-    document.getElementById('suggestHandleInput').value = '';
-    document.getElementById('suggestPlatformSelect').value = 'Fomo';
-    suggestPlatform = 'Fomo';
-    checkSuggestExisting();
-    document.getElementById('suggestHandleInput').focus();
+    document.getElementById('suggestRows').innerHTML = '';
+    document.getElementById('suggestSubmitBtn').disabled = false;
+    addSuggestRow().querySelector('.sg-handle').focus();
 }
 
 function closeSuggestModal() {
     document.getElementById('suggestModal').style.display = 'none';
 }
 
-document.getElementById('suggestPlatformSelect').addEventListener('change', (e) => {
-    suggestPlatform = e.target.value;
-    checkSuggestExisting();
-});
-
 document.getElementById('suggestTraderBtn').addEventListener('click', openSuggestModal);
 document.getElementById('suggestCancelBtn').addEventListener('click', closeSuggestModal);
+document.getElementById('suggestDoneBtn').addEventListener('click', closeSuggestModal);
+document.getElementById('suggestSubmitBtn').addEventListener('click', submitSuggestion);
+document.getElementById('suggestAddRow').addEventListener('click', () => {
+    addSuggestRow().querySelector('.sg-handle').focus();
+});
 document.getElementById('suggestModal').addEventListener('click', (e) => {
     if (e.target.id === 'suggestModal') closeSuggestModal();
 });
 
-document.getElementById('suggestHandleInput').addEventListener('input', checkSuggestExisting);
-document.getElementById('suggestHandleInput').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') submitSuggestion();
-    if (e.key === 'Escape') closeSuggestModal();
-});
-document.getElementById('suggestSubmitBtn').addEventListener('click', submitSuggestion);
-document.getElementById('suggestDoneBtn').addEventListener('click', closeSuggestModal);
-
-// Checks against the trader list already loaded client-side — instant, no round trip.
-// The server re-checks at submit time regardless, in case this list is stale.
-function checkSuggestExisting() {
-    const handle = document.getElementById('suggestHandleInput').value.trim().toLowerCase();
-    const warningEl = document.getElementById('suggestWarning');
-    const submitBtn = document.getElementById('suggestSubmitBtn');
-
-    const existing = handle
-        ? allTraders.find(t => t.handle.toLowerCase() === handle && t.platform === suggestPlatform)
-        : null;
-
-    if (existing) {
-        warningEl.textContent = existing.isFollowing
-            ? 'Already tracked — you\'re already following them.'
-            : 'Already tracked — you can follow them from the list instead of suggesting them.';
-        warningEl.style.display = 'block';
-        submitBtn.disabled = true;
-    } else {
-        warningEl.style.display = 'none';
-        submitBtn.disabled = false;
-    }
-}
-
 async function submitSuggestion() {
-    const handle = document.getElementById('suggestHandleInput').value.trim();
-    if (!handle) { showToast('Enter a handle first'); return; }
+    const rows = suggestRows();
+    const filled = rows
+        .map(row => ({ row, handle: row.querySelector('.sg-handle').value.trim(), platform: row.querySelector('.seg').dataset.plat }))
+        .filter(e => e.handle);
+
+    if (!filled.length) { showToast('Enter a handle first'); return; }
 
     const btn = document.getElementById('suggestSubmitBtn');
     btn.disabled = true;
 
     const res = await fetch(`${API}/api/manage/suggest-trader`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ handle, platform: suggestPlatform })
+        body: JSON.stringify({ items: filled.map(e => ({ handle: e.handle, platform: e.platform })) })
     }).catch(() => null);
 
-    if (!res) { showToast('Failed to send suggestion'); btn.disabled = false; return; }
+    if (!res) { showToast('Failed to send'); btn.disabled = false; return; }
+
+    const body = await res.json().catch(() => null);
 
     if (res.status === 429) {
-        const body = await res.json().catch(() => null);
-        showToast(body?.message || 'Rate limit reached — try again later', 4000);
+        showToast(body?.message || 'Daily limit reached — try again later', 4500);
         btn.disabled = false;
-        return;
-    }
-    if (res.status === 409) {
-        const body = await res.json().catch(() => null);
-        showToast(body?.message || 'This trader is already tracked', 4000);
-        checkSuggestExisting(); // re-evaluates disabled state against current known data
         return;
     }
     if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        showToast(body?.message || 'Failed to send suggestion');
+        showToast(body?.message || 'Failed to send');
         btn.disabled = false;
         return;
     }
 
-    // Swap to the confirmation in place rather than closing behind a toast — the auto-follow
-    // guarantee is the one thing the user needs to read, and a 3s toast is the wrong surface
-    // for it. textContent, not innerHTML: the handle is whatever they typed.
-    const link = document.getElementById('suggestDoneLink');
-    link.textContent = `@${handle.replace(/^@/, '')}`;
-    link.href = traderProfileUrl({ handle: handle.replace(/^@/, ''), platform: suggestPlatform });
+    // Annotate each row from the server's per-item verdict, then drop the ones that landed so
+    // only the rows still needing attention remain on screen.
+    (body?.results || []).forEach(r => {
+        const entry = filled[r.index];
+        if (entry) setRowMsg(entry.row, r.ok ? 'Sent' : (r.message || 'Rejected'), r.ok ? 'ok' : 'err');
+    });
+
+    const sent = (body?.results || []).filter(r => r.ok);
+    if (sent.length === filled.length) {
+        showSuggestDone(sent.map(r => ({ handle: r.handle, platform: filled[r.index].platform })));
+        return;
+    }
+
+    if (sent.length) {
+        sent.forEach(r => filled[r.index]?.row.remove());
+        if (!suggestRows().length) addSuggestRow();
+        refreshSuggestChrome();
+        showToast(`${sent.length} sent — fix the rest below`, 4000);
+    }
+    btn.disabled = false;
+}
+
+// Swap to the confirmation in place rather than closing behind a toast — the auto-follow
+// guarantee is the one thing the user needs to read, and a 3s toast is the wrong surface.
+function showSuggestDone(sent) {
+    document.getElementById('suggestDoneTitle').textContent =
+        sent.length === 1 ? 'Suggestion sent' : `${sent.length} suggestions sent`;
+
+    const list = document.getElementById('suggestDoneList');
+    list.innerHTML = '';
+    sent.forEach((s, i) => {
+        if (i) list.append(', ');
+        const a = document.createElement('a');
+        a.className = 'modal-link';
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = `@${s.handle.replace(/^@/, '')}`;     // textContent: whatever they typed
+        a.href = traderProfileUrl({ handle: s.handle.replace(/^@/, ''), platform: s.platform });
+        list.appendChild(a);
+    });
 
     document.getElementById('suggestFormPane').style.display = 'none';
     document.getElementById('suggestDonePane').style.display = '';
 }
+
 
 init();
 </script>

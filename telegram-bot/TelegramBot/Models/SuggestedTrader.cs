@@ -10,4 +10,8 @@ public class SuggestedTrader
     public string Handle { get; set; } = string.Empty;
     public Platform Platform { get; set; }
     public DateTime CreatedAt { get; set; }
+
+    // Groups the handles sent together in one submission; the daily rate limit counts
+    // distinct batches. Rows predating this column share Guid.Empty and so count as one.
+    public Guid BatchId { get; set; }
 }
