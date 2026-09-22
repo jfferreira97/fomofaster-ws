@@ -288,10 +288,24 @@
     }
     .trader-table thead th.num { text-align: center; }
     .trader-table thead th.chk { text-align: center; width: 56px; }
+
+    /* Sortable headers. The <button> carries the click target so the header stays
+       keyboard-reachable; the th keeps aria-sort for screen readers. */
+    .th-sort {
+        display: inline-flex; align-items: center; gap: 4px;
+        background: none; border: none; padding: 0; margin: 0;
+        font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit;
+        cursor: pointer;
+    }
+    .th-sort:hover { color: var(--text-dim); }
+    .trader-table thead th[aria-sort] .th-sort { color: var(--accent); }
+    .sort-ind { font-size: 8px; opacity: .45; }
+    .trader-table thead th[aria-sort] .sort-ind { opacity: 1; }
+    .trader-table thead th.num .th-sort, .trader-table thead th.chk .th-sort { justify-content: center; }
     .trader-table tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
     .trader-table tbody tr:hover { background: var(--surface-2); }
     .trader-table tbody tr:last-child { border-bottom: none; }
-    .trader-table td { padding: 9px 10px; vertical-align: middle; }
+    .trader-table td { padding: 6px 10px; vertical-align: middle; }
 
     .trader-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
     .platform-mark { font-size: 13px; flex-shrink: 0; }
@@ -318,7 +332,17 @@
         cursor: pointer; vertical-align: middle;
     }
 
-    .trader-scroll { max-height: 620px; overflow-y: auto; }
+    /* Grow with the window instead of a fixed cap: the subtraction is the chrome around
+       the list (topbar, panel head, toolbar, pagination, page padding). The max() keeps
+       it usable on a short window, where it just scrolls as before. */
+    .trader-scroll { max-height: max(420px, calc(100vh - 330px)); overflow-y: auto; }
+    .rows-per-page { display: inline-flex; align-items: center; gap: 6px; }
+    .rows-per-page select {
+        background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
+        border-radius: var(--radius); padding: 4px 6px; font-size: 12px;
+        font-family: 'IBM Plex Mono', monospace; cursor: pointer; outline: none;
+    }
+    .rows-per-page select:focus { border-color: var(--accent); }
 
     .pagination { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 12px; }
     .pagination button {
@@ -436,6 +460,11 @@
                             <button class="tab" data-platform="pump">Pump</button>
                         </div>
                         <input type="text" class="search-input" id="traderSearch" placeholder="search handle...">
+                        <select class="search-input select-input" id="followFilter" style="flex:0 0 auto; min-width:0; width:auto;">
+                            <option value="all">All traders</option>
+                            <option value="following">Following only</option>
+                            <option value="not">Not following</option>
+                        </select>
                         <div class="count-chip" id="traderCount"></div>
                         <div class="bulk-actions">
                             <button class="ghost-btn" id="followAllBtn" type="button">Follow all</button>
@@ -446,10 +475,10 @@
                     <div class="trader-scroll">
                         <table class="trader-table">
                             <thead>
-                                <tr>
-                                    <th>Trader</th>
-                                    <th class="num">Min $ to alert</th>
-                                    <th class="chk">Follow</th>
+                                <tr id="traderHead">
+                                    <th data-sort="handle"><button type="button" class="th-sort">Trader <span class="sort-ind"></span></button></th>
+                                    <th class="num" data-sort="min"><button type="button" class="th-sort">Min $ to alert <span class="sort-ind"></span></button></th>
+                                    <th class="chk" data-sort="follow"><button type="button" class="th-sort">Follow <span class="sort-ind"></span></button></th>
                                 </tr>
                             </thead>
                             <tbody id="traderList"></tbody>
@@ -500,7 +529,10 @@ let currentPlatform = 'all';
 let currentSettings = null;
 let currentChains = [];
 let currentPage = 1;
-const PAGE_SIZE = 50;
+let pageSize = 100;                 // rows per page; 'all' shows everything
+let followFilter = 'all';           // all | following | not
+let sortKey = 'follow';             // default view: the ones you follow, first
+let sortDir = 'desc';
 
 function showToast(msg, durationMs = 1800) {
     const t = document.getElementById('toast');
@@ -788,6 +820,54 @@ document.getElementById('traderSearch').addEventListener('input', () => {
     renderTraders();
 });
 
+document.getElementById('followFilter').addEventListener('change', e => {
+    followFilter = e.target.value;
+    currentPage = 1;
+    renderTraders();
+});
+
+// Clicking the active column flips direction; a new column starts on the direction that
+// is actually useful for it — following first, biggest floor first, handles A-Z.
+const SORT_DEFAULT_DIR = { handle: 'asc', min: 'desc', follow: 'desc' };
+document.querySelectorAll('#traderHead th[data-sort]').forEach(th => {
+    th.querySelector('.th-sort').addEventListener('click', () => {
+        const key = th.dataset.sort;
+        if (sortKey === key) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+        else { sortKey = key; sortDir = SORT_DEFAULT_DIR[key]; }
+        currentPage = 1;
+        renderTraders();
+    });
+});
+
+function sortTraders(rows) {
+    const dir = sortDir === 'asc' ? 1 : -1;
+    const byHandle = (a, b) => a.handle.localeCompare(b.handle, undefined, { sensitivity: 'base' });
+    return rows.sort((a, b) => {
+        let d = 0;
+        if (sortKey === 'handle') d = byHandle(a, b);
+        else if (sortKey === 'follow') d = (a.isFollowing ? 1 : 0) - (b.isFollowing ? 1 : 0);
+        else if (sortKey === 'min') {
+            // No floor means "alert on everything", not zero — park those at the end
+            // whichever way the column is pointing, so they never crowd out real values.
+            const av = a.minValueUsd, bv = b.minValueUsd;
+            if (av == null && bv == null) d = 0;
+            else if (av == null) return 1;
+            else if (bv == null) return -1;
+            else d = Number(av) - Number(bv);
+        }
+        return d !== 0 ? d * dir : byHandle(a, b);
+    });
+}
+
+function renderSortIndicators() {
+    document.querySelectorAll('#traderHead th[data-sort]').forEach(th => {
+        const active = th.dataset.sort === sortKey;
+        if (active) th.setAttribute('aria-sort', sortDir === 'asc' ? 'ascending' : 'descending');
+        else th.removeAttribute('aria-sort');
+        th.querySelector('.sort-ind').textContent = active ? (sortDir === 'asc' ? '▲' : '▼') : '▲▼';
+    });
+}
+
 async function loadTraders() {
     const res = await fetch(`${API}/api/manage/traders?platform=${currentPlatform}`).then(r => r.json()).catch(() => null);
     if (!res || res.status !== 'success') {
@@ -801,13 +881,20 @@ async function loadTraders() {
 function renderTraders() {
     const query = document.getElementById('traderSearch').value.trim().toLowerCase();
     const list = document.getElementById('traderList');
-    const filtered = allTraders.filter(t => !query || t.handle.toLowerCase().includes(query));
+    const filtered = sortTraders(allTraders.filter(t =>
+        (!query || t.handle.toLowerCase().includes(query)) &&
+        (followFilter === 'all'
+            || (followFilter === 'following' && t.isFollowing)
+            || (followFilter === 'not' && !t.isFollowing))
+    ));
     const followingCount = allTraders.filter(t => t.isFollowing).length;
 
+    renderSortIndicators();
     document.getElementById('traderCount').innerHTML =
         `<b>${followingCount}</b> following <span style="opacity:.5">/</span> <b>${allTraders.length}</b> available`;
 
-    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    const size = pageSize === 'all' ? Math.max(filtered.length, 1) : pageSize;
+    const totalPages = Math.max(1, Math.ceil(filtered.length / size));
     currentPage = Math.min(Math.max(currentPage, 1), totalPages);
 
     if (filtered.length === 0) {
@@ -816,8 +903,8 @@ function renderTraders() {
         return;
     }
 
-    const start = (currentPage - 1) * PAGE_SIZE;
-    const pageItems = filtered.slice(start, start + PAGE_SIZE);
+    const start = (currentPage - 1) * size;
+    const pageItems = filtered.slice(start, start + size);
 
     list.innerHTML = pageItems.map(t => `
         <tr data-id="${t.id}">
@@ -849,13 +936,24 @@ function renderPagination(totalCount, totalPages) {
     const el = document.getElementById('pagination');
     if (totalCount === 0) { el.innerHTML = ''; return; }
 
+    const opts = [50, 100, 250, 'all']
+        .map(v => `<option value="${v}" ${String(pageSize) === String(v) ? 'selected' : ''}>${v === 'all' ? 'All' : v}</option>`)
+        .join('');
+
     el.innerHTML = `
         <button id="pagePrev" ${currentPage <= 1 ? 'disabled' : ''}>‹ Prev</button>
         <span>Page ${currentPage} of ${totalPages} · ${totalCount} traders</span>
         <button id="pageNext" ${currentPage >= totalPages ? 'disabled' : ''}>Next ›</button>
+        <span class="rows-per-page">Rows <select id="pageSizeSelect">${opts}</select></span>
     `;
     document.getElementById('pagePrev')?.addEventListener('click', () => { currentPage--; renderTraders(); });
     document.getElementById('pageNext')?.addEventListener('click', () => { currentPage++; renderTraders(); });
+    document.getElementById('pageSizeSelect')?.addEventListener('change', e => {
+        const v = e.target.value;
+        pageSize = v === 'all' ? 'all' : parseInt(v, 10);
+        currentPage = 1;
+        renderTraders();
+    });
 }
 
 async function onToggleFollow(e) {
