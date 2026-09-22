@@ -11,6 +11,6 @@ public interface ITelegramService
     Task<bool> SendPlainMessageAsync(long chatId, string message);
 
     // Bot's @username (no leading @), needed client-side for the Telegram Login Widget's
-    // data-telegram-login attribute. Cached after the first lookup.
+    // "Open @bot" deep link on the manage page's sign-in screen. Cached after first lookup.
     Task<string?> GetBotUsernameAsync();
 }

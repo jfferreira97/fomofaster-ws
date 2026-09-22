@@ -77,7 +77,30 @@
     }
     #loginScreen h2, #subscribeScreen h2 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
     #loginScreen p, #subscribeScreen p { color: var(--text-dim); margin-bottom: 26px; font-size: 14px; max-width: 380px; margin-left: auto; margin-right: auto; }
-    #telegramLoginContainer { display: inline-block; }
+    #loginAction { display: inline-block; }
+
+    /* What the /manage exchange looks like, so people know what to tap. */
+    .tut { max-width: 420px; margin: 0 auto 24px; }
+    .tut img {
+        display: block; width: 100%; height: auto;
+        border: 1px solid var(--border); border-radius: 12px;
+    }
+    .tut figcaption {
+        display: flex; align-items: center; gap: 8px; margin-top: 11px;
+        font-size: 11.5px; color: var(--text-faint);
+    }
+    .tut figcaption::before, .tut figcaption::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+    .login-cmd {
+        font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--accent);
+        background: var(--surface-2); border: 1px solid var(--border);
+        border-radius: var(--radius); padding: 3px 8px;
+    }
+    .login-btn {
+        display: inline-block; background: var(--accent); color: #1a1305; text-decoration: none;
+        border-radius: var(--radius); padding: 11px 22px; font-size: 14px; font-weight: 700;
+        font-family: inherit;
+    }
+    .login-btn:hover { filter: brightness(1.08); }
 
     /* ---------- Console layout ---------- */
     .console { display: grid; grid-template-columns: 340px 1fr; gap: 18px; align-items: start; }
@@ -223,6 +246,13 @@
     .tip-icon.inline { position: static; }
     /* Opens upward, for a tip on the last row of a panel (.panel clips with overflow:hidden). */
     .tip.up { top: auto; bottom: calc(100% + 6px); }
+    /* Keep tips inside the panel, which clips: first chip opens rightward, last chip
+       leftward, and anything between is centred on itself (either edge would overhang). */
+    .chip-grid > .tip-wrap .tip { max-width: 230px; }
+    .chip-grid > .tip-wrap:last-child .tip { left: auto; right: 0; }
+    .chip-grid > .tip-wrap:not(:first-child):not(:last-child) .tip {
+        left: 50%; right: auto; transform: translateX(-50%);
+    }
     .tip {
         position: absolute; top: calc(100% + 6px); left: 0; z-index: 20;
         width: max-content; max-width: 240px;
@@ -379,6 +409,23 @@
     .pagination span { font-size: 12px; color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; }
 
     .empty-state { text-align: center; color: var(--text-dim); padding: 40px 20px; font-size: 13.5px; }
+    .empty-state .empty-title { color: var(--text); font-size: 14.5px; font-weight: 700; margin-bottom: 6px; }
+    .empty-state .empty-title q { color: var(--accent); font-style: normal; quotes: '“' '”'; }
+    .empty-state .empty-sub { font-size: 12.5px; color: var(--text-faint); margin-bottom: 15px; line-height: 1.5; }
+    .empty-state .ghost-btn { font-size: 13px; padding: 9px 16px; }
+
+    /* Fired at the "Suggest a trader" button when a search comes back empty, so the way
+       out is where the eye already is. Throttled in renderTraders so typing can't strobe it. */
+    @keyframes nudge {
+        0%   { transform: scale(1);     box-shadow: 0 0 0 0 rgba(232,172,63,.5); }
+        45%  { transform: scale(1.06);  box-shadow: 0 0 0 8px rgba(232,172,63,0); }
+        70%  { transform: scale(.99); }
+        100% { transform: scale(1);     box-shadow: 0 0 0 0 rgba(232,172,63,0); }
+    }
+    .ghost-btn.nudge { animation: nudge .6s cubic-bezier(.22,.9,.3,1); background: rgba(232,172,63,0.12); }
+    @media (prefers-reduced-motion: reduce) {
+        .ghost-btn.nudge { animation: none; }
+    }
 
     .toast {
         position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
@@ -393,9 +440,13 @@
 <div id="loginScreen" style="display:none;">
     <img class="gate-logo" src="/groupchat-logo.png" alt="GROUPCHAT">
     <div class="login-eyebrow">GROUPCHAT · ALERT CONSOLE</div>
-    <h2>Manage Your Alerts</h2>
-    <p>Log in with Telegram to configure who you follow and what's worth an alert.</p>
-    <div id="telegramLoginContainer"></div>
+    <h2 id="loginTitle">Manage Your Alerts</h2>
+    <p id="loginBlurb">Send <b>/manage</b> to the bot and tap the link it replies with.</p>
+    <figure class="tut">
+        <img src="/img/manage-tutorial.png" alt="Sending /manage to the bot, which replies with an Open Manage Page button">
+        <figcaption>After entering through Telegram, you'll have full access to your managing dashboard.</figcaption>
+    </figure>
+    <div id="loginAction"></div>
 </div>
 
 <div id="subscribeScreen" style="display:none;">
@@ -607,32 +658,20 @@ async function showLogin() {
     document.getElementById('subscribeScreen').style.display = 'none';
     document.getElementById('appScreen').style.display = 'none';
 
+    if (new URLSearchParams(location.search).has('expired')) {
+        document.getElementById('loginTitle').textContent = 'That link has expired';
+        document.getElementById('loginBlurb').innerHTML = 'Send <b>/manage</b> to the bot for a fresh one.';
+    }
+
+    const action = document.getElementById('loginAction');
     const res = await fetch(`${API}/api/auth/bot-username`).then(r => r.json()).catch(() => null);
     if (!res || res.status !== 'success') {
-        document.getElementById('telegramLoginContainer').textContent = 'Login unavailable right now.';
+        action.innerHTML = 'Send <span class="login-cmd">/manage</span> to the bot on Telegram to get your link.';
         return;
     }
 
-    window.onTelegramAuth = async (user) => {
-        const loginRes = await fetch(`${API}/api/auth/telegram-login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(user)
-        });
-        if (!loginRes.ok) {
-            showToast('Login failed, try again');
-            return;
-        }
-        init();
-    };
-
-    const script = document.createElement('script');
-    script.src = 'https://telegram.org/js/telegram-widget.js?22';
-    script.setAttribute('data-telegram-login', res.username);
-    script.setAttribute('data-size', 'large');
-    script.setAttribute('data-onauth', 'onTelegramAuth(user)');
-    script.setAttribute('data-request-access', 'write');
-    document.getElementById('telegramLoginContainer').appendChild(script);
+    action.innerHTML =
+        `<a class="login-btn" href="https://t.me/${encodeURIComponent(res.username)}" target="_blank" rel="noopener noreferrer">Open @${escapeHtml(res.username)}</a>`;
 }
 
 function showApp(me) {
@@ -679,15 +718,15 @@ function renderSettings() {
             <div class="plat-head"><img src="/logos/fomo.png" alt="" width="20" height="20">FOMO</div>
             <div class="chip-grid even-3">
                 ${toggle('autoFollowFomoTraders', 'Auto&#8209;follow new traders', autoFollowTip('FOMO'))}
-                ${toggle('notifyFomoBuySell', 'Transactions')}
-                ${toggle('notifyFomoThesis', 'Thesis')}
+                ${toggle('notifyFomoBuySell', 'Transactions', 'Get notified for buys/sells/transfers of FOMO traders you personally follow.')}
+                ${toggle('notifyFomoThesis', 'Thesis', 'Get notified for thesis of FOMO traders you personally follow.')}
             </div>
         </section>
         <section class="plat">
             <div class="plat-head"><img src="/logos/pump.png" alt="" width="20" height="20">Pump.fun</div>
             <div class="chip-grid cols-2">
                 ${toggle('autoFollowPumpTraders', 'Auto&#8209;follow new traders', autoFollowTip('Pump.fun'))}
-                ${toggle('notifyPumpCallouts', 'Callouts')}
+                ${toggle('notifyPumpCallouts', 'Callouts', 'Get notified for callouts of PUMP traders you personally follow.')}
             </div>
         </section>`;
 
@@ -910,6 +949,21 @@ async function loadTraders() {
     renderTraders();
 }
 
+// Every keystroke that finds nothing would otherwise restart the animation, which reads as
+// a stutter rather than a hint. One play, then quiet for a bit however long they keep typing.
+let lastNudgeAt = 0;
+const NUDGE_COOLDOWN_MS = 2500;
+
+function nudgeSuggest() {
+    const btn = document.getElementById('suggestTraderBtn');
+    if (!btn || Date.now() - lastNudgeAt < NUDGE_COOLDOWN_MS) return;
+    lastNudgeAt = Date.now();
+    btn.classList.remove('nudge');
+    void btn.offsetWidth;                       // restart the animation rather than ignore it
+    btn.classList.add('nudge');
+    btn.addEventListener('animationend', () => btn.classList.remove('nudge'), { once: true });
+}
+
 function renderTraders() {
     const query = document.getElementById('traderSearch').value.trim().toLowerCase();
     const list = document.getElementById('traderList');
@@ -930,7 +984,33 @@ function renderTraders() {
     currentPage = Math.min(Math.max(currentPage, 1), totalPages);
 
     if (filtered.length === 0) {
-        list.innerHTML = '<tr><td colspan="3"><div class="empty-state">No traders match.</div></td></tr>';
+        // A search can come back empty two very different ways: the handle isn't on file at
+        // all, or it is and the follow filter hid it. Only the first is worth suggesting —
+        // offering to "suggest" a trader who already exists would just be wrong.
+        const existsButFiltered = query && allTraders.some(t => t.handle.toLowerCase().includes(query));
+        list.innerHTML =
+            existsButFiltered
+                ? `<tr><td colspan="3"><div class="empty-state">
+                       <div class="empty-title">Hidden by your filter</div>
+                       <div class="empty-sub"><q>${escapeHtml(query)}</q> is on the list — just not in <b>${followFilter === 'following' ? 'Following only' : 'Not following'}</b>.</div>
+                       <button class="ghost-btn" type="button" data-clearfilter>Show all traders</button>
+                   </div></td></tr>`
+            : query
+                ? `<tr><td colspan="3"><div class="empty-state">
+                       <div class="empty-title">Nobody here called <q>${escapeHtml(query)}</q></div>
+                       <div class="empty-sub">Suggest this trader and it will be added to our tracking list ASAP, you will be following them automatically as soon as they land.</div>
+                       <button class="ghost-btn" type="button" data-suggest>＋ Suggest a trader</button>
+                   </div></td></tr>`
+                : '<tr><td colspan="3"><div class="empty-state">No traders match this filter.</div></td></tr>';
+
+        list.querySelector('[data-suggest]')?.addEventListener('click', openSuggestModal);
+        list.querySelector('[data-clearfilter]')?.addEventListener('click', () => {
+            followFilter = 'all';
+            document.getElementById('followFilter').value = 'all';
+            currentPage = 1;
+            renderTraders();
+        });
+        if (query && !existsButFiltered) nudgeSuggest();
         renderPagination(0, 1);
         return;
     }

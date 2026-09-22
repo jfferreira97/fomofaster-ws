@@ -383,6 +383,15 @@ public class TelegramBotPollingService : BackgroundService
         siblings.Count > 1 ? $"{t.Handle} ({t.Platform.ToString().ToUpperInvariant()})" : t.Handle;
 
     private static string OnOff(bool on) => on ? "✅" : "❌";
+    // The ?t= token is redeemed for a session cookie by GET /manage.
+    private async Task<InlineKeyboardMarkup> BuildManageButtonAsync(long chatId)
+    {
+        var sessions = _serviceProvider.GetRequiredService<WebSessionService>();
+        var token = await sessions.CreateLoginLinkTokenAsync(chatId);
+        return new InlineKeyboardMarkup(
+            InlineKeyboardButton.WithUrl("Open Manage Page", $"https://groupchat-bot.tech/manage?t={Uri.EscapeDataString(token)}"));
+    }
+
     private static string BuildSettingsText(Models.User user) => "⚙️ *Notification Settings* — tap a button below to toggle.";
 
     // Grouped by platform, mirroring the manage page: a FOMO header over its three
@@ -678,8 +687,8 @@ You'll only receive notifications from traders you follow!",
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
                     text: "Manage your followed traders and per-trader alert thresholds here:",
-                    replyMarkup: new InlineKeyboardMarkup(
-                        InlineKeyboardButton.WithUrl("Open Manage Page", "https://groupchat-bot.tech/manage"))
+                    replyMarkup: await BuildManageButtonAsync(chatId),
+                    disableWebPagePreview: true
                 );
                 break;
 
@@ -690,8 +699,8 @@ You'll only receive notifications from traders you follow!",
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
                     text: "The full trader list now lives on the manage page — search, filter by platform, and follow/unfollow from there.",
-                    replyMarkup: new InlineKeyboardMarkup(
-                        InlineKeyboardButton.WithUrl("Open Manage Page", "https://groupchat-bot.tech/manage"))
+                    replyMarkup: await BuildManageButtonAsync(chatId),
+                    disableWebPagePreview: true
                 );
                 break;
 
@@ -702,8 +711,8 @@ You'll only receive notifications from traders you follow!",
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
                     text: "Your followed traders are on the manage page now — same table as everyone else, just check who's followed.",
-                    replyMarkup: new InlineKeyboardMarkup(
-                        InlineKeyboardButton.WithUrl("Open Manage Page", "https://groupchat-bot.tech/manage"))
+                    replyMarkup: await BuildManageButtonAsync(chatId),
+                    disableWebPagePreview: true
                 );
                 break;
 

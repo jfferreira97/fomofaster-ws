@@ -139,9 +139,38 @@ app.MapGet("/dashboard", async context =>
     await context.Response.WriteAsync(html);
 });
 
-// Self-service alert manager (Telegram Login Widget auth)
-app.MapGet("/manage", async context =>
+// Self-service alert manager. ?t=<token> from the bot's /manage command is redeemed here
+// for the session cookie, then redirected to the bare /manage to drop it from the URL.
+// Not one-shot: Telegram prefetches links for previews and would burn a single-use token.
+app.MapGet("/manage", async (HttpContext context, WebSessionService sessionService) =>
 {
+    var linkToken = context.Request.Query["t"].ToString();
+    if (!string.IsNullOrEmpty(linkToken))
+    {
+        var chatId = await sessionService.ValidateLoginLinkTokenAsync(linkToken);
+        if (chatId != null)
+        {
+            var sessionToken = await sessionService.CreateTokenAsync(chatId.Value);
+            context.Response.Cookies.Append(WebSessionService.CookieName, sessionToken, new CookieOptions
+            {
+                HttpOnly = true,
+                // Caddy terminates TLS, so Request.IsHttps is false for every real request.
+                Secure = true,
+                SameSite = SameSiteMode.Lax,
+                Expires = DateTimeOffset.UtcNow.AddDays(30),
+                Path = "/"
+            });
+            context.Response.Redirect("/manage");
+            return;
+        }
+
+        context.Response.Redirect("/manage?expired=1");
+        return;
+    }
+
+    if (context.Request.Cookies.ContainsKey(WebSessionService.LegacyCookieName))
+        context.Response.Cookies.Delete(WebSessionService.LegacyCookieName, new CookieOptions { Path = "/" });
+
     context.Response.ContentType = "text/html";
     var html = await System.IO.File.ReadAllTextAsync("wwwroot/manage.html");
     await context.Response.WriteAsync(html);
