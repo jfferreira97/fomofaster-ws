@@ -66,7 +66,7 @@
     }
     .logout-btn:hover { border-color: var(--text-dim); color: var(--text); }
 
-    .wrap { max-width: 1180px; margin: 0 auto; padding: 22px 24px 64px; }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 18px 24px 64px; }
 
     /* ---------- Login / subscribe gate ---------- */
     #loginScreen, #subscribeScreen { text-align: center; padding: 110px 16px 60px; }
@@ -82,7 +82,31 @@
     /* ---------- Console layout ---------- */
     .console { display: grid; grid-template-columns: 340px 1fr; gap: 18px; align-items: start; }
     @media (max-width: 900px) { .console { grid-template-columns: 1fr; } }
-    .rail { display: flex; flex-direction: column; gap: 18px; }
+
+    /* Desktop: the console owns exactly one viewport, and each column scrolls inside
+       itself. Without this the taller column (usually the chain list) pushes the page
+       past the fold, so finishing a scroll through the trader table dumps you into a
+       second, page-level scroll. Below 900px the columns stack and the page scrolls
+       normally, which is the right behaviour on a phone. */
+    @media (min-width: 901px) {
+        /* Hidden state comes from the inline style="display:none" in the markup, which
+           still wins over this until showApp() clears it. */
+        #appScreen { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        .wrap { flex: 1; min-height: 0; display: flex; padding-bottom: 14px; }
+        /* minmax(0, 1fr) is load-bearing: a default auto row sizes to the TALLEST column,
+           so the rail grew past the viewport and got clipped by the overflow:hidden above
+           instead of scrolling. Capping the row makes each column scroll on its own. */
+        .console { flex: 1; min-height: 0; align-items: stretch; grid-template-rows: minmax(0, 1fr); }
+        .rail { overflow-y: auto; min-height: 0; padding-right: 6px; }
+        /* Without this the rail's flex children shrink to fit the column and .panel's
+           overflow:hidden crops them — the chain list silently loses its last rows
+           instead of the rail scrolling. */
+        .rail > .panel { flex-shrink: 0; }
+        .console > .panel { display: flex; flex-direction: column; min-height: 0; }
+        .console > .panel > .panel-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        .trader-scroll { flex: 1; min-height: 0; max-height: none; }
+    }
+    .rail { display: flex; flex-direction: column; gap: 14px; }
 
     .panel {
         background: var(--surface);
@@ -91,7 +115,7 @@
         overflow: hidden;
     }
     .panel-head {
-        padding: 14px 16px 12px;
+        padding: 11px 14px 10px;
         border-bottom: 1px solid var(--border);
     }
     .panel-title {
@@ -99,7 +123,7 @@
         display: flex; align-items: center; gap: 7px;
     }
     .panel-desc { color: var(--text-dim); font-size: 12.5px; margin-top: 5px; line-height: 1.5; }
-    .panel-body { padding: 14px 16px 16px; }
+    .panel-body { padding: 11px 14px 13px; }
     .panel-head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
     .panel-head-row .ghost-btn { flex-shrink: 0; }
 
@@ -142,17 +166,18 @@
     .modal-link:hover { color: var(--accent); border-bottom-color: var(--accent); }
 
     /* ---------- Toggle chips (Settings / Chains) ---------- */
-    .chip-grid { display: grid; gap: 6px; }
+    .chip-grid { display: grid; gap: 4px; }
     .chip-grid.cols-2 { grid-template-columns: 1fr 1fr; }
     .chip-grid.cols-3 { grid-template-columns: 1.25fr 1fr 0.8fr; }
-    .chip-head {
-        margin-bottom: 6px;
-    }
+    .chip-head { margin-bottom: 5px; }
     .chip-head span {
         font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em;
         color: var(--text-faint); font-weight: 700; padding-left: 2px;
     }
-    .chip-head span:not(:first-child) { text-align: center; }
+    .chip-head span:not(:first-child) { text-align: center; justify-self: center; }
+    /* These sit near the panel's right edge, so anchor their tips to the right or the
+       panel's overflow:hidden clips them. */
+    .chip-head span:not(:first-child) .tip { left: auto; right: 0; max-width: 210px; }
     .chip-grid + .chip-grid { margin-top: 6px; }
 
     .chip {
@@ -160,7 +185,7 @@
         color: var(--text);
         border: 1px solid transparent;
         border-radius: var(--radius);
-        padding: 10px 9px;
+        padding: 6px 9px;
         font-size: 12px;
         font-weight: 500;
         font-family: inherit;
@@ -427,17 +452,21 @@
                 <div class="panel">
                     <div class="panel-head">
                         <div class="panel-title">⛓ Chain Settings</div>
-                        <div class="panel-desc">
-                            <b>Chain:</b> tap to enable/disable it entirely.<br>
-                            <b>Min Market Cap:</b> tap to edit its minimum floor — blank means no minimum.<br>
-                            <b>Trending:</b> tap to mute just Trending alerts for that chain.
-                        </div>
                     </div>
                     <div class="panel-body">
                         <div class="chip-grid cols-3 chip-head">
-                            <span>Chain</span>
-                            <span>Min Market Cap</span>
-                            <span>Trending</span>
+                            <span class="tip-anchor">Chain
+                                <i class="tip-icon inline" tabindex="0" role="button" aria-label="What does the chain button do?" aria-describedby="tip-chain">i</i>
+                                <span class="tip" role="tooltip" id="tip-chain">Tap to turn that chain on or off entirely. Off means no alerts from it at all.</span>
+                            </span>
+                            <span class="tip-anchor">Min MCap
+                                <i class="tip-icon inline" tabindex="0" role="button" aria-label="What is the minimum market cap?" aria-describedby="tip-mcap">i</i>
+                                <span class="tip" role="tooltip" id="tip-mcap">Tap to set a market-cap floor for that chain — you'll only be alerted on tokens at or above it. Blank means no minimum.</span>
+                            </span>
+                            <span class="tip-anchor">Trending
+                                <i class="tip-icon inline" tabindex="0" role="button" aria-label="What does the trending toggle do?" aria-describedby="tip-trend">i</i>
+                                <span class="tip" role="tooltip" id="tip-trend">Tap to mute just 🔥 Trending alerts for that chain. Its normal alerts keep coming.</span>
+                            </span>
                         </div>
                         <div id="chainGrid"></div>
                     </div>
@@ -609,7 +638,10 @@ async function showLogin() {
 function showApp(me) {
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('subscribeScreen').style.display = 'none';
-    document.getElementById('appScreen').style.display = 'block';
+    // Clear the inline value rather than setting 'block' — an inline display beats the
+    // stylesheet, and the desktop layout needs #appScreen to be the flex column that
+    // pins the console to one viewport.
+    document.getElementById('appScreen').style.display = '';
 
     document.getElementById('whoami').innerHTML =
         `<b>${me.user.username ? '@' + escapeHtml(me.user.username) : escapeHtml(me.user.firstName || String(me.user.chatId))}</b>`;
