@@ -545,6 +545,34 @@
             word-break: break-all;
             margin: 0;
         }
+
+        /* Categories board */
+        .cb-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px 20px; background: #17212b; border-bottom: 1px solid #0e1621; }
+        .cb-toolbar select, .cb-toolbar input[type=text] { padding: 6px 10px; background: #0e1621; border: 1px solid #2b5278; border-radius: 6px; color: #e8e9ea; font-size: 13px; }
+        .cb-toolbar label { font-size: 13px; color: #8a96a0; display: flex; gap: 6px; align-items: center; cursor: pointer; }
+        .cb-status { font-size: 12.5px; color: #8a96a0; margin-left: auto; text-align: right; line-height: 1.4; }
+        .cb-status b { color: #e8e9ea; font-weight: 500; }
+        .cb-board { flex: 1; display: flex; gap: 12px; padding: 16px 20px; overflow-x: auto; overflow-y: hidden; }
+        .cb-col { flex: 0 0 250px; display: flex; flex-direction: column; background: #17212b; border: 1px solid #1f2d3a; border-radius: 10px; min-height: 0; }
+        .cb-col.drop { border-color: #5288c1; background: #1a2a3a; }
+        .cb-col-head { padding: 10px 12px; border-bottom: 1px solid #1f2d3a; }
+        .cb-col-title { font-size: 14px; font-weight: 600; display: flex; justify-content: space-between; gap: 8px; }
+        .cb-col-title span { color: #8a96a0; font-weight: 400; font-size: 12.5px; }
+        .cb-col-desc { font-size: 11.5px; color: #6c7883; margin-top: 4px; line-height: 1.35; }
+        .cb-col-body { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+        .cb-card { background: #182533; border: 1px solid #22303e; border-radius: 8px; padding: 7px 9px; cursor: grab; font-size: 13px; }
+        .cb-card:hover { border-color: #2b5278; }
+        .cb-card.dragging { opacity: .4; }
+        .cb-card.manual { border-left: 3px solid #e8ac3f; }
+        .cb-card-top { display: flex; align-items: center; gap: 7px; }
+        .cb-av { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; background: #0e1621; flex-shrink: 0; font-size: 11px; display: flex; align-items: center; justify-content: center; color: #8a96a0; }
+        .cb-handle { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e8e9ea; text-decoration: none; }
+        .cb-handle:hover { color: #5ca8e2; }
+        .cb-meta { font-size: 11px; color: #6c7883; margin-top: 3px; display: flex; gap: 8px; flex-wrap: wrap; }
+        .cb-meta .pos { color: #4fae4e; } .cb-meta .neg { color: #e06c6c; }
+        .cb-tag { font-size: 10.5px; padding: 0 5px; border-radius: 4px; border: 1px solid #e8ac3f; color: #e8ac3f; white-space: nowrap; }
+        .cb-card select { margin-top: 5px; width: 100%; padding: 3px 6px; background: #0e1621; border: 1px solid #2b5278; border-radius: 5px; color: #e8e9ea; font-size: 12px; }
+        .cb-empty { font-size: 12px; color: #6c7883; text-align: center; padding: 12px 0; }
     </style>
 </head>
 <body>
@@ -564,6 +592,7 @@
         <div class="tabs">
             <div class="tab active" onclick="switchTab('notifications')">Notifications</div>
             <div class="tab" onclick="switchTab('users')">Users</div>
+            <div class="tab" onclick="switchTab('categories')">Categories</div>
             <div class="tab" onclick="switchTab('payments')">Payments</div>
             <div class="tab" onclick="switchTab('config')">Config</div>
             <div class="tab" onclick="switchTab('settings')">Settings</div>
@@ -623,6 +652,23 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        <!-- Categories Tab: every trader by category; drag a card (or use its menu) to move it by hand -->
+        <div id="categories-tab" class="tab-content">
+            <div class="cb-toolbar">
+                <select id="cbPlatform" onchange="renderCategoryBoard()">
+                    <option value="">All platforms</option>
+                    <option value="Fomo">FOMO</option>
+                    <option value="Pump">Pump</option>
+                </select>
+                <input type="text" id="cbSearch" placeholder="search handle..." oninput="renderCategoryBoard()">
+                <label><input type="checkbox" id="cbManualOnly" onchange="renderCategoryBoard()"> Moved by hand only</label>
+                <button class="btn btn-secondary" style="padding:6px 12px;font-size:13px;" onclick="loadCategoryBoard()">Refresh</button>
+                <button class="btn btn-primary" style="padding:6px 12px;font-size:13px;" id="cbRunBtn" onclick="runCategorizer()">Re-rate now</button>
+                <div class="cb-status" id="cbStatus"></div>
+            </div>
+            <div class="cb-board" id="cbBoard"><div class="loading">Loading...</div></div>
         </div>
 
         <!-- Payments Tab -->
@@ -1011,6 +1057,8 @@
                 loadPayments();
             } else if (tabName === 'config') {
                 loadConfig();
+            } else if (tabName === 'categories') {
+                loadCategoryBoard();
             }
         }
 
@@ -1524,6 +1572,134 @@
             await loadInitialNotifications();
             await startSignalR();
         })();
+        // ---------- Categories board ----------
+        let cbData = null, cbPoll = null;
+
+        async function loadCategoryBoard() {
+            try {
+                const res = await fetch('/api/dashboard/categories');
+                cbData = await res.json();
+                renderCategoryBoard();
+                renderCategorizerStatus();
+            } catch (e) {
+                document.getElementById('cbBoard').innerHTML = '<div class="loading">Failed to load categories</div>';
+            }
+        }
+
+        function cbEsc(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+        function cbPct(v) { return v == null ? '–' : (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%'; }
+        function cbUsd(v) { return v == null ? '–' : v >= 1e6 ? '$' + (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? '$' + Math.round(v / 1e3) + 'K' : '$' + Math.round(v); }
+        function cbLabel(id) { const c = cbData.categories.find(x => x.id === id); return c ? c.emoji + ' ' + c.label : id; }
+
+        function renderCategoryBoard() {
+            if (!cbData) return;
+            const platform = document.getElementById('cbPlatform').value;
+            const q = document.getElementById('cbSearch').value.trim().toLowerCase();
+            const manualOnly = document.getElementById('cbManualOnly').checked;
+            const shown = cbData.traders.filter(t => (!platform || t.platform === platform) && (!q || t.handle.toLowerCase().includes(q)) && (!manualOnly || t.isManual));
+            const board = document.getElementById('cbBoard');
+            board.innerHTML = cbData.categories.map(c => {
+                // best first: the composite score the categorizer ranks by; unrated ones by handle
+                const members = shown.filter(t => t.category === c.id).sort((a, b) => (b.score ?? -99) - (a.score ?? -99) || a.handle.localeCompare(b.handle));
+                return `<div class="cb-col" data-cat="${c.id}">
+                    <div class="cb-col-head">
+                        <div class="cb-col-title">${c.emoji} ${cbEsc(c.label)} <span>${members.length} traders · ${c.followers} following</span></div>
+                        <div class="cb-col-desc">${cbEsc(c.description)}</div>
+                    </div>
+                    <div class="cb-col-body">${members.length ? members.map(cbCard).join('') : '<div class="cb-empty">Drop traders here</div>'}</div>
+                </div>`;
+            }).join('');
+
+            board.querySelectorAll('.cb-card').forEach(card => {
+                card.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', card.dataset.id); card.classList.add('dragging'); });
+                card.addEventListener('dragend', () => card.classList.remove('dragging'));
+                card.querySelector('select').addEventListener('change', e => moveTrader(+card.dataset.id, e.target.value));
+            });
+            board.querySelectorAll('.cb-col').forEach(col => {
+                col.addEventListener('dragover', e => { e.preventDefault(); col.classList.add('drop'); });
+                col.addEventListener('dragleave', e => { if (!col.contains(e.relatedTarget)) col.classList.remove('drop'); });
+                col.addEventListener('drop', e => {
+                    e.preventDefault(); col.classList.remove('drop');
+                    const id = +e.dataTransfer.getData('text/plain');
+                    const t = cbData.traders.find(x => x.id === id);
+                    if (t && t.category !== col.dataset.cat) moveTrader(id, col.dataset.cat);
+                });
+            });
+        }
+
+        function cbCard(t) {
+            const initial = cbEsc((t.handle[0] || '?').toUpperCase());
+            const av = t.avatar ? `<img class="cb-av" src="${cbEsc(t.avatar)}" referrerpolicy="no-referrer" alt="" onerror="this.outerHTML='<span class=&quot;cb-av&quot;>${initial}</span>'">` : `<span class="cb-av">${initial}</span>`;
+            const url = t.platform === 'Pump' ? 'https://pump.fun/profile/' + encodeURIComponent(t.handle) : 'https://fomo.family/profile/' + encodeURIComponent(t.handle);
+            const basis = { thesis: 'theses', buy: 'first buys', callout: 'callouts' }[t.basis] || 'calls';
+            const tip = [
+                t.summary,
+                t.reasons && t.reasons.length ? 'Why −EV: ' + t.reasons.join('; ') : null,
+                t.simulated ? `${t.simulated} of ${t.calls} ${basis} replayed · ${t.alertsPerDay} alerts/day · ${t.followers} direct followers` : `No rated ${basis} in the last 30 days · ${t.followers} direct followers`,
+                t.isManual ? `Moved by hand. The job says: ${cbLabel(t.autoCategory || 'unrated')}` : null,
+            ].filter(Boolean).join('\n');
+            const opts = cbData.categories.map(c => `<option value="${c.id}" ${c.id === t.category ? 'selected' : ''}>${c.emoji} ${cbEsc(c.label)}</option>`).join('')
+                + (t.isManual ? `<option value="auto">↺ Back to automatic (${cbEsc(cbLabel(t.autoCategory || 'unrated'))})</option>` : '');
+            return `<div class="cb-card ${t.isManual ? 'manual' : ''}" draggable="true" data-id="${t.id}" title="${cbEsc(tip)}">
+                <div class="cb-card-top">${av}<span>${t.platform === 'Pump' ? '💊' : '👀'}</span>
+                    <a class="cb-handle" href="${url}" target="_blank" rel="noopener noreferrer" draggable="false">${cbEsc(t.handle)}</a>
+                    ${t.isManual ? '<span class="cb-tag">manual</span>' : ''}</div>
+                <div class="cb-meta">
+                    <span title="0-100 score: rank among rated traders">${t.scoreRank != null ? 'score ' + t.scoreRank : 'unrated'}</span>
+                    <span class="${t.avgPerCall > 0 ? 'pos' : t.avgPerCall < 0 ? 'neg' : ''}" title="Average follower result per alert, after costs">${cbPct(t.avgPerCall)}</span>
+                    <span title="Share of calls that hit 2x within 24h">2x ${t.hit2xIn24h != null ? Math.round(t.hit2xIn24h * 100) + '%' : '–'}</span>
+                    <span title="Typical market cap at the call">${cbUsd(t.medianMcap)}</span>
+                </div>
+                <select aria-label="Move ${cbEsc(t.handle)}">${opts}</select>
+            </div>`;
+        }
+
+        async function moveTrader(id, category) {
+            const t = cbData.traders.find(x => x.id === id);
+            try {
+                const res = await fetch(`/api/dashboard/traders/${id}/category`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ category })
+                });
+                const body = await res.json();
+                if (!res.ok) throw new Error(body.message || 'Failed');
+                t.category = body.category;
+                t.isManual = body.isManual;
+                renderCategoryBoard();
+            } catch (e) {
+                alert('Could not move ' + (t ? t.handle : 'trader') + ': ' + e.message);
+                renderCategoryBoard();
+            }
+        }
+
+        function renderCategorizerStatus() {
+            const st = cbData.categorizer;
+            const when = v => v ? new Date(v).toLocaleString() : 'never';
+            const manual = cbData.traders.filter(t => t.isManual).length;
+            document.getElementById('cbStatus').innerHTML = st.running
+                ? `<b>Re-rating: ${cbEsc(st.phase)}${st.total ? ` ${st.done.toLocaleString()} / ${st.total.toLocaleString()}` : ''}</b>`
+                : `Last run <b>${when(st.lastRunAt)}</b>${st.nextRunAt ? ` · next ${when(st.nextRunAt)}` : ' · schedule off'} · ${manual} moved by hand${st.lastResult ? '<br>' + cbEsc(st.lastResult) : ''}`;
+            document.getElementById('cbRunBtn').disabled = st.running;
+            clearInterval(cbPoll);
+            if (st.running) cbPoll = setInterval(async () => {
+                if (!document.getElementById('categories-tab').classList.contains('active')) return;
+                const res = await fetch('/api/dashboard/categories').then(r => r.json()).catch(() => null);
+                if (!res) return;
+                const wasRunning = cbData.categorizer.running;
+                cbData.categorizer = res.categorizer;
+                if (wasRunning && !res.categorizer.running) { cbData = res; renderCategoryBoard(); }
+                renderCategorizerStatus();
+            }, 5000);
+        }
+
+        async function runCategorizer() {
+            if (!confirm('Re-rate every trader now? It replays any new posts (candles from pump.fun) and re-categorizes everyone not moved by hand. The first run after deploy takes a while.')) return;
+            const res = await fetch('/api/dashboard/categorizer/run', { method: 'POST' }).then(r => r.json()).catch(() => null);
+            if (!res) { alert('Failed to start'); return; }
+            if (!res.started) alert('A run is already in progress.');
+            // the trigger is picked up within a moment; show it as running right away
+            cbData.categorizer = { ...res.categorizer, running: true, phase: 'starting' };
+            renderCategorizerStatus();
+        }
     </script>
 </body>
 </html>
