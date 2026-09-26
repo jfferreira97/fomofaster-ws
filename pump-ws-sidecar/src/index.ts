@@ -2,6 +2,7 @@ import { chromium } from 'playwright';
 import { postPumpEvent, postStructuredPump, heartbeat } from './client';
 import { transformItem, type PumpFeedItem } from './transform';
 import { runVerifiedSync } from './verifiedSync';
+import { logTiming } from './timingLog';
 
 const ts = () => { const d = new Date(); return `[${new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().replace('T', ' ').slice(0, 19)}]`; };
 
@@ -100,6 +101,7 @@ async function session(firstRun: boolean): Promise<void> {
       try {
         await page.goto(PUMP_URL, { waitUntil: 'domcontentloaded' });
         console.log(`${ts()} [main] ✅ page recovered`);
+        logTiming('recovered');
       } catch (err) {
         console.error(`${ts()} [main] in-place recovery failed, relaunching browser:`, err);
         endSession(`in-place recovery failed after: ${reason}`);
@@ -146,7 +148,12 @@ async function session(firstRun: boolean): Promise<void> {
           const t0 = Date.now();
           const probe = await fetchAlerts(page);
           const fetchMs = Date.now() - t0;
-          if (Date.now() - lastTickLog > 10_000) { lastTickLog = Date.now(); console.log(`${ts()} [poll] fetch=${fetchMs}ms ticks/10s=${tickCount}`); tickCount = 0; }
+          if (Date.now() - lastTickLog > 10_000) {
+            lastTickLog = Date.now();
+            console.log(`${ts()} [poll] fetch=${fetchMs}ms ticks/10s=${tickCount}`);
+            logTiming('poll', `fetchMs=${fetchMs}`, `ticks10s=${tickCount}`, `inFlight=${inFlight}`);
+            tickCount = 0;
+          }
           if (!probe.ok) {
             // At 1/s a failing endpoint would be hammered 60x/min. Back off instead —
             // longer for 429 (we are being told to slow down) than for a transient error
@@ -154,6 +161,7 @@ async function session(firstRun: boolean): Promise<void> {
             const wait = probe.status === 429 ? RATE_LIMIT_BACKOFF_MS : FETCH_FAIL_BACKOFF_MS;
             backoffUntil = Date.now() + wait;
             console.warn(`${ts()} [poll] alerts fetch failed (status=${probe.status ?? 'n/a'}) — backing off ${wait / 1000}s`);
+            logTiming('fail', `status=${probe.status ?? 'n/a'}`, `fetchMs=${fetchMs}`, `backoffMs=${wait}`);
             return;
           }
 
@@ -163,11 +171,17 @@ async function session(firstRun: boolean): Promise<void> {
             const id = transformed.externalId;
             if (!claim(id)) continue;   // already handled or in flight from an earlier tick
 
+            // seenLagMs: pump.fun's createdAt -> the fetch that first showed it to us returning
+            // (our round trip counts). handoffMs: our POSTs to the backend.
+            const seenLagMs = t0 + fetchMs - Date.parse(transformed.structured.createdAt);
             void (async () => {
               try {
+                const p0 = Date.now();
                 const accepted = await postPumpEvent({ ...item, externalId: id });
                 if (!accepted) return;  // duplicate — backend already processed this one
                 await postStructuredPump(transformed.structured);
+                logTiming('item', transformed.structured.kind, id, transformed.structured.symbol,
+                  transformed.structured.createdAt, `seenLagMs=${seenLagMs}`, `fetchMs=${fetchMs}`, `handoffMs=${Date.now() - p0}`);
               } catch (err) {
                 claimed.delete(id);     // release so a later tick can retry it
                 console.error(`${ts()} [poll] process error for externalId=${id}:`, err);
@@ -227,6 +241,7 @@ async function session(firstRun: boolean): Promise<void> {
     // verifiedSyncInterval = setInterval(runVerifiedSyncSafely, VERIFIED_SYNC_INTERVAL_MS);
 
     console.log(`${ts()} [main] Sidecar running — polling pump.fun alerts every ${POLL_INTERVAL_MS}ms, verified-trader sync disabled`);
+    logTiming('start');
 
     const reason = await sessionEnded;
     console.warn(`${ts()} [main] session ended: ${reason}`);
@@ -249,6 +264,7 @@ async function main(): Promise<void> {
       console.error(`${ts()} [main] session error:`, err);
     }
     console.log(`${ts()} [main] relaunching browser in 5s...`);
+    logTiming('relaunch');
     await new Promise((resolve) => setTimeout(resolve, 5_000));
   }
 }
