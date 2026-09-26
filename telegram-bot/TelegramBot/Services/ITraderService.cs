@@ -29,7 +29,9 @@ public interface ITraderService
     // of the given trader. Superset of GetFollowerUserIdsForTraderHandleAsync's keys.
     Task<Dictionary<int, decimal?>> GetFollowerThresholdsForTraderHandleAsync(string handle, Platform platform = Platform.Fomo);
 
-    Task<int> FollowAllTradersAsync(int userId);
+    // enableAutoFollow: also turn on auto-follow for future traders (the explicit "follow all"
+    // actions do; onboarding on /start does not).
+    Task<int> FollowAllTradersAsync(int userId, bool enableAutoFollow = true);
     Task<int> UnfollowAllTradersAsync(int userId);
     Task<bool> DeleteTraderAsync(int traderId);
     Task<bool> DeleteTraderByHandleAsync(string handle, Platform platform = Platform.Fomo);

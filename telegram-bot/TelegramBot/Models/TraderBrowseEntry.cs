@@ -7,4 +7,6 @@ public record TraderBrowseEntry(
     string Handle,
     Platform Platform,
     bool IsFollowing,
-    decimal? MinValueUsd);
+    decimal? MinValueUsd,
+    string Category,
+    bool IsMuted);

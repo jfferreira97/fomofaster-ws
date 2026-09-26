@@ -23,6 +23,7 @@ public class ManageController : ControllerBase
     private readonly IChainSettingsService _chainSettingsService;
     private readonly AppDbContext _dbContext;
     private readonly TelegramSettings _telegramSettings;
+    private readonly TraderIntelService _intel;
 
     // Budget is per SUBMISSION, not per handle — see SuggestTrader.
     private const int SubmissionRateLimit = 24;
@@ -35,7 +36,8 @@ public class ManageController : ControllerBase
         ITraderService traderService,
         IChainSettingsService chainSettingsService,
         AppDbContext dbContext,
-        IOptions<TelegramSettings> telegramSettings)
+        IOptions<TelegramSettings> telegramSettings,
+        TraderIntelService intel)
     {
         _sessionService = sessionService;
         _userService = userService;
@@ -43,6 +45,7 @@ public class ManageController : ControllerBase
         _chainSettingsService = chainSettingsService;
         _dbContext = dbContext;
         _telegramSettings = telegramSettings.Value;
+        _intel = intel;
     }
 
     private async Task<Models.User?> GetCurrentUserAsync()
@@ -130,18 +133,64 @@ public class ManageController : ControllerBase
         };
 
         var traders = await _traderService.GetBrowseListAsync(user.Id, platformFilter);
+        var ratings = await _dbContext.TraderRatings.AsNoTracking().ToDictionaryAsync(r => r.TraderId);
+        var traderRows = await _dbContext.Traders.AsNoTracking().ToDictionaryAsync(t => t.Id);
+        var followedCategories = await FollowedCategoriesAsync(user.Id);
 
         return Ok(new
         {
             status = "success",
+            followedCategories,
             traders = traders.Select(t => new
             {
                 id = t.Id,
                 handle = t.Handle,
                 platform = t.Platform.ToString(),
                 isFollowing = t.IsFollowing,
-                minValueUsd = t.MinValueUsd
+                minValueUsd = t.MinValueUsd,
+                category = t.Category,
+                isMuted = t.IsMuted,
+                // getting their alerts through a followed category rather than a direct follow
+                viaCategory = !t.IsFollowing && !t.IsMuted && followedCategories.Contains(t.Category),
+                intel = _intel.Compose(traderRows[t.Id], ratings.GetValueOrDefault(t.Id), withCalls: false)
             })
+        });
+    }
+
+    // One trader's full record for the profile card, recent calls included.
+    [HttpGet("traders/{traderId:int}")]
+    public async Task<IActionResult> GetTrader(int traderId)
+    {
+        var (user, error) = await ResolveSubscriberAsync();
+        if (user == null) return error!;
+
+        var trader = await _traderService.GetTraderByIdAsync(traderId);
+        if (trader == null)
+            return NotFound(new { status = "error", message = "No such trader" });
+
+        var follow = await _dbContext.UserTraders.FirstOrDefaultAsync(ut => ut.UserId == user.Id && ut.TraderId == traderId);
+        var rating = await _dbContext.TraderRatings.AsNoTracking().FirstOrDefaultAsync(r => r.TraderId == traderId);
+        var category = TraderCategories.Effective(trader.Category);
+        var catFollow = await _dbContext.UserCategoryFollows.FirstOrDefaultAsync(f => f.UserId == user.Id && f.Category == category);
+        var excludedAt = (await _dbContext.TraderFollowExclusions.FirstOrDefaultAsync(e => e.UserId == user.Id && e.TraderId == traderId))?.ExcludedAt;
+        var isMuted = catFollow != null && TraderService.IsMutedForCategory(excludedAt, catFollow.FollowedAt);
+        var viaCategory = follow == null && catFollow != null && !isMuted;
+        return Ok(new
+        {
+            status = "success",
+            trader = new
+            {
+                id = trader.Id,
+                handle = trader.Handle,
+                platform = trader.Platform.ToString(),
+                isFollowing = follow != null,
+                minValueUsd = follow?.MinValueUsd,
+                category,
+                isMuted,
+                viaCategory,
+                firstSeenAt = trader.FirstSeenAt,
+                intel = _intel.Compose(trader, rating, withCalls: true)
+            }
         });
     }
 
@@ -188,6 +237,8 @@ public class ManageController : ControllerBase
         if (user == null) return error!;
 
         var count = await _traderService.UnfollowAllTradersAsync(user.Id);
+        // "Unfollow all" means silence: category subscriptions go too, not just direct follows.
+        await _dbContext.UserCategoryFollows.Where(f => f.UserId == user.Id).ExecuteDeleteAsync();
         return Ok(new { status = "success", unfollowedCount = count });
     }
 
@@ -203,6 +254,76 @@ public class ManageController : ControllerBase
 
         return Ok(new { status = "success" });
     }
+
+    // Trader categories with how many traders are in each right now, roughly how many alerts
+    // a day they add up to, and whether this user follows the category.
+    [HttpGet("categories")]
+    public async Task<IActionResult> GetCategories()
+    {
+        var (user, error) = await ResolveSubscriberAsync();
+        if (user == null) return error!;
+
+        var followed = await FollowedCategoriesAsync(user.Id);
+        var traders = await _dbContext.Traders.AsNoTracking()
+            .Select(t => new { t.Id, t.Category, t.Platform })
+            .ToListAsync();
+        var ratings = await _dbContext.TraderRatings.AsNoTracking().ToDictionaryAsync(r => r.TraderId);
+        var perDay = ratings.ToDictionary(r => r.Key, r => r.Value.AlertsPerDay);
+        var scoreRank = ratings.ToDictionary(r => r.Key, r => TraderCategorizerService.ParseStats(r.Value.StatsJson).ScoreRank);
+        var lastRated = await _dbContext.TraderRatings.AsNoTracking().MaxAsync(r => (DateTime?)r.ComputedAt);
+        var byCategory = traders.GroupBy(t => TraderCategories.Effective(t.Category)).ToDictionary(g => g.Key, g => g.ToList());
+
+        return Ok(new
+        {
+            status = "success",
+            ratedAt = lastRated is DateTime d ? DateTime.SpecifyKind(d, DateTimeKind.Utc) : (DateTime?)null,
+            categories = TraderCategories.All.Select(c =>
+            {
+                var members = byCategory.GetValueOrDefault(c.Id) ?? new();
+                return new
+                {
+                    id = c.Id,
+                    label = c.Label,
+                    emoji = c.Emoji,
+                    description = c.Description,
+                    followed = followed.Contains(c.Id),
+                    followable = TraderCategories.IsFollowable(c.Id),
+                    traderCount = members.Count,
+                    fomoCount = members.Count(m => m.Platform == Platform.Fomo),
+                    pumpCount = members.Count(m => m.Platform == Platform.Pump),
+                    alertsPerDay = Math.Round(members.Sum(m => perDay.GetValueOrDefault(m.Id)), 1),
+                    // average 0-100 score of the members that have one
+                    avgScore = members.Select(m => scoreRank.GetValueOrDefault(m.Id)).Where(v => v != null).Select(v => (double)v!.Value).DefaultIfEmpty(double.NaN).Average() is var avg && !double.IsNaN(avg) ? (int?)Math.Round(avg) : null
+                };
+            })
+        });
+    }
+
+    // Follow or unfollow a whole category. Live: alerts come from whoever is in it at the time,
+    // nothing is copied into the user's own follow list.
+    [HttpPost("categories")]
+    public async Task<IActionResult> SetCategoryFollow([FromBody] SetCategoryFollowRequest request)
+    {
+        var (user, error) = await ResolveSubscriberAsync();
+        if (user == null) return error!;
+
+        if (!TraderCategories.IsValid(request.Category))
+            return BadRequest(new { status = "error", message = "Unknown category" });
+        if (request.Follow && !TraderCategories.IsFollowable(request.Category))
+            return BadRequest(new { status = "error", message = "That category can't be followed as a group" });
+
+        var existing = await _dbContext.UserCategoryFollows.FirstOrDefaultAsync(f => f.UserId == user.Id && f.Category == request.Category);
+        if (request.Follow && existing == null)
+            _dbContext.UserCategoryFollows.Add(new UserCategoryFollow { UserId = user.Id, Category = request.Category, FollowedAt = DateTime.UtcNow });
+        else if (!request.Follow && existing != null)
+            _dbContext.UserCategoryFollows.Remove(existing);
+        await _dbContext.SaveChangesAsync();
+
+        return Ok(new { status = "success", followedCategories = await FollowedCategoriesAsync(user.Id) });
+    }
+
+    private async Task<HashSet<string>> FollowedCategoriesAsync(int userId) =>
+        (await _dbContext.UserCategoryFollows.Where(f => f.UserId == userId).Select(f => f.Category).ToListAsync()).ToHashSet();
 
     // Every chain the user has an explicit setting for, plus every other chain at its
     // implicit default (enabled, no minimum) — so callers always get a full roster.
@@ -423,3 +544,4 @@ public record SetChainMinMarketCapRequest(Chain Chain, decimal? MinMarketCap);
 public record SetChainTrendingDisabledRequest(Chain Chain, bool Disabled);
 public record SuggestTraderItem(string Handle, Platform Platform);
 public record SuggestTraderRequest(List<SuggestTraderItem> Items);
+public record SetCategoryFollowRequest(string Category, bool Follow);

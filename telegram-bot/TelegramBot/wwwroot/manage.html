@@ -66,7 +66,7 @@
     }
     .logout-btn:hover { border-color: var(--text-dim); color: var(--text); }
 
-    .wrap { max-width: 1180px; margin: 0 auto; padding: 18px 24px 64px; }
+    .wrap { width: 100%; max-width: 1640px; margin: 0 auto; padding: 18px 18px 64px; }
 
     /* ---------- Login / subscribe gate ---------- */
     #loginScreen, #subscribeScreen { text-align: center; padding: 110px 16px 60px; }
@@ -103,7 +103,7 @@
     .login-btn:hover { filter: brightness(1.08); }
 
     /* ---------- Console layout ---------- */
-    .console { display: grid; grid-template-columns: 340px 1fr; gap: 18px; align-items: start; }
+    .console { display: grid; grid-template-columns: 310px 1fr; gap: 14px; align-items: start; }
     @media (max-width: 900px) { .console { grid-template-columns: 1fr; } }
 
     /* Desktop: the console owns exactly one viewport, and each column scrolls inside
@@ -378,7 +378,7 @@
     .trader-table thead th {
         position: sticky; top: 0; background: var(--surface); z-index: 1;
         text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em;
-        color: var(--text-faint); font-weight: 700; padding: 8px 10px 9px; border-bottom: 1px solid var(--border);
+        color: var(--text-faint); font-weight: 700; padding: 8px 7px 9px; border-bottom: 1px solid var(--border);
     }
     .trader-table thead th.num { text-align: center; }
     .trader-table thead th.chk { text-align: center; width: 56px; }
@@ -399,7 +399,7 @@
     .trader-table tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
     .trader-table tbody tr:hover { background: var(--surface-2); }
     .trader-table tbody tr:last-child { border-bottom: none; }
-    .trader-table td { padding: 6px 10px; vertical-align: middle; }
+    .trader-table td { padding: 6px 7px; vertical-align: middle; }
 
     .trader-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
     .platform-mark { font-size: 13px; flex-shrink: 0; }
@@ -421,6 +421,21 @@
     .threshold-input:disabled { opacity: .3; }
 
     .chk-cell { text-align: center; }
+
+    /* With a dozen stat columns the table scrolls sideways; the name and the follow box stay put. */
+    .trader-table .pin-l { position: sticky; left: 0; background: var(--surface); z-index: 1; }
+    .trader-table .pin-r { position: sticky; right: 0; background: var(--surface); z-index: 1; }
+    .trader-table thead th.pin-l, .trader-table thead th.pin-r { z-index: 3; }
+    .trader-table tbody tr:hover .pin-l, .trader-table tbody tr:hover .pin-r { background: var(--surface-2); }
+    .score-pill {
+        display: inline-block; min-width: 34px; padding: 2px 6px; border-radius: 6px; cursor: help;
+        font: 700 12.5px 'IBM Plex Mono', monospace; text-align: center;
+        background: var(--surface-2); border: 1px solid var(--border); color: var(--text-dim);
+    }
+    .score-pill.hi { color: var(--good); border-color: rgba(56,201,143,.4); }
+    .score-pill.lo { color: var(--bad); border-color: rgba(234,90,110,.35); }
+    .score-pill.weak { opacity: .5; border-style: dashed; }
+    .cat-chip .sc { font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 11px; color: var(--text-faint); }
     .follow-check {
         width: 17px; height: 17px; accent-color: var(--accent);
         cursor: pointer; vertical-align: middle;
@@ -429,7 +444,7 @@
     /* Grow with the window instead of a fixed cap: the subtraction is the chrome around
        the list (topbar, panel head, toolbar, pagination, page padding). The max() keeps
        it usable on a short window, where it just scrolls as before. */
-    .trader-scroll { max-height: max(420px, calc(100vh - 330px)); overflow-y: auto; }
+    .trader-scroll { max-height: max(420px, calc(100vh - 330px)); overflow-y: auto; overflow-x: auto; }
     .rows-per-page { display: inline-flex; align-items: center; gap: 6px; }
     .rows-per-page select {
         background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
@@ -466,6 +481,100 @@
         .ghost-btn.nudge { animation: none; }
     }
 
+    /* ---------- Trader intel (style badge + stat columns) ---------- */
+    .head-actions { display: flex; gap: 8px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+    .style-badge {
+        display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
+        font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px;
+        border: 1px solid var(--border); background: var(--surface-2); color: var(--text-dim); cursor: help;
+    }
+    .style-badge.scalper { color: #7fd6ff; border-color: rgba(127,214,255,.35); }
+    .style-badge.flipper { color: var(--good); border-color: rgba(56,201,143,.35); }
+    .style-badge.runner  { color: var(--accent); border-color: rgba(232,172,63,.4); }
+    .style-badge.hourly  { color: #b9a4ff; border-color: rgba(185,164,255,.35); }
+    .style-badge.holder  { color: var(--pump); border-color: rgba(224,163,92,.35); }
+    .pnl-cell small { display: block; font-size: 9.5px; color: var(--text-faint); letter-spacing: .02em; }
+    .style-badge.noise   { color: var(--bad); border-color: rgba(234,90,110,.35); }
+    .style-badge.unrated { color: var(--text-faint); }
+    .stat-cell { text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--text-dim); white-space: nowrap; }
+    .stat-cell.good { color: var(--good); }
+    .stat-cell.bad { color: var(--bad); }
+
+    .cat-cell { text-align: center; font-size: 11.5px; color: var(--text-dim); white-space: nowrap; }
+    .via-tag, .muted-tag {
+        font: 600 9.5px 'IBM Plex Mono', monospace; letter-spacing: .05em; text-transform: uppercase;
+        border-radius: 4px; padding: 0 4px; margin-left: 6px; cursor: help; white-space: nowrap;
+    }
+    .via-tag { color: var(--accent); border: 1px solid var(--accent-dim); }
+    .muted-tag { color: var(--text-faint); border: 1px solid var(--border); }
+
+    /* ---------- Category follows ---------- */
+    .cat-strip { display: flex; flex-wrap: nowrap; gap: 4px; align-items: center; justify-content: center; margin-bottom: 10px; overflow-x: auto; scrollbar-width: none; }
+    .cat-strip::-webkit-scrollbar { display: none; }
+    .cat-strip .cat-chip { flex-shrink: 0; }
+    .filter-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center; margin-bottom: 10px; }
+    .cat-strip-label { font-size: 11.5px; color: var(--text-dim); margin-right: 2px; }
+    .filter-sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+    /* A category bubble: the body filters the table (lit = shown), the round button follows it. */
+    .cat-chip {
+        display: inline-flex; align-items: stretch; border-radius: 999px; border: 1px solid var(--border);
+        background: var(--surface-2); color: var(--text-dim); overflow: hidden;
+    }
+    .cat-chip:hover { border-color: var(--accent-dim); }
+    .cat-chip.filtered { color: var(--text); border-color: var(--text-dim); background: var(--surface-3); }
+    .cat-chip .cat-body:only-child { padding-right: 10px; }
+    .cat-chip .cat-body {
+        display: inline-flex; align-items: center; gap: 5px; font-family: inherit; font-size: 11.5px; font-weight: 700;
+        padding: 4px 9px 4px 9px; background: none; border: none; color: inherit; cursor: pointer; white-space: nowrap;
+    }
+    .cat-chip .n { font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 11px; color: var(--text-faint); }
+    .cat-chip .cat-follow {
+        font: 700 12px inherit; font-family: inherit; min-width: 20px; margin: 3px 3px 3px 4px; border-radius: 999px;
+        border: 1px solid var(--border); background: var(--surface); color: var(--text-dim); cursor: pointer; line-height: 1;
+    }
+    .cat-chip.on .cat-follow { background: var(--accent); border-color: var(--accent); color: #111; }
+    .cat-chip.on.warn .cat-follow { background: var(--bad); border-color: var(--bad); }
+    .fbub {
+        font-family: inherit; font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 999px;
+        border: 1px solid var(--border); background: var(--surface-2); color: var(--text-dim); cursor: pointer;
+    }
+    .fbub:hover { border-color: var(--accent-dim); color: var(--text); }
+    .fbub.on { color: var(--text); border-color: var(--text-dim); background: var(--surface-3); }
+    .pf-reasons { margin: 6px 0 0 18px; }
+
+    /* ---------- Trader profile card ---------- */
+    .trader-table tbody tr[data-id] { cursor: pointer; }
+    .modal-card.profile { width: 640px; max-height: calc(100vh - 32px); overflow-y: auto; }
+    .pf-head { display: flex; gap: 14px; align-items: center; margin-bottom: 14px; }
+    .pf-avatar {
+        width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0; object-fit: cover;
+        background: var(--surface-3); border: 1px solid var(--border);
+        display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 20px; color: var(--text-dim);
+    }
+    .pf-name { font-family: 'IBM Plex Mono', monospace; font-size: 17px; font-weight: 600; word-break: break-all; }
+    .pf-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; align-items: center; }
+    .pf-links { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; margin-top: 6px; }
+    .pf-links a { color: var(--accent); text-decoration: none; }
+    .pf-links a:hover { text-decoration: underline; }
+    .pf-cut { font-size: 12px; padding: 8px 10px; border-radius: var(--radius); background: rgba(234,90,110,0.08); border: 1px solid rgba(234,90,110,0.3); color: var(--bad); margin-bottom: 12px; line-height: 1.45; }
+    .pf-summary { font-size: 12.5px; color: var(--text-dim); line-height: 1.5; margin-bottom: 12px; }
+    .pf-section { font: 600 10.5px 'IBM Plex Mono', monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--text-faint); margin: 14px 0 7px; }
+    .pf-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 7px; }
+    .pf-tile { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px; }
+    .pf-tile b { display: block; font: 600 16px 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
+    .pf-tile span { font-size: 11px; color: var(--text-dim); }
+    .pf-tile b.good { color: var(--good); } .pf-tile b.bad { color: var(--bad); }
+    .pf-strip { display: flex; align-items: flex-end; gap: 4px; height: 74px; padding: 0 2px; border-bottom: 1px solid var(--border); }
+    .pf-bar { flex: 1; min-width: 6px; border-radius: 3px 3px 0 0; background: var(--text-faint); cursor: help; }
+    .pf-bar.x2 { background: var(--good); } .pf-bar.x13 { background: var(--accent); }
+    .pf-strip-legend { display: flex; gap: 12px; font-size: 11px; color: var(--text-dim); margin-top: 6px; flex-wrap: wrap; }
+    .pf-strip-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+    .pf-calls { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+    .pf-calls td, .pf-calls th { padding: 5px 6px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+    .pf-calls th { font: 600 10.5px 'IBM Plex Mono', monospace; color: var(--text-faint); text-transform: uppercase; letter-spacing: .05em; }
+    .pf-calls td.n, .pf-calls th.n { text-align: right; font-family: 'IBM Plex Mono', monospace; }
+    .pf-calls-wrap { overflow-x: auto; }
+
     .toast {
         position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
         background: var(--surface-3); color: var(--text); border: 1px solid var(--border);
@@ -473,6 +582,38 @@
         opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; z-index: 30;
     }
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+
+    /* ---------- Review pass: follow = bell segment, quieter rows and header ---------- */
+    .cat-chip { align-items: stretch; }
+    .cat-chip:hover { border-color: var(--border); }
+    .cat-chip .cat-body:hover { background: var(--surface-3); color: var(--text); }
+    .cat-chip.filtered .cat-body { background: var(--surface-3); color: var(--text); }
+    .cat-chip .cat-follow {
+        margin: 0; padding: 0; min-width: 28px; line-height: 0; border: 0; border-left: 1px solid var(--border); border-radius: 0;
+        background: transparent; color: var(--text-faint); display: flex; align-items: center; justify-content: center; font-size: 0; cursor: pointer;
+    }
+    .cat-chip .cat-follow::before {
+        content: ''; display: block; width: 13px; height: 13px; background: currentColor;
+        -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='black' stroke-width='2.2' stroke-linejoin='round' d='M6 16v-5a6 6 0 0 1 12 0v5l2 2H4zM10 21h4'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='black' stroke-width='2.2' stroke-linejoin='round' d='M6 16v-5a6 6 0 0 1 12 0v5l2 2H4zM10 21h4'/%3E%3C/svg%3E") center / contain no-repeat;
+    }
+    .cat-chip .cat-follow:hover { color: var(--accent); background: rgba(232,172,63,.10); border-left-color: var(--border); }
+    .cat-chip.on { border-color: var(--accent-dim); }
+    .cat-chip.on .cat-follow { background: var(--accent); color: #1a1305; border-left-color: var(--accent); }
+    .cat-chip.on .cat-follow::before { -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 16v-5a6 6 0 0 1 12 0v5l2 2H4zM9.5 20h5a2.5 2.5 0 0 1-5 0z'/%3E%3C/svg%3E"); mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 16v-5a6 6 0 0 1 12 0v5l2 2H4zM9.5 20h5a2.5 2.5 0 0 1-5 0z'/%3E%3C/svg%3E"); }
+    .cat-chip.on.warn .cat-follow { background: var(--bad); border-left-color: var(--bad); }
+    .fbub { height: 26px; padding: 0 10px; font-size: 11.5px; }
+
+    .score-pill { background: transparent; border-color: transparent; }
+    .score-pill.hi { background: rgba(56,201,143,.12); border-color: transparent; }
+    .score-pill.lo { background: rgba(234,90,110,.12); border-color: transparent; }
+    .score-pill.weak { opacity: 1; border-style: solid; border-color: transparent; color: var(--text-faint); }
+    .threshold-input { background: transparent; border-color: transparent; }
+    .trader-table tbody tr:hover .threshold-input, .threshold-input:focus,
+    .threshold-input:not(:placeholder-shown) { background: var(--surface-2); border-color: var(--border); }
+
+    .sort-ind { opacity: 0; }
+    .trader-table thead th:hover .sort-ind { opacity: .5; }
+    .trader-table thead th[aria-sort] .sort-ind { opacity: 1; }
 </style>
 </head>
 <body>
@@ -567,11 +708,15 @@
                 <div class="panel-head panel-head-row">
                     <div>
                         <div class="panel-title">📊 Traders</div>
-                        <div class="panel-desc">Check a trader to follow them. Set a $ floor to only get alerted above it — blank alerts on everything from them.</div>
+                        <div class="panel-desc">Click a category to filter. Tap its 🔔 to get alerts from everyone in it, now and later. Or tick traders one by one; set a $ floor to skip small buys.</div>
                     </div>
-                    <button class="ghost-btn" id="suggestTraderBtn" type="button">＋ Suggest a trader</button>
+                    <div class="head-actions">
+                        <button class="ghost-btn" id="suggestTraderBtn" type="button">＋ Suggest a trader</button>
+                    </div>
                 </div>
                 <div class="panel-body">
+                    <div class="cat-strip" id="catStrip"></div>
+                    <div class="filter-row" id="filterRow"></div>
                     <div class="traders-toolbar">
                         <div class="tabs">
                             <button class="tab active" data-platform="all">All</button>
@@ -579,11 +724,6 @@
                             <button class="tab" data-platform="pump">Pump</button>
                         </div>
                         <input type="text" class="search-input" id="traderSearch" placeholder="search handle...">
-                        <select class="search-input select-input" id="followFilter" style="flex:0 0 auto; min-width:0; width:auto;">
-                            <option value="all">All traders</option>
-                            <option value="following">Following only</option>
-                            <option value="not">Not following</option>
-                        </select>
                         <div class="count-chip" id="traderCount"></div>
                         <div class="bulk-actions">
                             <button class="ghost-btn" id="followAllBtn" type="button">Follow all</button>
@@ -595,9 +735,17 @@
                         <table class="trader-table">
                             <thead>
                                 <tr id="traderHead">
-                                    <th data-sort="handle"><button type="button" class="th-sort">Trader <span class="sort-ind"></span></button></th>
-                                    <th class="num" data-sort="min"><button type="button" class="th-sort">Min $ to alert <span class="sort-ind"></span></button></th>
-                                    <th class="chk" data-sort="follow"><button type="button" class="th-sort">Follow <span class="sort-ind"></span></button></th>
+                                    <th class="pin-l" data-sort="handle"><button type="button" class="th-sort">Trader <span class="sort-ind"></span></button></th>
+                                    <th class="num" data-sort="score"><button type="button" class="th-sort" title="How actionable their calls are, ranked against every trader. 99 = top 1%.">Score <span class="sort-ind"></span></button></th>
+                                    <th class="num" data-sort="style"><button type="button" class="th-sort" title="Their category, from how following them has played out. Hover a badge for details">Category <span class="sort-ind"></span></button></th>
+                                    <th class="num" data-sort="avg"><button type="button" class="th-sort" title="What you'd have made per alert playing them their category's way: bought ~1 min after the alert, after fees. Last 30 days.">Avg / alert <span class="sort-ind"></span></button></th>
+                                    <th class="num" data-sort="fast"><button type="button" class="th-sort" title="Share of calls that pumped +50% within 15 minutes of the alert">+50% 15m <span class="sort-ind"></span></button></th>
+                                    <th class="num" data-sort="topeak"><button type="button" class="th-sort" title="Typical time from their call to the token's peak market cap within 24h (median, over calls that ran +30% or more)">Time to peak (24h) <span class="sort-ind"></span></button></th>
+                                    <th class="num" data-sort="cap"><button type="button" class="th-sort" title="Median marketcap for their calls/theses">Avg MC <span class="sort-ind"></span></button></th>
+                                    <th class="num" data-sort="pnl"><button type="button" class="th-sort" title="Pump traders: pump.fun's 30-day PnL for their wallet. FOMO traders: realized profit since we added them, counted from their trades.">PnL <span class="sort-ind"></span></button></th>
+                                    <th class="num" data-sort="alerts"><button type="button" class="th-sort" title="Average alerts per day you would get from this trader">Alerts/day <span class="sort-ind"></span></button></th>
+                                    <th class="num" data-sort="min"><button type="button" class="th-sort" title="Only alert me on their buys/sells above this size">Min $ <span class="sort-ind"></span></button></th>
+                                    <th class="chk pin-r" data-sort="follow"><button type="button" class="th-sort">Follow <span class="sort-ind"></span></button></th>
                                 </tr>
                             </thead>
                             <tbody id="traderList"></tbody>
@@ -634,6 +782,16 @@
             <div class="modal-actions">
                 <button class="ghost-btn" id="suggestDoneBtn" type="button">Got it</button>
             </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="profileModal" style="display:none;">
+    <div class="modal-card profile" role="dialog" aria-modal="true" aria-labelledby="pfName">
+        <div id="profileBody"></div>
+        <div class="modal-actions">
+            <button class="logout-btn" id="profileCloseBtn" type="button">Close</button>
+            <button class="ghost-btn" id="profileFollowBtn" type="button">Follow</button>
         </div>
     </div>
 </div>
@@ -729,6 +887,7 @@ function showApp(me) {
 
     loadTraders();
     loadChains();
+    loadCategories();
 }
 
 /* ---------- Settings ---------- */
@@ -929,15 +1088,13 @@ document.getElementById('traderSearch').addEventListener('input', () => {
     renderTraders();
 });
 
-document.getElementById('followFilter').addEventListener('change', e => {
-    followFilter = e.target.value;
-    currentPage = 1;
-    renderTraders();
-});
+const styleFilter = new Set(), capFilter = new Set();   // empty = show all
+
 
 // Clicking the active column flips direction; a new column starts on the direction that
 // is actually useful for it — following first, biggest floor first, handles A-Z.
-const SORT_DEFAULT_DIR = { handle: 'asc', min: 'desc', follow: 'desc' };
+const SORT_DEFAULT_DIR = { handle: 'asc', min: 'desc', follow: 'desc', style: 'asc', hit: 'desc', alerts: 'desc', cap: 'asc', pnl: 'desc',
+    score: 'desc', avg: 'desc', fast: 'desc', topeak: 'asc' };
 document.querySelectorAll('#traderHead th[data-sort]').forEach(th => {
     th.querySelector('.th-sort').addEventListener('click', () => {
         const key = th.dataset.sort;
@@ -948,13 +1105,73 @@ document.querySelectorAll('#traderHead th[data-sort]').forEach(th => {
     });
 });
 
+function fmtDay(iso) { return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
+function pnlOf(t) {
+    const i = t.intel || {};
+    if (t.platform === 'Pump') {
+        if (i.pnl30dUsd == null) return null;
+        const tip = ['pump.fun PnL for their wallet (their numbers):', '30 days: ' + signedUsd(i.pnl30dUsd)];
+        if (i.pnl7dUsd != null) tip.push('7 days: ' + signedUsd(i.pnl7dUsd));
+        if (i.pnlRank30d) tip.push('#' + i.pnlRank30d.toLocaleString() + ' on pump.fun over 30 days');
+        if (i.portfolioPnlUsd != null) tip.push('All-time: ' + signedUsd(i.portfolioPnlUsd));
+        return { v: i.pnl30dUsd, label: '30d', tip: tip.join('\n') };
+    }
+    if (i.realizedPnlUsd == null) return null;
+    const since = i.pnlSince ? fmtDay(i.pnlSince) : '?';
+    return { v: i.realizedPnlUsd, label: 'since ' + since,
+        tip: 'Realized on FOMO since ' + since + ', on ' + (i.ownClosedPositions ?? 0) + ' closed trades. Our count from their buys and sells.' };
+}
+// Their category's play, and what it made them per alert.
+const PLAY = {
+    '15m': '15m flip: sell at +30%, stop −20%, out by 15 min',
+    '1h': '1h flip: sell at +50%, stop −30%, out by 1h',
+    '4h': '4h flip: sell at 2x, stop −30%, out by 4h',
+    '24h': 'Day hold: sell at 3x, stop −40%, out by 24h',
+};
+function playCell(t) {
+    const i = t.intel || {}, v = i.playEv;
+    if (v == null || !PLAY[i.bestWindow]) return '<td class="stat-cell">–</td>';
+    const tip = (i.style === 'noise' ? 'Best play, ' : '') + PLAY[i.bestWindow] + '.\n' +
+        (i.style === 'noise' ? 'Still lost ' : 'Averaged ') + signedPct1(v) + ' per alert over ' + (i.playCalls ?? '?') + ' calls.';
+    return `<td class="stat-cell ${v > 0 ? 'good' : v < 0 ? 'bad' : ''}" title="${escapeHtml(tip)}">${signedPct1(v)}</td>`;
+}
+
+function pnlCell(t) {
+    const p = pnlOf(t);
+    if (!p) return '<td class="stat-cell pnl-cell">–</td>';
+    return `<td class="stat-cell pnl-cell ${p.v > 0 ? 'good' : p.v < 0 ? 'bad' : ''}" title="${escapeHtml(p.tip)}">${signedUsd(p.v)}<small>${escapeHtml(p.label)}</small></td>`;
+}
+
+const STAT_SORT_FIELD = { hit: 'hit2xIn24h', alerts: 'alertsPerDay', cap: 'medianMcap',
+    avg: 'playEv', fast: 'hit50In15m', topeak: 'medianMinutesToPeak' };
+
 function sortTraders(rows) {
     const dir = sortDir === 'asc' ? 1 : -1;
     const byHandle = (a, b) => a.handle.localeCompare(b.handle, undefined, { sensitivity: 'base' });
     return rows.sort((a, b) => {
         let d = 0;
         if (sortKey === 'handle') d = byHandle(a, b);
-        else if (sortKey === 'follow') d = (a.isFollowing ? 1 : 0) - (b.isFollowing ? 1 : 0);
+        else if (sortKey === 'follow') d = (isOn(a) ? 1 : 0) - (isOn(b) ? 1 : 0);
+        else if (sortKey === 'style') d = styleRank(a) - styleRank(b);
+        else if (sortKey === 'score') {
+            // confident scores first, then low-sample ones, then unscored, whichever way it points
+            const ta = scoreTier(a), tb = scoreTier(b);
+            if (ta !== tb) return ta - tb;
+            d = (a.intel?.scoreRank ?? 0) - (b.intel?.scoreRank ?? 0);
+        }
+        else if (sortKey === 'pnl') {
+            const av = pnlOf(a)?.v, bv = pnlOf(b)?.v;
+            if (av == null && bv == null) d = 0; else if (av == null) return 1; else if (bv == null) return -1; else d = av - bv;
+        }
+        else if (STAT_SORT_FIELD[sortKey]) {
+            // Traders without the number (unrated, no public PnL) stay at the bottom either way.
+            const field = STAT_SORT_FIELD[sortKey];
+            const av = a.intel?.[field], bv = b.intel?.[field];
+            if (av == null && bv == null) d = 0;
+            else if (av == null) return 1;
+            else if (bv == null) return -1;
+            else d = av - bv;
+        }
         else if (sortKey === 'min') {
             // No floor means "alert on everything", not zero — park those at the end
             // whichever way the column is pointing, so they never crowd out real values.
@@ -967,6 +1184,115 @@ function sortTraders(rows) {
         return d !== 0 ? d * dir : byHandle(a, b);
     });
 }
+
+/* ---------- Trader intel ---------- */
+
+const STYLES = {
+    scalper: { label: '⚡ 15m flips', hint: 'Best taken within 15 minutes of the call: +30%, out.' },
+    hourly:  { label: '⏱ 1h flips', hint: 'Best taken within an hour of the call: +50%, out.' },
+    flipper: { label: '🔁 4h flips', hint: 'Best taken within 4 hours of the call: aim for 2x.' },
+    runner:  { label: '📈 Day holds', hint: 'Their calls keep climbing through the day: hold for 3x.' },
+    holder:  { label: '💎 Holders', hint: 'They hold for days and it pays off. Slow money.' },
+    noise:   { label: '🔇 −EV', hint: 'Acting on their calls lost money over the last 30 days.' },
+    unrated: { label: '🆕 Unrated', hint: 'Not enough recent calls to score yet.' },
+};
+const BASIS_LABEL = { thesis: 'theses', buy: 'first buys', callout: 'callouts' };
+const WINDOW_LABEL = { '15m': '15 minutes', '1h': 'an hour', '4h': '4 hours', '24h': 'the day' };
+const STYLE_ORDER = ['runner', 'holder', 'flipper', 'hourly', 'scalper', 'noise', 'unrated'];
+function styleRank(t) { const i = STYLE_ORDER.indexOf(t.intel?.style ?? 'unrated'); return i < 0 ? STYLE_ORDER.length : i; }
+
+const FOLLOW_FILTERS = [['all', 'All traders'], ['following', 'Following'], ['not', 'Not following']];
+const CAP_FILTERS = [['micro', 'Micro', 'Under $50K'], ['small', 'Small', '$50K–500K'], ['mid', 'Mid', '$500K–5M'], ['large', 'Large', '$5M+']];
+
+function renderFilters() {
+    const el = document.getElementById('filterRow');
+    el.innerHTML =
+        FOLLOW_FILTERS.map(([v, l]) => `<button type="button" class="fbub ${followFilter === v ? 'on' : ''}" data-follow="${v}">${l}</button>`).join('')
+        + '<span class="filter-sep"></span>'
+        + CAP_FILTERS.map(([v, l, tip]) => `<button type="button" class="fbub ${capFilter.has(v) ? 'on' : ''}" data-cap="${v}" title="Typical market cap at their calls: ${tip}">${l}</button>`).join('');
+    el.querySelectorAll('[data-follow]').forEach(btn => btn.addEventListener('click', () => {
+        followFilter = btn.dataset.follow; currentPage = 1; renderFilters(); renderTraders();
+    }));
+    el.querySelectorAll('[data-cap]').forEach(btn => btn.addEventListener('click', () => {
+        const v = btn.dataset.cap; capFilter.has(v) ? capFilter.delete(v) : capFilter.add(v);
+        currentPage = 1; renderFilters(); renderTraders();
+    }));
+}
+renderFilters();
+
+
+function pct(v) { return v == null ? '–' : Math.round(v * 100) + '%'; }
+function usd(v) {
+    const n = Math.abs(Number(v)), sign = v < 0 ? '-' : '';
+    if (n >= 1_000_000) return sign + '$' + trimNum(n / 1_000_000) + 'M';
+    if (n >= 1_000) return sign + '$' + trimNum(n / 1_000) + 'K';
+    return sign + '$' + Math.round(n);
+}
+
+const CAP_LABEL = { micro: 'Micro', small: 'Small', mid: 'Mid', large: 'Large' };
+const CHAIN_LABEL = { SOL: 'SOL', ROBINHOOD: 'Robinhood', BNB: 'BNB', BASE: 'Base', ETH: 'ETH', ARC: 'Arc', MONAD: 'Monad', Multi: 'Multi' };
+const SPEED_LABEL = { minutes: 'moves within minutes', hours: 'moves over hours', day: 'moves over a day' };
+function signedUsd(v) { return v == null ? '–' : (v > 0 ? '+' : '') + usd(v); }
+
+// Plain-text tooltip (title attribute) so it works everywhere without extra UI.
+function intelTooltip(t) {
+    const i = t.intel;
+    const style = STYLES[i?.style] ?? STYLES.unrated;
+    if (!i) return style.hint;
+    const lines = [style.hint];
+    if (i.reasons?.length) lines.push('Why: ' + i.reasons.join('; ') + '.');
+    else if (i.cut) lines.push(i.cut === 'hard' ? 'Following them lost money on average.' : 'Weak over the last 30 days.');
+    lines.push('');
+    if (i.summary) lines.push(i.summary, '');
+    if (i.calls) lines.push(i.calls + ' ' + (BASIS_LABEL[i.basis] ?? 'calls') + ' in the last 30 days' + (i.speed ? ' · ' + SPEED_LABEL[i.speed] : ''));
+    if (i.hit2xIn24h != null) lines.push('2x within 24h: ' + pct(i.hit2xIn24h) + ' · +50% within 15m: ' + pct(i.hit50In15m));
+    if (i.stopOut30 != null) lines.push('Touched -30% within 4h: ' + pct(i.stopOut30));
+    if (i.medianMcap != null) lines.push('Typical entry market cap: ' + usd(i.medianMcap));
+    if (i.pnl30dUsd != null || i.pnl7dUsd != null) lines.push('On-chain PnL: ' + signedUsd(i.pnl30dUsd) + ' (30d) · ' + signedUsd(i.pnl7dUsd) + ' (7d)' + (i.pnlRank30d ? ' · #' + i.pnlRank30d.toLocaleString() + ' on pump.fun' : ''));
+    if (i.portfolioPnlUsd != null) lines.push('Portfolio PnL (pump.fun): ' + signedUsd(i.portfolioPnlUsd));
+    if (i.realizedPnlUsd != null && t.platform === 'Fomo') lines.push('Realized on FOMO since ' + (i.pnlSince ? fmtDay(i.pnlSince) : 'added') + ': ' + signedUsd(i.realizedPnlUsd));
+    if (i.ownWinRate != null) lines.push('Their own win rate: ' + pct(i.ownWinRate) + (i.medianHoldMinutes != null ? ' · median hold ' + Math.round(i.medianHoldMinutes) + ' min' : ''));
+    if (i.callout2xRate != null) lines.push('Pump callouts that hit 2x: ' + pct(i.callout2xRate));
+    if (i.followers != null) lines.push(i.followers.toLocaleString() + ' followers on pump.fun' + (i.x ? ' · @' + i.x : ''));
+    else if (i.x) lines.push('@' + i.x);
+    return lines.join('\n');
+}
+
+// Under this many replayed calls a score is shown, but faded and sorted after the confident ones.
+const CONFIDENT_CALLS = 20;
+function scoreTier(t) { const i = t.intel; return i?.scoreRank == null ? 2 : (i.simulated ?? 0) < CONFIDENT_CALLS ? 1 : 0; }
+function signedPct1(v) { return v == null ? '–' : (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%'; }
+function minutesLabel(m) { return m == null ? '–' : m < 90 ? Math.round(m) + 'm' : (m / 60).toFixed(1) + 'h'; }
+function rankNote(r) { return r == null ? '' : r >= 50 ? ' · better than ' + r + '% of traders' : ' · bottom ' + Math.max(1, r) + '%'; }
+
+function scoreBreakdown(t) {
+    const i = t.intel;
+    if (!i || i.scoreRank == null) return 'No score yet: not enough recent calls to judge.';
+    const lines = [
+        'Score ' + i.scoreRank + ': how actionable their calls are.',
+        'If you bought ~1 min after each of their ' + (BASIS_LABEL[i.basis] ?? 'calls') + ' over the last 30 days, they beat ' + i.scoreRank + '% of traders.',
+        "It's a rank, not a grade: 99 = top 1%.",
+        '',
+    ];
+    if (i.hit2xIn24h != null) lines.push('2x within 24h: ' + pct(i.hit2xIn24h));
+    if (i.medianReturn1h != null) lines.push('Typical move after 1h: ' + signedPct1(i.medianReturn1h));
+    if (i.avgPerCall != null) lines.push('Avg result per alert: ' + signedPct1(i.avgPerCall));
+    if (i.stopOut30 != null) lines.push('Dumped 30% within 4h: ' + pct(i.stopOut30));
+    const p = pnlOf(t);
+    if (p) lines.push('Their own PnL (' + p.label + '): ' + signedUsd(p.v));
+    if (i.bestWindow) lines.push('', 'Best played: out within ' + WINDOW_LABEL[i.bestWindow] + '.');
+    if (scoreTier(t) === 1) lines.push('', 'Low confidence: only ' + (i.simulated ?? 0) + ' calls so far.');
+    return lines.join('\n');
+}
+
+function scorePill(t) {
+    const r = t.intel?.scoreRank;
+    if (r == null) return `<span class="score-pill weak" title="${escapeHtml(scoreBreakdown(t))}">–</span>`;
+    const cls = [r >= 70 ? 'hi' : r <= 30 ? 'lo' : '', scoreTier(t) === 1 ? 'weak' : ''].join(' ');
+    return `<span class="score-pill ${cls}" title="${escapeHtml(scoreBreakdown(t))}">${r}</span>`;
+}
+
+function hitClass(v) { return v == null ? '' : v >= 0.3 ? 'good' : v < 0.1 ? 'bad' : ''; }
 
 function renderSortIndicators() {
     document.querySelectorAll('#traderHead th[data-sort]').forEach(th => {
@@ -1008,10 +1334,12 @@ function renderTraders() {
     const filtered = sortTraders(allTraders.filter(t =>
         (!query || t.handle.toLowerCase().includes(query)) &&
         (followFilter === 'all'
-            || (followFilter === 'following' && t.isFollowing)
-            || (followFilter === 'not' && !t.isFollowing))
+            || (followFilter === 'following' && isOn(t))
+            || (followFilter === 'not' && !isOn(t))) &&
+        (!styleFilter.size || styleFilter.has(t.intel?.style ?? 'unrated')) &&
+        (!capFilter.size || capFilter.has(t.intel?.capTier))
     ));
-    const followingCount = allTraders.filter(t => t.isFollowing).length;
+    const followingCount = allTraders.filter(isOn).length;
 
     renderSortIndicators();
     document.getElementById('traderCount').innerHTML =
@@ -1028,23 +1356,23 @@ function renderTraders() {
         const existsButFiltered = query && allTraders.some(t => t.handle.toLowerCase().includes(query));
         list.innerHTML =
             existsButFiltered
-                ? `<tr><td colspan="3"><div class="empty-state">
+                ? `<tr><td colspan="11"><div class="empty-state">
                        <div class="empty-title">Hidden by your filter</div>
                        <div class="empty-sub"><q>${escapeHtml(query)}</q> is on the list — just not in <b>${followFilter === 'following' ? 'Following only' : 'Not following'}</b>.</div>
                        <button class="ghost-btn" type="button" data-clearfilter>Show all traders</button>
                    </div></td></tr>`
             : query
-                ? `<tr><td colspan="3"><div class="empty-state">
+                ? `<tr><td colspan="11"><div class="empty-state">
                        <div class="empty-title">Nobody here called <q>${escapeHtml(query)}</q></div>
                        <div class="empty-sub">Suggest this trader and it will be added to our tracking list ASAP, you will be following them automatically as soon as they land.</div>
                        <button class="ghost-btn" type="button" data-suggest>＋ Suggest a trader</button>
                    </div></td></tr>`
-                : '<tr><td colspan="3"><div class="empty-state">No traders match this filter.</div></td></tr>';
+                : '<tr><td colspan="11"><div class="empty-state">No traders match this filter.</div></td></tr>';
 
         list.querySelector('[data-suggest]')?.addEventListener('click', openSuggestModal);
         list.querySelector('[data-clearfilter]')?.addEventListener('click', () => {
             followFilter = 'all';
-            document.getElementById('followFilter').value = 'all';
+            renderFilters();
             currentPage = 1;
             renderTraders();
         });
@@ -1058,20 +1386,28 @@ function renderTraders() {
 
     list.innerHTML = pageItems.map(t => `
         <tr data-id="${t.id}">
-            <td>
+            <td class="pin-l">
                 <div class="trader-cell">
                     <span class="platform-mark" title="${t.platform}">${t.platform === 'Pump' ? '💊' : '👀'}</span>
                     <a class="trader-handle" href="${traderProfileUrl(t)}" target="_blank" rel="noopener noreferrer">${escapeHtml(t.handle)}</a>
                 </div>
             </td>
+            <td class="stat-cell">${scorePill(t)}</td>
+            <td class="stat-cell"><span class="style-badge ${escapeHtml(t.intel?.style ?? 'unrated')}" title="${escapeHtml(intelTooltip(t))}">${(STYLES[t.intel?.style] ?? STYLES.unrated).label}</span></td>
+            ${playCell(t)}
+            <td class="stat-cell">${pct(t.intel?.hit50In15m)}</td>
+            <td class="stat-cell">${minutesLabel(t.intel?.medianMinutesToPeak)}</td>
+            <td class="stat-cell">${t.intel?.medianMcap > 0 && t.intel.medianMcap < 2e10 ? usd(t.intel.medianMcap) : '–'}</td>
+            ${pnlCell(t)}
+            <td class="stat-cell">${t.intel?.alertsPerDay != null ? trimNum(t.intel.alertsPerDay) : '–'}</td>
             <td class="threshold-cell">
                 <input type="number" min="0" step="1" class="threshold-input" placeholder="any"
                     value="${t.minValueUsd != null ? t.minValueUsd : ''}"
                     ${t.isFollowing ? '' : 'disabled'}
                     data-id="${t.id}">
             </td>
-            <td class="chk-cell">
-                <input type="checkbox" class="follow-check" data-id="${t.id}" ${t.isFollowing ? 'checked' : ''}>
+            <td class="chk-cell pin-r">
+                <input type="checkbox" class="follow-check" data-id="${t.id}" ${isOn(t) ? 'checked' : ''}>${followTag(t)}
             </td>
         </tr>
     `).join('');
@@ -1118,8 +1454,17 @@ async function onToggleFollow(e) {
     if (!res.ok) { showToast('Failed'); e.target.checked = !nowFollowing; return; }
 
     const t = allTraders.find(x => x.id === traderId);
-    if (t) { t.isFollowing = nowFollowing; if (!nowFollowing) t.minValueUsd = null; }
+    if (t) applyFollowChange(t, nowFollowing);
     renderTraders();
+}
+
+// Mirrors the server: following clears a mute; unchecking always leaves a mute behind (so a
+// followed category can't bring them back), and drops any direct follow and its $ floor.
+function applyFollowChange(t, nowFollowing) {
+    t.isFollowing = nowFollowing;
+    t.isMuted = !nowFollowing;
+    t.viaCategory = false;
+    if (!nowFollowing) t.minValueUsd = null;
 }
 
 async function onThresholdChange(e) {
@@ -1158,7 +1503,7 @@ document.getElementById('followAllBtn').addEventListener('click', async () => {
         renderSettings();
 
         currentPage = 1;
-        await loadTraders();
+        await Promise.all([loadTraders(), loadCategories()]);
         const newlyFollowed = body?.followedCount ?? '?';
         showToast(`Done — followed ${newlyFollowed} new trader(s)`, 4000);
     } finally {
@@ -1168,7 +1513,7 @@ document.getElementById('followAllBtn').addEventListener('click', async () => {
 });
 
 document.getElementById('unfollowAllBtn').addEventListener('click', async () => {
-    if (!confirm('Unfollow every trader you currently follow? You can rebuild your list with the search box above.')) return;
+    if (!confirm('Unfollow every trader you currently follow, and every category? You can rebuild your list with the categories and the search box above.')) return;
 
     const btn = document.getElementById('unfollowAllBtn');
     const original = btn.textContent;
@@ -1181,7 +1526,8 @@ document.getElementById('unfollowAllBtn').addEventListener('click', async () => 
         const body = await res.json().catch(() => null);
         if (!res.ok) { showToast('Failed to unfollow all'); return; }
 
-        allTraders.forEach(t => { t.isFollowing = false; t.minValueUsd = null; });
+        allTraders.forEach(t => { if (t.isFollowing) t.isMuted = true; t.isFollowing = false; t.viaCategory = false; t.minValueUsd = null; });
+        loadCategories();
         currentPage = 1;
         renderTraders();
         const unfollowedCount = body?.unfollowedCount ?? '?';
@@ -1191,6 +1537,184 @@ document.getElementById('unfollowAllBtn').addEventListener('click', async () => 
         btn.textContent = original;
     }
 });
+
+/* ---------- Trader profile card ---------- */
+
+let profileTrader = null;
+
+function timeAgo(iso) {
+    const m = Math.max(0, (Date.now() - new Date(iso).getTime()) / 60000);
+    if (m < 60) return Math.round(m) + 'm ago';
+    if (m < 48 * 60) return Math.round(m / 60) + 'h ago';
+    return Math.round(m / 1440) + 'd ago';
+}
+function mult(v) { return v == null ? '–' : (v >= 10 ? Math.round(v) : v.toFixed(1)) + 'x'; }
+function signedPct(v) { return v == null ? '–' : (v >= 0 ? '+' : '') + Math.round(v * 100) + '%'; }
+function tile(value, label, cls = '') { return `<div class="pf-tile"><b class="${cls}">${value}</b><span>${label}</span></div>`; }
+
+async function openProfile(traderId) {
+    const modal = document.getElementById('profileModal');
+    const body = document.getElementById('profileBody');
+    modal.style.display = 'flex';
+    body.innerHTML = '<div class="empty-state">Loading…</div>';
+    const res = await fetch(`${API}/api/manage/traders/${traderId}`).then(r => r.json()).catch(() => null);
+    if (!res || res.status !== 'success') { body.innerHTML = '<div class="empty-state">Couldn\'t load this trader.</div>'; return; }
+    profileTrader = res.trader;
+    renderProfile();
+}
+
+function renderProfile() {
+    const t = profileTrader, i = t.intel || {};
+    const style = STYLES[i.style] ?? STYLES.unrated;
+    const initial = escapeHtml((t.handle[0] || '?').toUpperCase());
+    const avatar = i.avatar
+        ? `<img class="pf-avatar" src="${escapeHtml(i.avatar)}" alt="" referrerpolicy="no-referrer" onerror="this.outerHTML='<div class=&quot;pf-avatar&quot;>${initial}</div>'">`
+        : `<div class="pf-avatar">${initial}</div>`;
+    const links = [
+        `<a href="${traderProfileUrl(t)}" target="_blank" rel="noopener noreferrer">${t.platform === 'Pump' ? 'pump.fun' : 'fomo.family'} profile</a>`,
+        i.x ? `<a href="https://x.com/${encodeURIComponent(i.x)}" target="_blank" rel="noopener noreferrer">@${escapeHtml(i.x)}</a>` : '',
+        i.wallet && t.platform === 'Pump' ? `<a href="https://solscan.io/account/${encodeURIComponent(i.wallet)}" target="_blank" rel="noopener noreferrer">wallet</a>` : '',
+    ].filter(Boolean).join('');
+
+    const calls = i.recentCalls || [];
+    // Log scale so a 30x doesn't flatten everything else; 1x = a sliver, 10x+ = full height.
+    const h = v => Math.max(6, Math.min(100, (Math.log10(Math.max(v, 1)) / 1) * 100));
+    const strip = calls.length ? `
+        <div class="pf-section">Last ${calls.length} calls: how high each ran within 24h of the alert</div>
+        <div class="pf-strip">${[...calls].reverse().map(c => `<div class="pf-bar ${c.peak24h >= 2 ? 'x2' : c.peak24h >= 1.3 ? 'x13' : ''}" style="height:${h(c.peak24h)}%"
+            title="${escapeHtml((c.ticker || '?') + ' · ' + mult(c.peak24h) + ' peak · ' + timeAgo(c.t))}"></div>`).join('')}</div>
+        <div class="pf-strip-legend"><span><i style="background:var(--good)"></i>2x or more</span><span><i style="background:var(--accent)"></i>+30% to 2x</span><span><i style="background:var(--text-faint)"></i>under +30%</span><span>oldest → newest</span></div>
+        <div class="pf-calls-wrap"><table class="pf-calls"><thead><tr><th>Coin</th><th>Chain</th><th class="n">Called at</th><th class="n">Peak</th><th class="n">After 1h</th><th class="n">When</th></tr></thead><tbody>
+        ${calls.map(c => `<tr><td>${escapeHtml(c.ticker || '?')}</td><td>${escapeHtml(CHAIN_LABEL[c.chain] ?? c.chain ?? '–')}</td><td class="n">${c.mcap ? usd(c.mcap) : '–'}</td>
+            <td class="n" style="color:${c.peak24h >= 2 ? 'var(--good)' : 'inherit'}">${mult(c.peak24h)}</td><td class="n" style="color:${c.r1h >= 0 ? 'var(--good)' : 'var(--bad)'}">${signedPct(c.r1h)}</td><td class="n">${timeAgo(c.t)}</td></tr>`).join('')}
+        </tbody></table></div>` : '';
+
+    const hasPnl = i.pnl30dUsd != null || i.pnl7dUsd != null || i.portfolioPnlUsd != null || i.realizedPnlUsd != null;
+    document.getElementById('profileBody').innerHTML = `
+        <div class="pf-head">${avatar}
+            <div style="min-width:0">
+                <div class="pf-name" id="pfName">${t.platform === 'Pump' ? '💊' : '👀'} ${escapeHtml(t.handle)}</div>
+                <div class="pf-badges">
+                    <span class="style-badge ${escapeHtml(i.style ?? 'unrated')}" title="${escapeHtml(style.hint)}">${style.label}</span>
+                    ${i.capTier ? `<span class="style-badge unrated">${CAP_LABEL[i.capTier]} caps</span>` : ''}
+                    ${i.speed ? `<span class="style-badge unrated">${escapeHtml(SPEED_LABEL[i.speed])}</span>` : ''}
+                    ${followTag(t)}
+                </div>
+                <div class="pf-links">${links}${i.followers != null ? `<span style="color:var(--text-dim)">${i.followers.toLocaleString()} followers</span>` : ''}</div>
+            </div>
+        </div>
+        ${i.style === 'noise' ? `<div class="pf-cut">${i.cut === 'soft' ? 'Borderline: weak over the last 30 days. You can still follow them yourself.' : 'Over the last 30 days, acting on this trader\'s alerts lost money on average.'}
+            ${i.reasons?.length ? `<ul class="pf-reasons">${i.reasons.map(r => `<li>${escapeHtml(r)}</li>`).join('')}</ul>` : ''}</div>` : ''}
+        ${i.summary ? `<div class="pf-summary">${escapeHtml(i.summary)}</div>` : ''}
+        ${i.calls ? `<div class="pf-section">Following them, last 30 days${i.basis ? ' (rated on their ' + BASIS_LABEL[i.basis] + ')' : ''}</div>
+        <div class="pf-tiles">
+            ${i.scoreRank != null ? `<div class="pf-tile" title="${escapeHtml(scoreBreakdown(t))}" style="cursor:help"><b class="${i.scoreRank >= 70 ? 'good' : i.scoreRank <= 30 ? 'bad' : ''}">${i.scoreRank}<small style="font-size:11px;opacity:.6">/100</small></b><span>score${scoreTier(t) === 1 ? ' (low confidence)' : ''}</span></div>` : ''}
+            ${tile(signedPct1(i.avgPerCall), 'avg per alert', i.avgPerCall > 0 ? 'good' : i.avgPerCall < 0 ? 'bad' : '')}
+            ${tile(pct(i.hit50In15m), '+50% in 15 min')}
+            ${tile(i.medianMinutesToPeak != null ? (i.medianMinutesToPeak < 90 ? i.medianMinutesToPeak + 'm' : (i.medianMinutesToPeak / 60).toFixed(1) + 'h') : '–', 'typical time to peak')}
+            ${tile(i.alertsPerDay != null ? trimNum(i.alertsPerDay) : '–', 'alerts a day')}
+            ${tile(i.medianMcap != null ? usd(i.medianMcap) : '–', 'typical entry cap')}
+            ${tile(i.calls, 'calls analysed')}
+        </div>` : '<div class="pf-summary">No calls in the last 30 days to rate yet.</div>'}
+        ${hasPnl ? `<div class="pf-section">Their own results (public)</div>
+        <div class="pf-tiles">
+            ${i.pnl30dUsd != null ? tile(signedUsd(i.pnl30dUsd), 'on-chain PnL, 30d', i.pnl30dUsd >= 0 ? 'good' : 'bad') : ''}
+            ${i.pnl7dUsd != null ? tile(signedUsd(i.pnl7dUsd), 'on-chain PnL, 7d', i.pnl7dUsd >= 0 ? 'good' : 'bad') : ''}
+            ${i.pnlRank30d ? tile('#' + i.pnlRank30d.toLocaleString(), 'pump.fun PnL rank, 30d') : ''}
+            ${i.portfolioPnlUsd != null ? tile(signedUsd(i.portfolioPnlUsd), 'portfolio PnL (pump.fun)', i.portfolioPnlUsd >= 0 ? 'good' : 'bad') : ''}
+            ${i.realizedPnlUsd != null && t.platform === 'Fomo' ? tile(signedUsd(i.realizedPnlUsd), 'realized on FOMO since ' + (i.pnlSince ? fmtDay(i.pnlSince) : 'added'), i.realizedPnlUsd >= 0 ? 'good' : 'bad') : ''}
+            ${i.ownWinRate != null ? tile(pct(i.ownWinRate), 'their own win rate') : ''}
+            ${i.callout2xRate != null ? tile(pct(i.callout2xRate), 'callouts that hit 2x') : ''}
+        </div>` : ''}
+        ${strip}`;
+
+    const btn = document.getElementById('profileFollowBtn');
+    btn.textContent = t.viaCategory ? 'Mute' : isOn(t) ? 'Unfollow' : 'Follow';
+    btn.className = isOn(t) ? 'danger-btn' : 'ghost-btn';
+}
+
+async function toggleProfileFollow() {
+    const t = profileTrader; if (!t) return;
+    const nowFollowing = !isOn(t), wasVia = t.viaCategory;
+    const res = await fetch(`${API}/api/manage/${nowFollowing ? 'follow' : 'unfollow'}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ traderId: t.id })
+    });
+    if (!res.ok) { showToast('Failed'); return; }
+    applyFollowChange(t, nowFollowing);
+    const row = allTraders.find(x => x.id === t.id);
+    if (row) applyFollowChange(row, nowFollowing);
+    renderProfile();
+    renderTraders();
+    showToast(nowFollowing ? `Following ${t.handle}` : wasVia ? `Muted ${t.handle}` : `Unfollowed ${t.handle}`);
+}
+
+function closeProfile() { document.getElementById('profileModal').style.display = 'none'; profileTrader = null; }
+
+// Row click opens the card; the handle link, threshold box and follow checkbox keep their own behaviour.
+document.getElementById('traderList').addEventListener('click', e => {
+    if (e.target.closest('a, input, button, label')) return;
+    const row = e.target.closest('tr[data-id]');
+    if (row) openProfile(parseInt(row.dataset.id, 10));
+});
+document.getElementById('profileCloseBtn').addEventListener('click', closeProfile);
+document.getElementById('profileFollowBtn').addEventListener('click', toggleProfileFollow);
+document.getElementById('profileModal').addEventListener('click', e => { if (e.target.id === 'profileModal') closeProfile(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && profileTrader) closeProfile(); });
+
+/* ---------- Category follows ---------- */
+
+let categories = [];
+
+function isOn(t) { return t.isFollowing || t.viaCategory; }
+function categoryLabel(id) { return categories.find(c => c.id === id)?.label ?? (STYLES[id]?.label ?? id); }
+function followTag(t) {
+    if (t.viaCategory) return `<span class="via-tag" title="You get their alerts because you follow ${escapeHtml(categoryLabel(t.category))}. Uncheck to mute just this trader.">via ${categories.find(c => c.id === t.category)?.emoji ?? ''}</span>`;
+    if (t.isMuted && categories.some(c => c.followed && c.id === t.category)) return '<span class="muted-tag" title="Muted: you unchecked them, so their category doesn\'t bring them back. Check to follow them again.">muted</span>';
+    return '';
+}
+
+async function loadCategories() {
+    const res = await fetch(`${API}/api/manage/categories`).then(r => r.json()).catch(() => null);
+    if (!res || res.status !== 'success') return;
+    categories = res.categories.sort((a, b) => STYLE_ORDER.indexOf(a.id) - STYLE_ORDER.indexOf(b.id));
+    renderCategories();
+    renderTraders();
+}
+
+function renderCategories() {
+    const el = document.getElementById('catStrip');
+    el.innerHTML = categories.map(c => `
+        <span class="cat-chip ${c.followed ? 'on' : ''} ${styleFilter.has(c.id) ? 'filtered' : ''} ${c.id === 'noise' ? 'warn' : ''}" data-cat="${c.id}">
+            <button type="button" class="cat-body" aria-pressed="${styleFilter.has(c.id)}"
+                title="${escapeHtml(c.description + '\nAvg score: ' + (c.avgScore ?? 'not yet'))}">
+                <span>${c.emoji}</span>${escapeHtml(c.label)}</button>
+            ${c.followable === false ? '' : `<button type="button" class="cat-follow" aria-pressed="${c.followed}" aria-label="${c.followed ? 'Stop alerts from' : 'Get alerts from'} ${escapeHtml(c.label)}" title="${c.followed ? 'Getting alerts from ' + escapeHtml(c.label) + '. Click to stop.' : 'Get alerts from everyone in ' + escapeHtml(c.label) + ', now and later.'}">${c.followed ? '✓' : '+'}</button>`}
+        </span>`).join('');
+    el.querySelectorAll('.cat-chip').forEach(chip => {
+        chip.querySelector('.cat-body').addEventListener('click', () => {
+            const id = chip.dataset.cat; styleFilter.has(id) ? styleFilter.delete(id) : styleFilter.add(id);
+            currentPage = 1; renderCategories(); renderTraders();
+        });
+        chip.querySelector('.cat-follow')?.addEventListener('click', () => toggleCategory(chip.dataset.cat));
+    });
+}
+
+async function toggleCategory(id) {
+    const c = categories.find(x => x.id === id); if (!c) return;
+    const follow = !c.followed;
+    if (follow && id === 'noise' && !confirm('Follow the −EV category? Over the last 30 days, acting on these traders\' alerts lost money on average.')) return;
+    const res = await fetch(`${API}/api/manage/categories`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ category: id, follow })
+    });
+    const body = await res.json().catch(() => null);
+    if (!res.ok || !body) { showToast(body?.message || 'Failed'); return; }
+    const followed = new Set(body.followedCategories);
+    categories.forEach(x => x.followed = followed.has(x.id));
+    allTraders.forEach(t => t.viaCategory = !t.isFollowing && !t.isMuted && followed.has(t.category));
+    renderCategories();
+    renderTraders();
+    showToast(follow ? `Following ${c.label}: ${c.traderCount} traders now, and whoever joins later` : `Stopped following ${c.label}`, 3000);
+}
 
 document.getElementById('logoutLink').addEventListener('click', async () => {
     await fetch(`${API}/api/auth/logout`, { method: 'POST' });

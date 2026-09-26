@@ -205,6 +205,12 @@ public class TraderService : ITraderService
 
         _logger.LogInformation("Broadcasting new trader {Handle} to {Count} active users", trader.Handle, activeUsers.Count);
 
+        // New traders start out Unrated, so whoever follows that category already gets them.
+        var followsUnrated = (await _dbContext.UserCategoryFollows
+            .Where(f => f.Category == TraderCategories.Unrated)
+            .Select(f => f.UserId)
+            .ToListAsync()).ToHashSet();
+
         foreach (var user in activeUsers)
         {
             try
@@ -231,6 +237,14 @@ public class TraderService : ITraderService
 
 Use /unfollow {escapedHandle} or /unfollow {trader.Id} if you've changed your mind.
 Use /settings to manage auto-follow and notification preferences.";
+                }
+                else if (followsUnrated.Contains(user.Id) && !autoFollowForPlatform)
+                {
+                    message = $@"🔔 A new sharp {platformLabel} trader, [{escapedHandle}]({profileLink}), was just added to our services!
+
+✅ You'll get their alerts: you follow the 🆕 Unrated category, where new traders start until they've built a track record.
+
+Use /unfollow {escapedHandle} or /unfollow {trader.Id} to mute them.";
                 }
                 else if (autoFollowForPlatform)
                 {
@@ -331,7 +345,21 @@ Use /settings to manage auto-follow and notification preferences.";
             .FirstOrDefaultAsync(ut => ut.UserId == userId && ut.TraderId == traderId);
 
         if (userTrader == null)
-            return false;
+        {
+            // Not followed directly, but maybe through their category: unfollowing then means
+            // muting them (a fresh exclusion; see IsMutedForCategory for why fresh matters).
+            var trader = await _dbContext.Traders.FindAsync(traderId);
+            var category = TraderCategories.Effective(trader?.Category);
+            var catFollow = trader == null ? null : await _dbContext.UserCategoryFollows.FirstOrDefaultAsync(f => f.UserId == userId && f.Category == category);
+            var exclusion = await _dbContext.TraderFollowExclusions.FirstOrDefaultAsync(e => e.UserId == userId && e.TraderId == traderId);
+            if (catFollow == null || IsMutedForCategory(exclusion?.ExcludedAt, catFollow.FollowedAt))
+                return false;
+
+            await AddExclusionAsync(userId, traderId);
+            await _dbContext.SaveChangesAsync();
+            _logger.LogInformation("User {UserId} muted trader {TraderId} (followed via category {Category})", userId, traderId, category);
+            return true;
+        }
 
         _dbContext.UserTraders.Remove(userTrader);
 
@@ -345,12 +373,23 @@ Use /settings to manage auto-follow and notification preferences.";
         return true;
     }
 
+    // An exclusion only mutes a trader for a category the user followed BEFORE it was made. Plenty
+    // of users carry hundreds of old exclusions from unfollow-all or pruning their list long before
+    // categories existed; letting those silently gut a category they just followed would make
+    // following one pointless. Unfollowing a trader after following their category always counts.
+    public static bool IsMutedForCategory(DateTime? excludedAt, DateTime categoryFollowedAt) =>
+        excludedAt is DateTime at && at >= categoryFollowedAt;
+
     private async Task AddExclusionAsync(int userId, int traderId)
     {
         var existing = await _dbContext.TraderFollowExclusions
             .FirstOrDefaultAsync(e => e.UserId == userId && e.TraderId == traderId);
         if (existing != null)
+        {
+            // Re-stamped so it also counts as a mute against categories followed since.
+            existing.ExcludedAt = DateTime.UtcNow;
             return;
+        }
 
         _dbContext.TraderFollowExclusions.Add(new TraderFollowExclusion
         {
@@ -406,9 +445,28 @@ Use /settings to manage auto-follow and notification preferences.";
         if (trader == null)
             return new Dictionary<int, decimal?>();
 
-        return await _dbContext.UserTraders
+        var thresholds = await _dbContext.UserTraders
             .Where(ut => ut.TraderId == trader.Id)
             .ToDictionaryAsync(ut => ut.UserId, ut => ut.MinValueUsd);
+
+        // Plus everyone following this trader's category (live: whatever category they're in
+        // right now), minus anyone who muted this trader. No per-trader floor for those.
+        var category = TraderCategories.Effective(trader.Category);
+        var viaCategory = await _dbContext.UserCategoryFollows
+            .Where(f => f.Category == category)
+            .Select(f => new { f.UserId, f.FollowedAt })
+            .ToListAsync();
+        if (viaCategory.Count > 0)
+        {
+            var excludedAt = await _dbContext.TraderFollowExclusions
+                .Where(e => e.TraderId == trader.Id)
+                .ToDictionaryAsync(e => e.UserId, e => e.ExcludedAt);
+            foreach (var f in viaCategory)
+                if (!IsMutedForCategory(excludedAt.TryGetValue(f.UserId, out var at) ? at : null, f.FollowedAt))
+                    thresholds.TryAdd(f.UserId, null);
+        }
+
+        return thresholds;
     }
 
     public async Task<bool> SetThresholdAsync(int userId, int traderId, decimal? minValueUsd)
@@ -437,17 +495,28 @@ Use /settings to manage auto-follow and notification preferences.";
         var follows = await _dbContext.UserTraders
             .Where(ut => ut.UserId == userId)
             .ToDictionaryAsync(ut => ut.TraderId, ut => ut.MinValueUsd);
+        var excludedAt = await _dbContext.TraderFollowExclusions
+            .Where(e => e.UserId == userId)
+            .ToDictionaryAsync(e => e.TraderId, e => e.ExcludedAt);
+        var categoryFollowedAt = await _dbContext.UserCategoryFollows
+            .Where(f => f.UserId == userId)
+            .ToDictionaryAsync(f => f.Category, f => f.FollowedAt);
+        bool IsMuted(Trader t) =>
+            categoryFollowedAt.TryGetValue(TraderCategories.Effective(t.Category), out var since)
+            && IsMutedForCategory(excludedAt.TryGetValue(t.Id, out var at) ? at : null, since);
 
         return traders.Select(t => new TraderBrowseEntry(
             t.Id,
             t.Handle,
             t.Platform,
             IsFollowing: follows.ContainsKey(t.Id),
-            MinValueUsd: follows.GetValueOrDefault(t.Id)
+            MinValueUsd: follows.GetValueOrDefault(t.Id),
+            Category: TraderCategories.Effective(t.Category),
+            IsMuted: IsMuted(t)
         )).ToList();
     }
 
-    public async Task<int> FollowAllTradersAsync(int userId)
+    public async Task<int> FollowAllTradersAsync(int userId, bool enableAutoFollow = true)
     {
         var allTraders = await GetAllTradersAsync();
         var followedCount = 0;
@@ -465,7 +534,7 @@ Use /settings to manage auto-follow and notification preferences.";
         }
 
         var user = await _dbContext.Users.FindAsync(userId);
-        if (user != null)
+        if (user != null && enableAutoFollow)
         {
             user.AutoFollowFomoTraders = true;
             user.AutoFollowPumpTraders = true;
