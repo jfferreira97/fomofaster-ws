@@ -22,6 +22,9 @@ public class AppDbContext : DbContext
     public DbSet<ConfluenceAlert> ConfluenceAlerts { get; set; }
     public DbSet<PumpEvent> PumpEvents { get; set; }
     public DbSet<SuggestedTrader> SuggestedTraders { get; set; }
+    public DbSet<CallOutcome> CallOutcomes { get; set; }
+    public DbSet<TraderRating> TraderRatings { get; set; }
+    public DbSet<UserCategoryFollow> UserCategoryFollows { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -48,6 +51,55 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Platform).IsRequired().HasConversion<string>();
             entity.Property(e => e.FirstSeenAt).IsRequired();
             entity.Property(e => e.LastSeenAt).IsRequired();
+            entity.Property(e => e.Category).HasMaxLength(20);
+            // Backs the per-alert "who follows this trader's category" lookup's join side.
+            entity.HasIndex(e => e.Category);
+        });
+
+        modelBuilder.Entity<CallOutcome>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            // First post per trader per token per kind: the categorizer's dedup key.
+            entity.HasIndex(e => new { e.TraderId, e.Kind, e.NetworkId, e.TokenAddress }).IsUnique();
+            entity.HasIndex(e => new { e.Status, e.CalledAt });
+            entity.HasIndex(e => e.CalledAt);
+            entity.Property(e => e.Kind).IsRequired().HasMaxLength(10);
+            entity.Property(e => e.TokenAddress).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Ticker).HasMaxLength(50);
+            entity.Property(e => e.Status).IsRequired().HasMaxLength(10);
+            entity.Property(e => e.Source).HasMaxLength(10);
+
+            entity.HasOne<Trader>()
+                .WithMany()
+                .HasForeignKey(e => e.TraderId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<TraderRating>(entity =>
+        {
+            entity.HasKey(e => e.TraderId);
+            entity.Property(e => e.AutoCategory).IsRequired().HasMaxLength(20);
+            entity.Property(e => e.Basis).HasMaxLength(10);
+            entity.Property(e => e.Cut).HasMaxLength(10);
+            entity.Property(e => e.StatsJson).IsRequired();
+
+            entity.HasOne(e => e.Trader)
+                .WithOne()
+                .HasForeignKey<TraderRating>(e => e.TraderId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<UserCategoryFollow>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.UserId, e.Category }).IsUnique();
+            entity.HasIndex(e => e.Category);
+            entity.Property(e => e.Category).IsRequired().HasMaxLength(20);
+
+            entity.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<UserTrader>(entity =>

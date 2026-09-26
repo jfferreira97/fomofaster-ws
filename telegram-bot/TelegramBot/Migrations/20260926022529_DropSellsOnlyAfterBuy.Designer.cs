@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TelegramBot.Data;
 
@@ -10,9 +11,11 @@ using TelegramBot.Data;
 namespace TelegramBot.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260926022529_DropSellsOnlyAfterBuy")]
+    partial class DropSellsOnlyAfterBuy
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.10");
@@ -65,9 +68,6 @@ namespace TelegramBot.Migrations
                         .HasColumnType("REAL");
 
                     b.Property<double?>("EvFlip")
-                        .HasColumnType("REAL");
-
-                    b.Property<double?>("EvQuick")
                         .HasColumnType("REAL");
 
                     b.Property<double?>("EvRunner")
@@ -430,38 +430,8 @@ namespace TelegramBot.Migrations
                     b.Property<DateTime>("LastSeenAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("OwnClosedPositions")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime?>("OwnPnlSince")
-                        .HasColumnType("TEXT");
-
-                    b.Property<double?>("OwnRealizedUsd")
-                        .HasColumnType("REAL");
-
                     b.Property<string>("Platform")
                         .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<double?>("Pnl30dUsd")
-                        .HasColumnType("REAL");
-
-                    b.Property<double?>("Pnl7dUsd")
-                        .HasColumnType("REAL");
-
-                    b.Property<int?>("PnlRank30d")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime?>("PnlUpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<double?>("PortfolioPnlUsd")
-                        .HasColumnType("REAL");
-
-                    b.Property<string>("PumpUserId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Wallet")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");

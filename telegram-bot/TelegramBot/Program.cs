@@ -55,6 +55,13 @@ builder.Services.AddSingleton<ChainSettingsCache>();
 builder.Services.AddSingleton<ITelegramService, TelegramService>();
 builder.Services.AddSingleton<AppConfigService>();
 builder.Services.AddSingleton<WebSessionService>();
+builder.Services.AddSingleton<TraderIntelService>(); // per-trader intel for /manage: live rating + offline public-profile data
+builder.Services.AddSingleton<CandleClient>();
+builder.Services.AddSingleton<PumpProfileClient>();
+builder.Services.AddHttpClient(PumpProfileClient.HttpClientName).RemoveAllLoggers();
+builder.Services.AddHttpClient(CandleClient.HttpClientName).RemoveAllLoggers(); // a backfill is tens of thousands of requests; per-request logs would bury everything else
+builder.Services.AddSingleton<TraderCategorizerService>();
+builder.Services.AddHostedService(provider => provider.GetRequiredService<TraderCategorizerService>()); // re-rates and re-categorizes traders daily from replayed calls
 // Background polling service(s). Normally just the one, against the primary bot token.
 // During the GROUPCHAT relaunch migration, a second instance also runs against the
 // deprecated (old) bot token so existing users aren't cut off mid-transition — both
