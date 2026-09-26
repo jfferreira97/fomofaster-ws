@@ -1,0 +1,526 @@
+<title>Trader Signal Audit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f3f5f8; --surface: #ffffff; --surface-2: #eef1f5; --border: #dde3ea;
+  --text: #121820; --dim: #566377; --faint: #8a96a8;
+  --accent: #a86f0c; --accent-soft: rgba(168,111,12,.1);
+  --good: #17875c; --good-soft: rgba(23,135,92,.1); --bad: #c43349; --bad-soft: rgba(196,51,73,.09);
+  --fomo: #2f7fc8; --pump: #b86f1e;
+  --s-runner: #a86f0c; --s-flipper: #17875c; --s-scalper: #1f8fb8; --s-swing: #6c55d6; --s-degen: #b86f1e; --s-noise: #c43349; --s-unrated: #8a96a8;
+  --radius: 8px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a0e13; --surface: #10161d; --surface-2: #161d26; --border: #222c38;
+    --text: #e9eef4; --dim: #8b99ae; --faint: #56637a;
+    --accent: #e8ac3f; --accent-soft: rgba(232,172,63,.12);
+    --good: #38c98f; --good-soft: rgba(56,201,143,.12); --bad: #ee6b7e; --bad-soft: rgba(234,90,110,.12);
+    --fomo: #63a7e8; --pump: #e0a35c;
+    --s-runner: #e8ac3f; --s-flipper: #38c98f; --s-scalper: #7fd6ff; --s-swing: #b9a4ff; --s-degen: #e0a35c; --s-noise: #ee6b7e; --s-unrated: #56637a;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0e13; --surface: #10161d; --surface-2: #161d26; --border: #222c38;
+  --text: #e9eef4; --dim: #8b99ae; --faint: #56637a;
+  --accent: #e8ac3f; --accent-soft: rgba(232,172,63,.12);
+  --good: #38c98f; --good-soft: rgba(56,201,143,.12); --bad: #ee6b7e; --bad-soft: rgba(234,90,110,.12);
+  --fomo: #63a7e8; --pump: #e0a35c;
+  --s-runner: #e8ac3f; --s-flipper: #38c98f; --s-scalper: #7fd6ff; --s-swing: #b9a4ff; --s-degen: #e0a35c; --s-noise: #ee6b7e; --s-unrated: #56637a;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font: 500 14px/1.5 'Manrope', -apple-system, 'Segoe UI', sans-serif; margin: 0; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-inline: 20px; padding-block: 36px 80px; display: grid; gap: 44px; }
+.mono, td.n, .num { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+h1, h2, h3 { margin: 0; text-wrap: balance; letter-spacing: -.015em; }
+h1 { font-size: clamp(28px, 4.4vw, 42px); font-weight: 800; line-height: 1.1; }
+h2 { font-size: 21px; font-weight: 800; }
+h3 { font-size: 15px; font-weight: 700; }
+p { margin: 0; max-width: 72ch; }
+.eyebrow { font: 600 11.5px 'IBM Plex Mono', monospace; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.lede { color: var(--dim); font-size: 15.5px; max-width: 70ch; }
+.sec { display: grid; gap: 16px; }
+.sec-head { display: grid; gap: 6px; }
+.sec-head p { color: var(--dim); }
+header.top { display: grid; gap: 14px; }
+
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.kpi { background: var(--surface); padding: 14px 16px; display: grid; gap: 2px; }
+.kpi b { font: 600 24px 'IBM Plex Mono', monospace; letter-spacing: -.02em; }
+.kpi span { color: var(--dim); font-size: 12.5px; }
+
+.verdict { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: var(--radius); padding: 18px 20px; display: grid; gap: 10px; }
+.verdict ol { margin: 0; padding-left: 20px; display: grid; gap: 10px; max-width: 88ch; }
+.verdict code, .why code { font-family: 'IBM Plex Mono', monospace; font-size: 12px; background: var(--surface-2); padding: 0 4px; border-radius: 4px; }
+
+.presets { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
+.preset { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: grid; gap: 10px; align-content: start; }
+.preset .tag { color: var(--accent); font-weight: 700; font-size: 12.5px; }
+.preset p { color: var(--dim); font-size: 13px; }
+.pstats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pstats div { background: var(--surface-2); border-radius: 6px; padding: 7px 9px; display: grid; }
+.pstats b { font: 600 15px 'IBM Plex Mono', monospace; }
+.pstats span { font-size: 11px; color: var(--dim); }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip { font: 500 11.5px 'IBM Plex Mono', monospace; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--border); display: inline-flex; gap: 5px; align-items: center; white-space: nowrap; }
+.dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+
+.tbl-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+th { text-align: left; font: 600 11px 'IBM Plex Mono', monospace; letter-spacing: .04em; text-transform: uppercase; color: var(--dim); padding: 9px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; background: var(--surface); position: sticky; top: 0; }
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover, th[aria-sort] { color: var(--accent); }
+td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+td.n, th.n { text-align: right; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--surface-2); }
+.handle { font: 600 12.5px 'IBM Plex Mono', monospace; color: var(--text); text-decoration: none; }
+.handle:hover { color: var(--accent); }
+.pl { font: 600 10px 'IBM Plex Mono', monospace; letter-spacing: .06em; padding: 1px 5px; border-radius: 4px; margin-right: 6px; }
+.pl.fomo { color: var(--fomo); background: color-mix(in srgb, var(--fomo) 12%, transparent); }
+.pl.pump { color: var(--pump); background: color-mix(in srgb, var(--pump) 12%, transparent); }
+.style { font-weight: 700; font-size: 12px; white-space: nowrap; }
+td.win { color: var(--good); font-weight: 600; }
+.pos { color: var(--good); } .neg { color: var(--bad); } .muted { color: var(--faint); }
+.why { color: var(--dim); font-size: 12px; max-width: 460px; }
+.why li { margin: 0; }
+.why ul { margin: 0; padding-left: 16px; }
+
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.controls input, .controls select { background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 7px 10px; font: 500 13px 'Manrope', sans-serif; }
+.controls input { min-width: 0; flex: 1 1 200px; }
+.controls input:focus, .controls select:focus, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.count { color: var(--dim); font-size: 12.5px; }
+.explorer .tbl-wrap { max-height: 70vh; overflow: auto; }
+tr.detail td { background: var(--surface-2); }
+.dgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px 18px; font-size: 12.5px; }
+.dgrid div span { color: var(--dim); display: block; font-size: 11px; }
+.dgrid a { color: var(--accent); }
+details { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; }
+details summary { cursor: pointer; font-weight: 700; }
+details[open] summary { margin-bottom: 10px; }
+.legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.legend div { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 11px 13px; font-size: 13px; color: var(--dim); }
+.legend b { color: var(--text); display: flex; align-items: center; gap: 7px; margin-bottom: 3px; }
+.chart { margin: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 12px; align-content: start; }
+.chart figcaption { font-weight: 700; font-size: 13px; }
+.bars { display: grid; gap: 7px; }
+.bar-group { font: 600 11px 'IBM Plex Mono', monospace; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); margin-top: 6px; }
+.bar-row { display: grid; grid-template-columns: minmax(96px, 150px) 1fr 58px; gap: 10px; align-items: center; font-size: 12.5px; }
+.bar-row .lbl { color: var(--dim); }
+.bar-row .val { text-align: right; font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
+.track { position: relative; height: 14px; }
+.track .zero { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--faint); }
+.track .fill { position: absolute; top: 2px; height: 10px; border-radius: 0 4px 4px 0; }
+.track .fill.neg { border-radius: 4px 0 0 4px; }
+.fill.pos { background: var(--good); } .fill.neg { background: var(--bad); } .fill.neu { background: var(--accent); }
+.tierpill { font: 600 10.5px 'IBM Plex Mono', monospace; padding: 1px 6px; border-radius: 999px; }
+.tierpill.hard { color: var(--bad); background: var(--bad-soft); }
+.tierpill.soft { color: var(--dim); background: var(--surface-2); }
+.method { display: grid; gap: 10px; color: var(--dim); font-size: 13.5px; }
+.method b { color: var(--text); }
+.method ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; max-width: 85ch; }
+@media (max-width: 520px) { .wrap { padding-inline: 16px; } .pstats { grid-template-columns: repeat(3, 1fr); } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">GROUPCHAT · Trader audit</div>
+    <h1>Who's actually worth following</h1>
+    <p class="lede" id="lede"></p>
+    <div class="kpis" id="kpis"></div>
+  </header>
+
+  <section class="sec">
+    <div class="sec-head">
+      <h2>FOMO thesis vs Pump callout</h2>
+      <p>The fair version of the platform question: each trader's <b>first</b> thesis on a token (FOMO) against each trader's <b>first</b> callout on a token (pump.fun). Both are "here's my call" posts. Same entry for both, the first 1-minute candle after the post, scored at two horizons after 3% costs: <b>1 hour</b> (take profit at +50%, stop at -30%, out at 1h) and <b>24 hours</b> (take profit at 3x, stop at -40%, out at 24h). Market cap at a thesis is derived from the token's supply (seen on stored trades) times the price at the post.</p>
+    </div>
+    <div class="tbl-wrap"><table id="platTbl"></table></div>
+    <p class="count" id="platTake" style="max-width:88ch"></p>
+    <div class="tbl-wrap"><table id="platSplit"></table></div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head">
+      <h2>Which alerts are worth sending: thesis vs callout</h2>
+      <p>Every first thesis (FOMO) and first callout (pump.fun) per trader per token in the window, scored the same way: a follower acting ~1 minute after the post, after 3% costs. "All three exits" is the average of a quick flip (+50% / -30%, out by 1h), a 2x flip (2x / -30%, out by 4h) and a runner (3x / -40%, out by 24h).</p>
+    </div>
+    <div class="two">
+      <figure class="chart"><figcaption>Average follower result per post</figcaption><div id="typeChart"></div></figure>
+      <figure class="chart"><figcaption>Acting later: what each minute of delay costs (all traders)</figcaption><div id="latChart"></div></figure>
+    </div>
+    <p class="count" id="alertNote" style="max-width:88ch"></p>
+    <figure class="chart"><figcaption>Other alerts the bot sends (kept traders unless noted)</figcaption><div id="otherChart"></div></figure>
+    <div class="two">
+      <div class="tbl-wrap"><table id="trendTbl"></table></div>
+      <div class="tbl-wrap"><table id="sizeTbl"></table></div>
+    </div>
+  </section>
+
+  <section class="verdict" id="verdictBox">
+    <h3>Action plan, in order of impact</h3>
+    <ol id="verdict"></ol>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head">
+      <h2>Alert levels</h2>
+      <p>Instead of choosing traders, a user picks how many alerts an hour they want and the bot keeps their list filled with the best-rated traders that fit, updating as ratings refresh. Levels nest: moving up adds traders, never drops one. Shown for a user receiving every alert type; the app recomputes per user from their own settings.</p>
+    </div>
+    <div class="tbl-wrap"><table id="levelTbl"></table></div>
+  </section>
+
+
+  <section class="sec">
+    <div class="sec-head">
+      <h2>Cut list</h2>
+      <p>Judged by what a follower got entering on the alert, not by the trader's own PnL: a trader who dumps on followers but whose calls still run stays in. <b>Hard</b> = strong evidence, remove from tracking. <b>Soft</b> = weak, keep tracked but leave out of presets and defaults.</p>
+    </div>
+    <div class="tbl-wrap"><table id="cutTbl"></table></div>
+    <details id="weakBox"><summary id="weakSum"></summary><div class="tbl-wrap"><table id="weakTbl"></table></div></details>
+    <details id="dormantBox"><summary id="dormantSum"></summary><p class="count" id="dormantList" style="max-width:none"></p></details>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head">
+      <h2>Lowest market-cap callers</h2>
+      <p>Median market cap at entry (FOMO first buys) or at callout (Pump), for traders with 20+ calls in the window. Tiny caps plus high volume usually means noise, but not always. The follower columns show which ones actually pay.</p>
+    </div>
+    <div class="two">
+      <div class="tbl-wrap"><table id="lowFomo"></table></div>
+      <div class="tbl-wrap"><table id="lowPump"></table></div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head">
+      <h2>Does this hold up?</h2>
+      <p>The test that matters: rate traders on one half of the window, then check what followers got in the other half. Done both ways.</p>
+    </div>
+    <div class="two">
+      <figure class="chart"><figcaption>Follower avg per call in the half the traders weren't rated on</figcaption><div id="valChart"></div></figure>
+      <figure class="chart"><figcaption>How stable each trait is between halves (rank correlation), and how well it predicts next-half returns</figcaption><div id="persChart"></div></figure>
+    </div>
+    <p class="count" id="valNote" style="max-width:85ch"></p>
+  </section>
+
+  <section class="sec explorer">
+    <div class="sec-head">
+      <h2>Every trader</h2>
+      <p>Search, filter and sort. Click a row for the full record: exit-style breakdown, the trader's own history, public profile stats and wallets.</p>
+    </div>
+    <div class="controls">
+      <input id="q" type="search" placeholder="Search handle…" aria-label="Search handle">
+      <select id="fPl" aria-label="Platform"><option value="">All platforms</option><option value="fomo">FOMO</option><option value="pump">Pump</option></select>
+      <select id="fSt" aria-label="Style"><option value="">All styles</option></select>
+      <label class="count"><input id="fRated" type="checkbox" checked> Rated only</label>
+      <span class="count" id="exCount"></span>
+    </div>
+    <div class="tbl-wrap"><table id="exTbl"></table></div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head"><h2>Styles</h2></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head"><h2>How this was measured</h2></div>
+    <div class="method" id="method"></div>
+  </section>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+const STYLES = {
+  runner:  ['Runner',  'Calls that keep running for hours. Best played holding for 3x with a -40% stop.'],
+  flipper: ['Flipper', 'Reliable pops inside the first hours. Best played 2x target / -30% stop.'],
+  scalper: ['Scalper', 'The move is over in minutes. Only works if you act on the alert immediately (+50% / -30%, out by 1h).'],
+  swing:   ['Swing',   '$5M+ caps: slower, fewer stop-outs, smaller multiples.'],
+  degen:   ['Degen',   'Sub-$30K caps with no reliable edge: lottery tickets with occasional 10x+.'],
+  noise:   ['Cut',     'Bottom of the combined score with negative follower returns, or high volume without edge. Hard = remove; soft = keep out of presets.'],
+  unrated: ['Unrated', 'Fewer than 8 calls with usable price data in the window.'],
+};
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pct = v => v == null ? '<span class="muted">–</span>' : Math.round(v * 100) + '%';
+const sgn = v => v == null ? '<span class="muted">–</span>' : `<span class="${v >= 0 ? 'pos' : 'neg'}">${v >= 0 ? '+' : ''}${(v * 100).toFixed(1)}%</span>`;
+const usd = v => { if (v == null) return '<span class="muted">–</span>'; const a = Math.abs(v), s = v < 0 ? '-' : ''; return s + '$' + (a >= 1e6 ? (a / 1e6).toFixed(1) + 'M' : a >= 1e3 ? (a / 1e3).toFixed(a >= 1e5 ? 0 : 1) + 'K' : Math.round(a)); };
+const num = (v, d = 1) => v == null ? '<span class="muted">–</span>' : (+v).toFixed(d);
+const mins = v => v == null ? '<span class="muted">–</span>' : v < 90 ? v + 'm' : (v / 60).toFixed(v < 600 ? 1 : 0) + 'h';
+const profileUrl = r => r.pl === 'pump' ? 'https://pump.fun/profile/' + encodeURIComponent(r.h) : 'https://fomo.family/profile/' + encodeURIComponent(r.h);
+const styleCell = st => `<span class="style" style="color:var(--s-${st})"><span class="dot" style="background:var(--s-${st})"></span> ${STYLES[st][0]}</span>`;
+const who = r => `<span class="pl ${r.pl}">${r.pl === 'pump' ? 'PUMP' : 'FOMO'}</span><a class="handle" href="${profileUrl(r)}" target="_blank" rel="noopener">${esc(r.h)}</a>`;
+const byKey = new Map(DATA.rows.map(r => [r.k, r]));
+const rated = DATA.rows.filter(r => r.st !== 'unrated');
+const stratName = { scalp: 'scalp', flip: 'flip', runner: 'runner' };
+
+// ---- header ----
+$('lede').textContent = `Every trader call from ${DATA.window}, replayed against 1-minute price candles as if a follower bought on the alert. Traders are rated on what the follower got, not on the trader's own fills.`;
+const cut = DATA.exclude.map(k => byKey.get(k)).filter(Boolean);
+$('kpis').innerHTML = [
+  [DATA.simulated.toLocaleString(), 'calls replayed with price data'],
+  [rated.length, 'traders with enough data to rate'],
+  [cut.filter(r => r.tier === 'hard').length + ' + ' + cut.filter(r => r.tier === 'soft').length, 'hard + soft cuts'],
+  [DATA.rows.filter(r => r.pnlM != null).length, 'traders with public 30d PnL'],
+  [Math.round(DATA.rows.reduce((s, r) => s + (r.apd || 0), 0) / 24), 'alerts/hour if you follow everyone'],
+].map(([b, s]) => `<div class="kpi"><b>${b}</b><span>${s}</span></div>`).join('');
+
+// ---- action plan (filled from data so it stays true on regeneration) ----
+(function () {
+  const hard = cut.filter(r => r.tier === 'hard');
+  const totalApd = DATA.rows.reduce((s, r) => s + (r.apd || 0), 0);
+  const share = g => Math.round(100 * g.reduce((s, r) => s + (r.apd || 0), 0) / totalApd);
+  const v = DATA.validation.composite;
+  const A = DATA.alerts, get = (sec, name) => (A?.[sec] || []).find(s => s.name === name) || {};
+  const trend = get('trending', 'all Trending alerts'), t10 = get('trending', '10+ traders');
+  const pumpCut = get('pumpTypes', 'callout (cut traders)'), pumpAll = get('pumpTypes', 'callout (all)');
+  const ft = A?.fomoTypes || [];
+  const fomoN = ft.reduce((s, x) => s + (x.n || 0), 0), addSell = ft.filter(x => !x.name.startsWith('first')).reduce((s, x) => s + (x.n || 0), 0);
+  const firstK = get('fomoTypesKept', 'first buy'), addK = get('fomoTypesKept', 'add (repeat buy)');
+  const lat = A?.latency || [], l1 = lat.find(x => x.delay === 1), l2 = lat.find(x => x.delay === 2), l5 = lat.find(x => x.delay === 5);
+  const bal = DATA.levels.find(l => l.id === 'balanced');
+  const own = DATA.persistence.traits.ownWin;
+  const fo = DATA.fanout;
+  const pnlCov = DATA.rows.filter(r => r.pnlM != null), fomoPnl = pnlCov.filter(r => r.pl === 'fomo').length, fomoAll = DATA.rows.filter(r => r.pl === 'fomo').length;
+  const big = get('buySize', '$2K–10K'), small = get('buySize', '$100–500');
+  const items = [
+    `<b>Remove the ${hard.length} hard cuts</b> (${hard.filter(r => r.pl === 'fomo').length} FOMO, ${hard.filter(r => r.pl === 'pump').length} Pump): ${share(hard)}% of all alert volume. Out of sample the bottom group lost ${sgn(v.AB.bottom35)} / ${sgn(v.BA.bottom35)} per call vs ${sgn(v.AB.keep65)} / ${sgn(v.BA.keep65)} for everyone kept. On Pump, cut traders post ${pct(pumpCut.n / pumpAll.n)} of all callouts at ${sgn(pumpCut.ev)} each. <i>How:</i> unfollow them on the sidecar FOMO/Pump accounts. Deleting them from the DB alone doesn't stick: their next alert re-adds them and broadcasts "new trader".`,
+    `<b>Trending: keep it, re-alerts included, but know what it is.</b> ~${Math.round(A.trendingPerDay)} a day to every user at ${sgn(trend.ev)} per alert, with the price a median ${sgn(trend.r1h)} an hour later. It flags where attention is (users miss the first ping in a busy feed, so repeats earn their place) rather than an entry. Worth saying in the alert copy so nobody treats it as a buy signal.`,
+    `<b>Ship alert levels and default new users to Balanced</b> (branch <code>trader-presets</code>): ${bal.members.length} traders and ~${bal.aph} alerts an hour instead of ~${Math.round(totalApd / 24)} for follow-all, ${sgn(bal.ev)} per call in the window. Out of sample, the combined score's top picks beat following everyone by ${sgn(v.AB.t20 - v.AB.all)} and ${sgn(v.BA.t20 - v.BA.all)} per call.`,
+    `<b>Trim repeat buys and sells.</b> They're ${pct(addSell / fomoN)} of FOMO alerts. Adds hit 2x ${pct(addK.x2)} of the time vs ${pct(firstK.x2)} for first buys, and after a sell the price barely moves (median ${sgn(get('afterSell', 'sell: full exit').r1h)} at 1h), so for anyone not holding, it's noise. Two small changes: a default repeat window (e.g. 60 min) so adds fold into the first alert, and send a sell only to users who got that trader's buy alert for the token.`,
+    `<b>Speed is the product, so shave the fan-out.</b> Acting 1 minute after an alert averaged ${sgn(l1?.ev)}, 2 minutes ${sgn(l2?.ev)}, 5 minutes ${sgn(l5?.ev)}. Ingest is quick (median ${DATA.ingest ? DATA.ingest.fomo.toFixed(1) + 's FOMO, ' + DATA.ingest.pump.toFixed(1) + 's Pump' : 'a few seconds'}), but alerts go out to users one at a time: the first user gets it ${fo ? fo.first.toFixed(1) + 's' : 'under a second'} after ingest, the last of ~${fo?.recipients ?? '?'} after ${fo ? fo.last.toFixed(0) + 's (p90 ' + fo.lastP90.toFixed(0) + 's)' : '~10s'}, and that grows with every new user. A bounded parallel send (~8 at a time, under Telegram's ~30 msg/s limit) cuts it to ~3s.`,
+    `<b>Don't sell the $ floor as a quality filter.</b> Small first buys did better than big ones ($100–500: ${sgn(small.ev)} vs $2K–10K: ${sgn(big.ev)}); big buys are mostly larger, slower tokens. Market-cap floors cut volatility, not losses. Keep both as comfort settings, not signal settings.`,
+    `<b>Show public PnL, but don't rank on it.</b> The table on the branch shows 30-day on-chain PnL for ${pnlCov.length} traders, but only ${fomoPnl} of ${fomoAll} FOMO traders, because their wallets are hidden. A free fomoapi.io key closes that gap (<code>scripts/trader-audit/fomoapi_pull.js</code> is ready). A trader's own win rate predicts follower results at ~${own.scalp.toFixed(2)} correlation, so it stays profile info.`,
+    `<b>Refresh monthly and fix the timestamp bug.</b> "Best trader" reshuffles month to month; styles don't. <code>scripts/trader-audit</code> regenerates the ratings file; the bot hot-reloads it and re-picks everyone on a level. Separately, older <code>CreatedAt</code> rows in WsEvents/PumpEvents carry a local-time offset (the raw JSON timestamp is correct).`,
+  ];
+  $('verdict').innerHTML = items.map(i => `<li>${i}</li>`).join('');
+})();
+
+// ---- FOMO thesis vs Pump callout (the public comparison) ----
+(function () {
+  const P = DATA.platform; if (!P) return;
+  const p1 = v => v == null ? '–' : (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%';
+  const pc = v => v == null ? '–' : Math.round(v * 100) + '%';
+  const k = v => v == null ? '–' : '$' + (v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : Math.round(v / 1e3) + 'K');
+  const better = (a, b, higherIsBetter = true) => (higherIsBetter ? a > b : a < b) ? ' class="win"' : '';
+  const f = P.overall.fomo, u = P.overall.pump;
+  const rows = [
+    ['Posts scored', f.n.toLocaleString(), u.n.toLocaleString(), null],
+    ['Traders', f.traders, u.traders, null],
+    ['Typical market cap at the post', k(f.mcapMed), k(u.mcapMed), null],
+    ['<b>1 hour</b>: avg follower result', p1(f.short.ev), p1(u.short.ev), [f.short.ev, u.short.ev, true]],
+    ['1 hour: median price move', p1(f.short.retMed), p1(u.short.retMed), [f.short.retMed, u.short.retMed, true]],
+    ['1 hour: touched +50%', pc(f.short.up50), pc(u.short.up50), [f.short.up50, u.short.up50, true]],
+    ['1 hour: touched -30%', pc(f.short.dump30), pc(u.short.dump30), [f.short.dump30, u.short.dump30, false]],
+    ['<b>24 hours</b>: avg follower result', p1(f.mid.ev), p1(u.mid.ev), [f.mid.ev, u.mid.ev, true]],
+    ['24 hours: median price move', p1(f.mid.retMed), p1(u.mid.retMed), [f.mid.retMed, u.mid.retMed, true]],
+    ['24 hours: hit 2x', pc(f.mid.x2), pc(u.mid.x2), [f.mid.x2, u.mid.x2, true]],
+    ['24 hours: touched -30%', pc(f.mid.dump30), pc(u.mid.dump30), [f.mid.dump30, u.mid.dump30, false]],
+  ];
+  $('platTbl').innerHTML = `<thead><tr><th>First post per trader per token</th><th class="n">FOMO thesis</th><th class="n">Pump callout</th></tr></thead><tbody>${rows.map(([l, a, b, c]) =>
+    `<tr><td>${l}</td><td class="n"${c ? better(c[0], c[1], c[2]) : ''}>${a}</td><td class="n"${c ? better(c[1], c[0], c[2]) : ''}>${b}</td></tr>`).join('')}</tbody>`;
+
+  const splits = [['Solana only', P.solana], ...P.bands.map(b => [`Cap ${b.label}`, b]), ...P.halves.map(h => [h.label, h])];
+  $('platSplit').innerHTML = `<thead><tr><th>Same comparison, split</th><th class="n">Posts (F / P)</th><th class="n">1h avg: FOMO</th><th class="n">Pump</th><th class="n">24h avg: FOMO</th><th class="n">Pump</th></tr></thead><tbody>${splits.map(([l, g]) =>
+    `<tr><td>${esc(l)}</td><td class="n">${g.fomo.n.toLocaleString()} / ${g.pump.n.toLocaleString()}</td>
+      <td class="n"${better(g.fomo.short.ev, g.pump.short.ev)}>${p1(g.fomo.short.ev)}</td><td class="n"${better(g.pump.short.ev, g.fomo.short.ev)}>${p1(g.pump.short.ev)}</td>
+      <td class="n"${better(g.fomo.mid.ev, g.pump.mid.ev)}>${p1(g.fomo.mid.ev)}</td><td class="n"${better(g.pump.mid.ev, g.fomo.mid.ev)}>${p1(g.pump.mid.ev)}</td></tr>`).join('')}</tbody>`;
+
+  const winsShort = splits.filter(([, g]) => g.fomo.short.ev > g.pump.short.ev).length, winsMid = splits.filter(([, g]) => g.fomo.mid.ev > g.pump.mid.ev).length;
+  $('platTake').innerHTML = `<b>Pump callouts run more often but dump far more.</b> Within an hour, ${pc(u.short.up50)} of callouts touched +50% (theses: ${pc(f.short.up50)}), but ${pc(u.short.dump30)} touched -30% (theses: ${pc(f.short.dump30)}), and the median callout was ${p1(u.short.retMed)} an hour later vs ${p1(f.short.retMed)} for a thesis. Net for someone acting on the post: ${p1(f.short.ev)} vs ${p1(u.short.ev)} at 1 hour, ${p1(f.mid.ev)} vs ${p1(u.mid.ev)} at 24 hours. Theses come out ahead in ${winsShort} of ${splits.length} splits at 1 hour and ${winsMid} of ${splits.length} at 24 hours, so it isn't the market-cap difference, the chain mix or one lucky week. Neither is positive on average after costs: the point is how much worse the callout stream is, not that theses print money.`;
+})();
+
+// ---- validation charts (single series; sign shown as text too) ----
+function barList(el, groups, fmt, scaleMax) {
+  const max = scaleMax || Math.max(...groups.flatMap(g => g.rows.map(r => Math.abs(r.v)))) || 1;
+  const hasNeg = groups.some(g => g.rows.some(r => r.v < 0));
+  const zero = hasNeg ? 50 : 0, span = hasNeg ? 50 : 100;
+  el.innerHTML = '<div class="bars">' + groups.map(g => (g.title ? `<div class="bar-group">${esc(g.title)}</div>` : '') + g.rows.map(r => {
+    const w = Math.min(span, Math.abs(r.v) / max * span);
+    const cls = r.cls || (r.v >= 0 ? 'pos' : 'neg');
+    const left = r.v >= 0 ? zero : zero - w;
+    return `<div class="bar-row" title="${esc(r.label)}: ${esc(fmt(r.v, true))}"><span class="lbl">${esc(r.label)}</span>
+      <span class="track">${hasNeg ? `<span class="zero" style="left:${zero}%"></span>` : ''}<span class="fill ${cls}${r.v < 0 ? ' neg' : ''}" style="left:${left}%;width:${w}%"></span></span>
+      <span class="val">${fmt(r.v)}</span></div>`;
+  }).join('')).join('') + '</div>';
+}
+(function () {
+  const v = DATA.validation.composite;
+  const p = x => (x >= 0 ? '+' : '') + (x * 100).toFixed(1) + '%';
+  const grp = (title, r) => ({ title, rows: [
+    { label: 'Follow everyone', v: r.all }, { label: 'Top 20 (score)', v: r.t20 }, { label: 'Top 50 (score)', v: r.t50 },
+    { label: 'Kept (top 65%)', v: r.keep65 }, { label: 'Cut (bottom 35%)', v: r.bottom35 } ] });
+  barList($('valChart'), [grp(`Rated ${DATA.halfA} → tested ${DATA.halfB}`, v.AB), grp(`Rated ${DATA.halfB} → tested ${DATA.halfA}`, v.BA)], p);
+  const T = DATA.persistence.traits;
+  const names = { mcap: 'Entry market cap', late: 'Late entry (price ran)', sl30: '-30% stop-outs', tPeak: 'Time to peak', r1hMed: 'Median 1h return', perDay: 'Alert volume', hit2x24: '2x hit rate', evScalp: 'Past follower EV', ownWin: 'Trader\'s own win rate' };
+  const keys = Object.keys(names);
+  const r2 = x => x.toFixed(2);
+  barList($('persChart'), [
+    { title: 'Stable between halves', rows: keys.map(k => ({ label: names[k], v: T[k].stable, cls: 'neu' })) },
+    { title: 'Predicts next-half follower returns', rows: keys.map(k => ({ label: names[k], v: T[k].scalp })) },
+  ], r2, 1);
+  const va = DATA.validation;
+  $('valNote').innerHTML = `Rank correlations over ${DATA.persistence.n} traders with 8+ calls in both halves. For comparison, picking on past follower EV alone gave top-20 results of ${sgn(va['past EV (shrunk k=12)'].AB.t20)} and ${sgn(va['past EV (shrunk k=12)'].BA.t20)}: it swings with luck, which is why presets use the combined score (2x rate + median 1h return − stop-out rate + EV averaged over all exit styles, all shrunk toward the average).`;
+})();
+
+// ---- alert levels ----
+(function () {
+  const rows = DATA.levels.map(l => {
+    const ms = l.members.map(k => byKey.get(k)).filter(Boolean);
+    const pl = ms.reduce((m, r) => (m[r.pl] = (m[r.pl] || 0) + 1, m), {});
+    const top = ms.slice(0, 6).map(r => esc(r.h)).join(', ') + (ms.length > 6 ? ', …' : '');
+    return `<tr><td><b>${esc(l.name)}</b><div class="why">${esc(l.description)}</div></td>
+      <td class="n">${ms.length}</td><td class="n">~${l.aph}</td><td class="n">${sgn(l.ev)}</td>
+      <td class="n">${pl.fomo || 0} / ${pl.pump || 0}</td><td class="why">${top}</td></tr>`;
+  }).join('');
+  $('levelTbl').innerHTML = `<thead><tr><th>Level</th><th class="n">Traders</th><th class="n">Alerts/hr</th><th class="n" title="Follower result per call, averaged over exit styles and shrunk for sample size">Avg / call</th><th class="n">FOMO / Pump</th><th>Best-ranked picks</th></tr></thead><tbody>${rows}</tbody>`;
+})();
+
+// ---- alert scorecard + latency ----
+(function () {
+  const A = DATA.alerts; if (!A) return;
+  const get = (sec, name) => (A[sec] || []).find(s => s.name === name);
+  const p = x => (x >= 0 ? '+' : '') + (x * 100).toFixed(1) + '%';
+  const row = (label, s) => s && s.n ? { label: `${label} (${s.n.toLocaleString()})`, v: s.ev } : null;
+  const C = DATA.platform && DATA.platform.cards;
+  if (C) {
+    barList($('typeChart'), [
+      { title: 'All traders', rows: [
+        { label: `FOMO thesis: all three exits (${C.thesis.all.n.toLocaleString()})`, v: C.thesis.all.ev3 },
+        { label: `Pump callout: all three exits (${C.callout.all.n.toLocaleString()})`, v: C.callout.all.ev3 },
+        { label: 'FOMO thesis: 1h flip', v: C.thesis.all.short }, { label: 'Pump callout: 1h flip', v: C.callout.all.short },
+        { label: 'FOMO thesis: 24h runner', v: C.thesis.all.mid }, { label: 'Pump callout: 24h runner', v: C.callout.all.mid } ] },
+      { title: 'Kept traders only (cut list removed)', rows: [
+        { label: `FOMO thesis: all three exits (${C.thesis.kept.n.toLocaleString()})`, v: C.thesis.kept.ev3 },
+        { label: `Pump callout: all three exits (${C.callout.kept.n.toLocaleString()})`, v: C.callout.kept.ev3 },
+        { label: 'FOMO thesis: 1h flip', v: C.thesis.kept.short }, { label: 'Pump callout: 1h flip', v: C.callout.kept.short },
+        { label: 'FOMO thesis: 24h runner', v: C.thesis.kept.mid }, { label: 'Pump callout: 24h runner', v: C.callout.kept.mid } ] },
+    ], p);
+    barList($('latChart'), [
+      { title: 'FOMO thesis', rows: C.thesis.decayAll.map(d => ({ label: `${d.delay} min after`, v: d.ev })) },
+      { title: 'Pump callout', rows: C.callout.decayAll.map(d => ({ label: `${d.delay} min after`, v: d.ev })) },
+    ], p);
+    const k1 = C.callout.decayKept.find(d => d.delay === 1), k5 = C.callout.decayKept.find(d => d.delay === 5), k30 = C.callout.decayKept.find(d => d.delay === 30);
+    const t1 = C.thesis.decayKept.find(d => d.delay === 1), t5 = C.thesis.decayKept.find(d => d.delay === 5), t30 = C.thesis.decayKept.find(d => d.delay === 30);
+    $('alertNote').innerHTML = `Across all traders a callout does about twice as badly as a thesis at every delay. Among kept traders the best pump callers are competitive if you're on it within a minute (${sgn(k1.ev)} vs ${sgn(t1.ev)} for a thesis), but a callout's value is gone fast: ${sgn(k5.ev)} by 5 minutes and ${sgn(k30.ev)} by 30, where a thesis holds at ${sgn(t5.ev)} and ${sgn(t30.ev)}. A thesis stays actionable; a callout is a race.`;
+  }
+  barList($('otherChart'), [
+    { title: 'Kept traders', rows: [row('FOMO first buy', get('fomoTypesKept', 'first buy')), row('Pump callout', get('pumpTypes', 'callout (kept traders)')), row('FOMO add', get('fomoTypesKept', 'add (repeat buy)')), row('FOMO sell (part)', get('fomoTypesKept', 'sell: partial')), row('FOMO sell (full)', get('fomoTypesKept', 'sell: full exit'))].filter(Boolean) },
+    { title: 'Noise sources', rows: [row('Pump callout, cut traders', get('pumpTypes', 'callout (cut traders)')), row('Trending, all', get('trending', 'all Trending alerts')), row('Trending, re-alerts', get('trending', 're-alerts (count went up)')), row('Trending, 10+ traders', get('trending', '10+ traders'))].filter(Boolean) },
+  ], p);
+  const tbl = (el, title, sec, names) => {
+    const rs = names.map(n => get(sec, n)).filter(Boolean);
+    el.innerHTML = `<thead><tr><th>${esc(title)}</th><th class="n">Alerts</th><th class="n">Avg</th><th class="n">2x in 24h</th><th class="n">Median 1h</th></tr></thead><tbody>${rs.map(s => `<tr><td>${esc(s.name)}</td><td class="n">${s.n.toLocaleString()}</td><td class="n">${sgn(s.ev)}</td><td class="n">${pct(s.x2)}</td><td class="n">${sgn(s.r1h)}</td></tr>`).join('')}</tbody>`;
+  };
+  tbl($('trendTbl'), 'Trending alerts', 'trending', ['first alert per token window', 're-alerts (count went up)', '4 traders', '5–6 traders', '7–9 traders', '10+ traders']);
+  tbl($('sizeTbl'), 'First buys by size (kept)', 'buySize', ['< $100', '$100–500', '$500–2K', '$2K–10K', '$10K+']);
+})();
+
+// ---- generic sortable table ----
+function table(el, cols, rows, opts = {}) {
+  let sortK = opts.sort || null, dir = opts.dir || -1;
+  const render = () => {
+    const rs = sortK ? [...rows].sort((a, b) => {
+      const c = cols.find(c => c.k === sortK), av = c.v ? c.v(a) : a[sortK], bv = c.v ? c.v(b) : b[sortK];
+      if (av == null && bv == null) return 0; if (av == null) return 1; if (bv == null) return -1;
+      return (typeof av === 'string' ? av.localeCompare(bv) : av - bv) * dir;
+    }) : rows;
+    const lim = opts.limit ? rs.slice(0, opts.limit) : rs;
+    el.innerHTML = `<thead><tr>${cols.map(c => `<th class="${c.n ? 'n ' : ''}${c.nosort ? '' : 'sortable'}" data-k="${c.k}" ${sortK === c.k ? `aria-sort="${dir > 0 ? 'ascending' : 'descending'}"` : ''} title="${esc(c.tip || '')}">${c.t}${sortK === c.k ? (dir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('')}</tr></thead>
+      <tbody>${lim.map((r, i) => `<tr data-i="${i}">${cols.map(c => `<td class="${c.n ? 'n' : ''}">${c.f(r)}</td>`).join('')}</tr>${opts.detail && opts.open === r.k ? `<tr class="detail"><td colspan="${cols.length}">${opts.detail(r)}</td></tr>` : ''}`).join('')}</tbody>`;
+    el.querySelectorAll('th.sortable').forEach(th => th.onclick = () => { const k = th.dataset.k; if (sortK === k) dir = -dir; else { sortK = k; dir = cols.find(c => c.k === k).asc ? 1 : -1; } render(); });
+    if (opts.detail) el.querySelectorAll('tbody tr[data-i]').forEach(tr => tr.onclick = e => { if (e.target.closest('a')) return; const r = lim[+tr.dataset.i]; opts.open = opts.open === r.k ? null : r.k; render(); });
+    opts.onRender && opts.onRender(lim.length, rs.length);
+  };
+  render();
+  return { set(r) { rows = r; render(); } };
+}
+const C = {
+  who: { k: 'h', t: 'Trader', f: who, asc: true },
+  style: { k: 'st', t: 'Style', f: r => styleCell(r.st), v: r => Object.keys(STYLES).indexOf(r.st), asc: true },
+  n: { k: 'n', t: 'Calls', n: 1, f: r => r.n, tip: 'Calls in the window (FOMO first buys / Pump callouts)' },
+  apd: { k: 'apd', t: 'Alerts/day', n: 1, f: r => num(r.apd) },
+  mc: { k: 'mc', t: 'Med mcap', n: 1, f: r => usd(r.mc), asc: true },
+  micro: { k: 'micro', t: '<$50K', n: 1, f: r => pct(r.micro), tip: 'Share of calls under $50K mcap' },
+  ev: { k: 'ev', t: 'Avg / call', n: 1, f: r => sgn(r.ev), tip: 'Follower return per call after 3% fees, averaged over the three exit styles, sample-size adjusted' },
+  score: { k: 'score', t: 'Score', n: 1, f: r => num(r.score), tip: 'Combined score: 2x rate + median 1h return - stop-out rate + avg EV (z-scores). The ranking that held up out of sample' },
+  tier: { k: 'tier', t: 'Cut', f: r => r.tier ? `<span class="tierpill ${r.tier}">${r.tier}</span>` : '', v: r => r.tier === 'hard' ? 0 : r.tier === 'soft' ? 1 : 2, asc: true },
+  bestS: { k: 'best', t: 'Best style', n: 1, f: r => r.best == null ? sgn(null) : `${sgn(r.best)} <span class="muted">${stratName[r.strat] || ''}</span>`, tip: 'Return with the single best exit style for this trader (optimistic; for picking how to trade them)' },
+  h50: { k: 'h50', t: '+50% 15m', n: 1, f: r => pct(r.h50), tip: 'Hit +50% within 15 minutes of follower entry' },
+  h2: { k: 'h2', t: '2x 24h', n: 1, f: r => pct(r.h2) },
+  h3: { k: 'h3', t: '3x 24h', n: 1, f: r => pct(r.h3) },
+  sl30: { k: 'sl30', t: '-30% hit', n: 1, f: r => pct(r.sl30), tip: 'Touched -30% within 4h (a 30% stop would have fired)', asc: true },
+  tpk: { k: 'tpk', t: 'To peak', n: 1, f: r => mins(r.tpk), tip: 'Median minutes from entry to the 24h peak, on calls that went +30% or more', asc: true },
+  ownW: { k: 'ownW', t: 'Own win', n: 1, f: r => pct(r.ownW), tip: 'FOMO: trader\'s own closed round trips in profit. Pump: exited positions in profit' },
+  hold: { k: 'hold', t: 'Hold', n: 1, f: r => mins(r.hold), tip: 'Trader\'s median hold (FOMO)', asc: true },
+  pnlM: { k: 'pnlM', t: 'PnL 30d', n: 1, f: r => usd(r.pnlM), tip: 'On-chain PnL over the last 30 days from pump.fun\x27s public PnL leaderboard (Pump callers, and FOMO traders whose wallet we matched)' },
+  real: { k: 'real', t: 'Realized', n: 1, f: r => usd(r.real), tip: 'FOMO: realized PnL on round trips since May 18 in our tape. Pump: realized PnL on their public portfolio' },
+  why: { k: 'why', t: 'Why', nosort: 1, f: r => r.why.length ? `<div class="why"><ul>${r.why.map(w => `<li>${esc(w)}</li>`).join('')}</ul></div>` : '<span class="muted">–</span>' },
+};
+
+table($('cutTbl'), [C.tier, C.who, C.n, C.apd, C.ev, C.score, C.h2, C.sl30, C.mc, C.why], cut, { sort: 'score', dir: 1 });
+const weak = DATA.weak.map(k => byKey.get(k)).filter(Boolean);
+$('weakSum').textContent = `Watch list: ${weak.length} kept traders averaging worse than -3% per call`;
+table($('weakTbl'), [C.who, C.style, C.n, C.apd, C.ev, C.score, C.h2, C.sl30, C.mc], weak, { sort: 'score', dir: 1 });
+$('dormantSum').textContent = `${DATA.dormant.length} tracked traders sent no calls in the window`;
+$('dormantList').innerHTML = DATA.dormant.map(d => `<span class="pl ${d.pl.toLowerCase()}">${d.pl.toUpperCase()}</span>${esc(d.h)}`).join(' &nbsp; ');
+
+const low = pl => DATA.rows.filter(r => r.pl === pl && r.n >= 20 && r.mc != null);
+table($('lowFomo'), [{ ...C.who, t: 'FOMO trader' }, C.mc, C.micro, C.apd, C.ev, C.h2, C.style], low('fomo'), { sort: 'mc', dir: 1, limit: 25 });
+table($('lowPump'), [{ ...C.who, t: 'Pump caller' }, C.mc, C.micro, C.apd, C.ev, C.h2, C.style], low('pump'), { sort: 'mc', dir: 1, limit: 25 });
+
+// ---- explorer ----
+const stSel = $('fSt');
+Object.entries(STYLES).forEach(([k, [l]]) => stSel.insertAdjacentHTML('beforeend', `<option value="${k}">${l}</option>`));
+function detail(r) {
+  const d = (l, v) => `<div><span>${l}</span>${v}</div>`;
+  const links = [
+    `<a href="${profileUrl(r)}" target="_blank" rel="noopener">${r.pl === 'pump' ? 'pump.fun' : 'fomo.family'} profile</a>`,
+    r.x ? `<a href="https://x.com/${encodeURIComponent(r.x)}" target="_blank" rel="noopener">@${esc(r.x)}</a>` : null,
+    r.wSol ? `<a href="https://solscan.io/account/${esc(r.wSol)}" target="_blank" rel="noopener">SOL wallet</a>` : null,
+    r.wEvm ? `<a href="https://debank.com/profile/${esc(r.wEvm)}" target="_blank" rel="noopener">EVM wallet</a>` : null,
+  ].filter(Boolean).join(' · ');
+  return `<div class="dgrid">
+    ${d('Links', links)}
+    ${d('Scalp (+50% / -30%, 1h)', sgn(r.evS))}${d('Flip (2x / -30%, 4h)', sgn(r.evF))}${d('Runner (3x / -40%, 24h)', sgn(r.evR))}
+    ${d('+50% before -30%', pct(r.fp))}${d('-40% hit within 4h', pct(r.sl40))}${d('Price move before follower entry', r.late == null ? '–' : sgn(r.late))}
+    ${r.pl === 'fomo' ? d('Round trips (since May)', r.rt ?? '–') + d('Dumps within 10 min', pct(r.dump)) + d('Last seen equity', usd(r.eq)) + d('Theses posted', r.th ?? '–') + d('Thesis median mcap', usd(r.thMc)) : ''}
+    ${r.pl === 'pump' ? d('Portfolio PnL (pump.fun)', usd(r.port)) + d('Followers', r.fol != null ? r.fol.toLocaleString() : '–') + d('Pump callouts hitting 2x', pct(r.cs2x)) + d('Callouts on profile', r.hist ?? '–') + d('Historic 2x rate (pump max)', pct(r.h2h)) + d('Historic 5x rate', pct(r.h5h)) + d('Best callout', r.bestCall ? r.bestCall.toFixed(1) + 'x' : '–') + d('Weekly top-10 finishes', r.lb10 ?? '–') + d('Best leaderboard rank', r.lbBest ?? '–') : ''}
+    ${d('On-chain PnL, last 30d', r.pnlM == null ? '<span class="muted">not on the board</span>' : usd(r.pnlM) + (r.rankM ? ' · rank #' + r.rankM.toLocaleString() : ''))}${d('On-chain PnL, last 7d', usd(r.pnlW))}
+    ${d('Cut tier', r.tier || 'not cut')}
+    ${r.why.length ? d('Flags', esc(r.why.join('; '))) : ''}
+  </div>`;
+}
+const ex = table($('exTbl'), [C.who, C.style, C.score, C.n, C.apd, C.mc, C.ev, C.bestS, C.h50, C.h2, C.h3, C.sl30, C.tpk, C.ownW, C.hold, C.real, C.pnlM], [], {
+  sort: 'score', detail, onRender: (shown, total) => $('exCount').textContent = `${total} traders`,
+});
+function filter() {
+  const q = $('q').value.trim().toLowerCase(), pl = $('fPl').value, st = $('fSt').value, ratedOnly = $('fRated').checked;
+  ex.set(DATA.rows.filter(r => (!q || r.h.toLowerCase().includes(q)) && (!pl || r.pl === pl) && (!st || r.st === st) && (!ratedOnly || r.st !== 'unrated')));
+}
+['q', 'fPl', 'fSt', 'fRated'].forEach(id => $(id).addEventListener('input', filter));
+filter();
+
+$('legend').innerHTML = Object.entries(STYLES).map(([k, [l, d]]) => {
+  const c = DATA.rows.filter(r => r.st === k).length;
+  return `<div><b><span class="dot" style="background:var(--s-${k})"></span>${l} <span class="muted mono">${c}</span></b>${d}</div>`;
+}).join('');
+
+$('method').innerHTML = `
+  <ul>
+    <li><b>Calls.</b> FOMO: a trader's first buy into a token (re-entries after a full exit count again; adds to a position don't). Pump: every callout. ${DATA.totalCalls.toLocaleString()} calls in the window, ${DATA.simulated.toLocaleString()} with usable 1-minute price data around the call.</li>
+    <li><b>Follower entry.</b> The open of the first 1-minute candle after the alert, which is 0–60 seconds late, roughly what a fast human gets. Candles come from pump.fun's public multi-chain candle service (Solana, Robinhood, BNB, Base, Ethereum, Arc; Monad isn't served).</li>
+    <li><b>Exit styles.</b> Scalp: +50% target / -30% stop, out after 1h. Flip: 2x / -30%, out after 4h. Runner: 3x / -40%, out after 24h. When one candle spans both the stop and the target, the stop is assumed to fire first. 3% is deducted per trade for fees and slippage.</li>
+    <li><b>Sample-size adjustment.</b> Each trader's averages are blended with the population average as if they had 12 extra average calls, so a trader with 9 calls and one lucky 20x doesn't top the board.</li>
+    <li><b>Trader's own record.</b> FOMO round trips are rebuilt from every buy and sell we've captured since May 18 (position closed when under 5% of peak size). Pump profile stats (PnL, leaderboard finishes, historic callout multiples) come from pump.fun's public profile API.</li>
+    <li><b>Coverage.</b> ${DATA.coverage.map(c => `${esc(c.k)} ${Math.round(100 * c.ok / c.n)}%`).join(' · ')}. Robinhood and the EVM chains are thinner because the candle service doesn't index many of those tokens. Where it didn't, the price path comes from every trade we captured in that token (5+ prints needed), which misses highs and lows between prints.</li>
+    <li><b>Caveats.</b> Tokens with no trade in the 5 minutes after a call can't be evaluated and are skipped, which slightly favors liquid calls. 30 days is one market regime. Re-run monthly: the pipeline is scripted.</li>
+  </ul>`;
+</script>
