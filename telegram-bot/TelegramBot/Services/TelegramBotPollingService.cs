@@ -599,7 +599,9 @@ public class TelegramBotPollingService : BackgroundService
                     isNewBot: _isNewBotInstance
                 );
 
-                await traderService.FollowAllTradersAsync(newUser.Id);
+                // Onboarding follows the current roster but leaves auto-follow as it is (off for
+                // new users), so re-sending /start never switches it back on either.
+                await traderService.FollowAllTradersAsync(newUser.Id, enableAutoFollow: false);
                 var allTradersCount = await traderService.GetAllTradersAsync();
 
                 // One-shot free trial: only on the NEW bot, only if this chat has never had
@@ -634,7 +636,7 @@ You're now following all {allTradersCount.Count} traders by default, configure a
 /follow cap - follow a trader (comma-separate for several)
 /unfollow cap - unfollow one
 /unfollow - reply it to any alert to drop that trader
-/autofollow <on/off> - check/toggle auto-follow for new traders (starts ON by default)
+/autofollow <on/off> - check/toggle auto-follow for new traders (starts OFF by default)
 /settings - full notification menu: auto-follow, transactions, thesis, pump callouts, trending
 /repeatwindow <2h/30m/off> - limit repeat buy/sell alerts per trader+coin — buys and sells don't block each other (off by default)
 /chains - tap-button menu to enable/disable chains and set a minimum market cap per chain
@@ -672,7 +674,7 @@ You're now following all {allTradersCount.Count} traders by default, configure a
 /follow all | /unfollow all - everything at once
 /unfollow - reply it to any alert to drop that trader
 setmin 50k - reply it to any alert to set that trader's minimum alert size
-/autofollow <on/off> - Check/toggle FOMO auto-follow for new traders (starts ON by default)
+/autofollow <on/off> - Check/toggle FOMO auto-follow for new traders (starts OFF by default)
 /settings - Full notification menu: auto-follow (FOMO/Pump), transactions, thesis, pump callouts, trending
 /repeatwindow <2h/30m/off> - Limit repeat buy/sell alerts per trader+coin — buys and sells don't block each other (off by default)
 /chains - Tap-button menu: enable/disable each chain, cycle its minimum market cap floor (also: /chains disable base, /chains minmcap sol 50k)

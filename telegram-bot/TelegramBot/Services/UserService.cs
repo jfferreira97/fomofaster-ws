@@ -43,11 +43,10 @@ public class UserService : IUserService
                 FirstName = firstName,
                 JoinedAt = DateTime.UtcNow,
                 IsActive = true,
-                // Default new users to auto-following on both platforms; existing users'
-                // Pump preference defaults to off via migration (see User.cs), only new
-                // signups get opted in here.
-                AutoFollowFomoTraders = true,
-                AutoFollowPumpTraders = true,
+                // Auto-follow is off by default: new traders start Unrated and unproven, and
+                // users pick trader categories on /manage instead. Existing users keep theirs.
+                AutoFollowFomoTraders = false,
+                AutoFollowPumpTraders = false,
                 IsOnNewBot = isNewBot
             };
 
