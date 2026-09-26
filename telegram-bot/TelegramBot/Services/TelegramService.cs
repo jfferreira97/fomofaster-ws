@@ -93,6 +93,46 @@ public class TelegramService : ITelegramService
         return _botClient != null;
     }
 
+    // Alert fan-out: sends in flight per notification, and one limiter for the whole process
+    // (several alerts can be fanning out at once) sized under Telegram's ~30 msg/s bulk limit.
+    private const int MaxParallelSends = 8;
+    private static readonly System.Threading.RateLimiting.TokenBucketRateLimiter SendLimiter = new(
+        new System.Threading.RateLimiting.TokenBucketRateLimiterOptions
+        {
+            TokenLimit = 25,
+            TokensPerPeriod = 25,
+            ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+            QueueLimit = int.MaxValue,
+            QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
+            AutoReplenishment = true
+        });
+
+    // Sends one alert, retrying once if Telegram says to slow down — before, a 429 just meant
+    // that user silently missed the alert.
+    private async Task<int> SendWithRateLimitAsync(TelegramBotClient client, long chatId, string text)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            using var lease = await SendLimiter.AcquireAsync(1);
+            try
+            {
+                var sent = await client.SendTextMessageAsync(
+                    chatId: chatId,
+                    text: text,
+                    parseMode: ParseMode.Markdown,
+                    disableWebPagePreview: true
+                );
+                return sent.MessageId;
+            }
+            catch (Telegram.Bot.Exceptions.ApiRequestException ex) when (ex.ErrorCode == 429 && attempt == 0)
+            {
+                var wait = ex.Parameters?.RetryAfter ?? 1;
+                _logger.LogWarning("Telegram rate limited a send to {ChatId}, retrying in {Seconds}s", chatId, wait);
+                await Task.Delay(TimeSpan.FromSeconds(Math.Min(wait, 30)));
+            }
+        }
+    }
+
     public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, string? contractAddress = null, Chain? chain = null, string? traderHandle = null, string? ticker = null, double? marketCap = null, NotificationType notificationType = NotificationType.Unknown, string? fomoWsTradeId = null, Platform platform = Platform.Fomo, double? usdAmount = null)
     {
         if (_botClient == null)
@@ -353,56 +393,80 @@ To get full details: /subscribe";
             .ThenByDescending(u => u.LastActiveAt ?? DateTime.MinValue)
             .ToList();
 
-        // Send messages and track MessageIds
+        // Build every user's message up front (sequentially: the pending-wallet cache and
+        // the priority order above stay exactly as they were), then send in parallel.
+        var outbox = new List<(Models.User User, TelegramBotClient Client, string Text)>(users.Count);
         foreach (var user in users)
         {
+            string userMessage;
+            if (HasFullAccess(user))
+            {
+                userMessage = fullMessage;
+            }
+            else
+            {
+                var pendingWallet = _paymentPoller?.PendingWalletCache.GetValueOrDefault(user.ChatId);
+                userMessage = pendingWallet != null
+                    ? obfuscatedMessage + $"\n\nYour pending payment wallet:\n`{pendingWallet}`"
+                    : obfuscatedMessage;
+            }
+            var (targetClient, finalUserMessage) = ResolveForUser(user.IsOnNewBot, userMessage);
+            if (targetClient == null) { failCount++; continue; }
+            outbox.Add((user, targetClient, finalUserMessage));
+        }
+
+        // One at a time, the last of ~100 recipients got each alert ~10s after the first — and
+        // on these tokens a follower's edge is gone within a couple of minutes. A few sends in
+        // flight at once (started in the priority order above), under a process-wide rate
+        // limit that keeps concurrent alerts together below Telegram's bulk cap.
+        using var gate = new SemaphoreSlim(MaxParallelSends);
+        var results = await Task.WhenAll(outbox.Select(async item =>
+        {
+            await gate.WaitAsync();
             try
             {
-                string userMessage;
-                if (HasFullAccess(user))
-                {
-                    userMessage = fullMessage;
-                }
-                else
-                {
-                    var pendingWallet = _paymentPoller?.PendingWalletCache.GetValueOrDefault(user.ChatId);
-                    userMessage = pendingWallet != null
-                        ? obfuscatedMessage + $"\n\nYour pending payment wallet:\n`{pendingWallet}`"
-                        : obfuscatedMessage;
-                }
-                var (targetClient, finalUserMessage) = ResolveForUser(user.IsOnNewBot, userMessage);
-                if (targetClient == null) { failCount++; continue; }
-
-                var sentMessage = await targetClient.SendTextMessageAsync(
-                    chatId: user.ChatId,
-                    text: finalUserMessage,
-                    parseMode: ParseMode.Markdown,
-                    disableWebPagePreview: true
-                );
-
-                var sentMessageRecord = new Models.SentMessage
-                {
-                    NotificationId = notificationRecord.Id,
-                    ChatId = user.ChatId,
-                    MessageId = sentMessage.MessageId,
-                    SentAt = DateTime.UtcNow,
-                    IsManuallyEdited = false,
-                    IsSystemEdited = false,
-                    EditedAt = null
-                };
-                dbContext.SentMessages.Add(sentMessageRecord);
-
-                successCount++;
+                var messageId = await SendWithRateLimitAsync(item.Client, item.User.ChatId, item.Text);
+                return (item.User, MessageId: (int?)messageId, SentAt: DateTime.UtcNow, Blocked: false);
             }
             catch (Telegram.Bot.Exceptions.ApiRequestException apiEx) when (apiEx.Message.Contains("bot was blocked by the user") || apiEx.Message.Contains("user is deactivated") || apiEx.Message.Contains("chat not found"))
             {
-                _logger.LogWarning("User {ChatId} blocked the bot or is unavailable, deactivating user", user.ChatId);
-                await userService.DeactivateUserAsync(user.ChatId);
-                failCount++;
+                return (item.User, MessageId: (int?)null, SentAt: DateTime.UtcNow, Blocked: true);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to send message to user {ChatId}", user.ChatId);
+                _logger.LogError(ex, "Failed to send message to user {ChatId}", item.User.ChatId);
+                return (item.User, MessageId: (int?)null, SentAt: DateTime.UtcNow, Blocked: false);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }));
+
+        // DbContext isn't thread-safe, so the bookkeeping happens here, after every send is done.
+        foreach (var r in results)
+        {
+            if (r.MessageId is int messageId)
+            {
+                dbContext.SentMessages.Add(new Models.SentMessage
+                {
+                    NotificationId = notificationRecord.Id,
+                    ChatId = r.User.ChatId,
+                    MessageId = messageId,
+                    SentAt = r.SentAt,
+                    IsManuallyEdited = false,
+                    IsSystemEdited = false,
+                    EditedAt = null
+                });
+                successCount++;
+            }
+            else
+            {
+                if (r.Blocked)
+                {
+                    _logger.LogWarning("User {ChatId} blocked the bot or is unavailable, deactivating user", r.User.ChatId);
+                    await userService.DeactivateUserAsync(r.User.ChatId);
+                }
                 failCount++;
             }
         }
