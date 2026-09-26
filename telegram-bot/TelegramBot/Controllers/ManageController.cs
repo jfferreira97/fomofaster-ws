@@ -75,6 +75,11 @@ public class ManageController : ControllerBase
         return (user, null);
     }
 
+    // Paying members (lifetime, or a monthly sub the payment poller hasn't expired) get the
+    // trader ratings; trial users get the list, categories and follows, but none of the stats.
+    // Enforced here, per request, from the session's own user — the page only mirrors it.
+    private static bool HasRatings(Models.User user) => user.IsRN4L || user.IsRegisteredNurse;
+
     [HttpGet("me")]
     public async Task<IActionResult> GetMe()
     {
@@ -85,6 +90,7 @@ public class ManageController : ControllerBase
         {
             status = "success",
             user = new { chatId = user.ChatId, username = user.Username, firstName = user.FirstName },
+            access = HasRatings(user) ? "full" : "trial",
             settings = new
             {
                 autoFollowFomoTraders = user.AutoFollowFomoTraders,
@@ -136,10 +142,12 @@ public class ManageController : ControllerBase
         var ratings = await _dbContext.TraderRatings.AsNoTracking().ToDictionaryAsync(r => r.TraderId);
         var traderRows = await _dbContext.Traders.AsNoTracking().ToDictionaryAsync(t => t.Id);
         var followedCategories = await FollowedCategoriesAsync(user.Id);
+        var full = HasRatings(user);
 
         return Ok(new
         {
             status = "success",
+            access = full ? "full" : "trial",
             followedCategories,
             traders = traders.Select(t => new
             {
@@ -152,7 +160,9 @@ public class ManageController : ControllerBase
                 isMuted = t.IsMuted,
                 // getting their alerts through a followed category rather than a direct follow
                 viaCategory = !t.IsFollowing && !t.IsMuted && followedCategories.Contains(t.Category),
-                intel = _intel.Compose(traderRows[t.Id], ratings.GetValueOrDefault(t.Id), withCalls: false)
+                intel = full
+                    ? (object)_intel.Compose(traderRows[t.Id], ratings.GetValueOrDefault(t.Id), withCalls: false)
+                    : new { style = TraderCategories.Effective(t.Category) }
             })
         });
     }
@@ -163,6 +173,8 @@ public class ManageController : ControllerBase
     {
         var (user, error) = await ResolveSubscriberAsync();
         if (user == null) return error!;
+        if (!HasRatings(user))
+            return StatusCode(403, new { status = "error", code = "ratings_require_subscription", message = "Trader stats are for subscribers. Use /subscribe in the bot." });
 
         var trader = await _traderService.GetTraderByIdAsync(traderId);
         if (trader == null)
@@ -264,6 +276,7 @@ public class ManageController : ControllerBase
         if (user == null) return error!;
 
         var followed = await FollowedCategoriesAsync(user.Id);
+        var full = HasRatings(user);
         var traders = await _dbContext.Traders.AsNoTracking()
             .Select(t => new { t.Id, t.Category, t.Platform })
             .ToListAsync();
@@ -291,9 +304,9 @@ public class ManageController : ControllerBase
                     traderCount = members.Count,
                     fomoCount = members.Count(m => m.Platform == Platform.Fomo),
                     pumpCount = members.Count(m => m.Platform == Platform.Pump),
-                    alertsPerDay = Math.Round(members.Sum(m => perDay.GetValueOrDefault(m.Id)), 1),
+                    alertsPerDay = full ? Math.Round(members.Sum(m => perDay.GetValueOrDefault(m.Id)), 1) : (double?)null,
                     // average 0-100 score of the members that have one
-                    avgScore = members.Select(m => scoreRank.GetValueOrDefault(m.Id)).Where(v => v != null).Select(v => (double)v!.Value).DefaultIfEmpty(double.NaN).Average() is var avg && !double.IsNaN(avg) ? (int?)Math.Round(avg) : null
+                    avgScore = !full ? null : members.Select(m => scoreRank.GetValueOrDefault(m.Id)).Where(v => v != null).Select(v => (double)v!.Value).DefaultIfEmpty(double.NaN).Average() is var avg && !double.IsNaN(avg) ? (int?)Math.Round(avg) : null
                 };
             })
         });

@@ -614,6 +614,17 @@
     .sort-ind { opacity: 0; }
     .trader-table thead th:hover .sort-ind { opacity: .5; }
     .trader-table thead th[aria-sort] .sort-ind { opacity: 1; }
+
+    /* ---------- Trial: simplified table (the API sends no stats either) ---------- */
+    .trial-note { font-size: 12px; color: var(--text-dim); background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 7px 10px; margin-bottom: 8px; }
+    .trial-mode .trader-table th:nth-child(2), .trial-mode .trader-table tbody tr[data-id] td:nth-child(2),
+    .trial-mode .trader-table th:nth-child(4), .trial-mode .trader-table tbody tr[data-id] td:nth-child(4),
+    .trial-mode .trader-table th:nth-child(5), .trial-mode .trader-table tbody tr[data-id] td:nth-child(5),
+    .trial-mode .trader-table th:nth-child(6), .trial-mode .trader-table tbody tr[data-id] td:nth-child(6),
+    .trial-mode .trader-table th:nth-child(7), .trial-mode .trader-table tbody tr[data-id] td:nth-child(7),
+    .trial-mode .trader-table th:nth-child(8), .trial-mode .trader-table tbody tr[data-id] td:nth-child(8),
+    .trial-mode .trader-table th:nth-child(9), .trial-mode .trader-table tbody tr[data-id] td:nth-child(9) { display: none; }
+    .trial-mode .trader-table tbody tr[data-id] { cursor: default; }
 </style>
 </head>
 <body>
@@ -715,6 +726,7 @@
                     </div>
                 </div>
                 <div class="panel-body">
+                    <div class="trial-note" id="trialNote" style="display:none">On a trial you can follow traders and categories. Scores, stats and trader cards come with a subscription: /subscribe in the bot.</div>
                     <div class="cat-strip" id="catStrip"></div>
                     <div class="filter-row" id="filterRow"></div>
                     <div class="traders-toolbar">
@@ -807,6 +819,7 @@ let currentChains = [];
 let currentPage = 1;
 let pageSize = 100;                 // rows per page; 'all' shows everything
 let followFilter = 'all';           // all | following | not
+let fullAccess = true;               // false on a trial: no stats columns, no profile card (the API sends none)
 let sortKey = 'follow';             // default view: the ones you follow, first
 let sortDir = 'desc';
 
@@ -880,6 +893,11 @@ function showApp(me) {
 
     document.getElementById('whoami').innerHTML =
         `<b>${me.user.username ? '@' + escapeHtml(me.user.username) : escapeHtml(me.user.firstName || String(me.user.chatId))}</b>`;
+
+    fullAccess = me.access !== 'trial';
+    document.body.classList.toggle('trial-mode', !fullAccess);
+    document.getElementById('trialNote').style.display = fullAccess ? 'none' : '';
+    renderFilters();
 
     currentSettings = me.settings;
     document.getElementById('repeatWindowInput').value = currentSettings.repeatWindowMinutes;
@@ -1208,8 +1226,8 @@ function renderFilters() {
     const el = document.getElementById('filterRow');
     el.innerHTML =
         FOLLOW_FILTERS.map(([v, l]) => `<button type="button" class="fbub ${followFilter === v ? 'on' : ''}" data-follow="${v}">${l}</button>`).join('')
-        + '<span class="filter-sep"></span>'
-        + CAP_FILTERS.map(([v, l, tip]) => `<button type="button" class="fbub ${capFilter.has(v) ? 'on' : ''}" data-cap="${v}" title="Typical market cap at their calls: ${tip}">${l}</button>`).join('');
+        + (!fullAccess ? '' : '<span class="filter-sep"></span>'
+        + CAP_FILTERS.map(([v, l, tip]) => `<button type="button" class="fbub ${capFilter.has(v) ? 'on' : ''}" data-cap="${v}" title="Typical market cap at their calls: ${tip}">${l}</button>`).join(''));
     el.querySelectorAll('[data-follow]').forEach(btn => btn.addEventListener('click', () => {
         followFilter = btn.dataset.follow; currentPage = 1; renderFilters(); renderTraders();
     }));
@@ -1276,7 +1294,7 @@ function scoreBreakdown(t) {
     ];
     if (i.hit2xIn24h != null) lines.push('2x within 24h: ' + pct(i.hit2xIn24h));
     if (i.medianReturn1h != null) lines.push('Typical move after 1h: ' + signedPct1(i.medianReturn1h));
-    if (i.avgPerCall != null) lines.push('Avg result per alert: ' + signedPct1(i.avgPerCall));
+    if (i.avgPerCall != null) lines.push('Avg per alert, all plays mixed: ' + signedPct1(i.avgPerCall));
     if (i.stopOut30 != null) lines.push('Dumped 30% within 4h: ' + pct(i.stopOut30));
     const p = pnlOf(t);
     if (p) lines.push('Their own PnL (' + p.label + '): ' + signedUsd(p.v));
@@ -1550,7 +1568,10 @@ function timeAgo(iso) {
 }
 function mult(v) { return v == null ? '–' : (v >= 10 ? Math.round(v) : v.toFixed(1)) + 'x'; }
 function signedPct(v) { return v == null ? '–' : (v >= 0 ? '+' : '') + Math.round(v * 100) + '%'; }
-function tile(value, label, cls = '') { return `<div class="pf-tile"><b class="${cls}">${value}</b><span>${label}</span></div>`; }
+function tile(value, label, cls = '', tip = '') {
+    return `<div class="pf-tile"${tip ? ` title="${escapeHtml(tip)}" style="cursor:help"` : ''}><b class="${cls}">${value}</b><span>${label}</span></div>`;
+}
+function peakTime(m) { return m == null ? '–' : m < 90 ? m + 'm' : (m / 60).toFixed(1) + 'h'; }
 
 async function openProfile(traderId) {
     const modal = document.getElementById('profileModal');
@@ -1596,8 +1617,8 @@ function renderProfile() {
                 <div class="pf-name" id="pfName">${t.platform === 'Pump' ? '💊' : '👀'} ${escapeHtml(t.handle)}</div>
                 <div class="pf-badges">
                     <span class="style-badge ${escapeHtml(i.style ?? 'unrated')}" title="${escapeHtml(style.hint)}">${style.label}</span>
-                    ${i.capTier ? `<span class="style-badge unrated">${CAP_LABEL[i.capTier]} caps</span>` : ''}
-                    ${i.speed ? `<span class="style-badge unrated">${escapeHtml(SPEED_LABEL[i.speed])}</span>` : ''}
+                    ${i.capTier ? `<span class="style-badge unrated" title="${escapeHtml(i.medianMcap != null ? 'Their typical call is at ' + usd(i.medianMcap) + ' MC' : 'Market cap they usually call at')}">${CAP_LABEL[i.capTier]} caps</span>` : ''}
+                    ${i.speed ? `<span class="style-badge unrated" title="${escapeHtml(i.medianMinutesToPeak != null ? 'Their calls usually top out ' + peakTime(i.medianMinutesToPeak) + ' after the alert' : 'How fast their calls usually top out')}">${escapeHtml(SPEED_LABEL[i.speed])}</span>` : ''}
                     ${followTag(t)}
                 </div>
                 <div class="pf-links">${links}${i.followers != null ? `<span style="color:var(--text-dim)">${i.followers.toLocaleString()} followers</span>` : ''}</div>
@@ -1609,22 +1630,21 @@ function renderProfile() {
         ${i.calls ? `<div class="pf-section">Following them, last 30 days${i.basis ? ' (rated on their ' + BASIS_LABEL[i.basis] + ')' : ''}</div>
         <div class="pf-tiles">
             ${i.scoreRank != null ? `<div class="pf-tile" title="${escapeHtml(scoreBreakdown(t))}" style="cursor:help"><b class="${i.scoreRank >= 70 ? 'good' : i.scoreRank <= 30 ? 'bad' : ''}">${i.scoreRank}<small style="font-size:11px;opacity:.6">/100</small></b><span>score${scoreTier(t) === 1 ? ' (low confidence)' : ''}</span></div>` : ''}
-            ${tile(signedPct1(i.avgPerCall), 'avg per alert', i.avgPerCall > 0 ? 'good' : i.avgPerCall < 0 ? 'bad' : '')}
-            ${tile(pct(i.hit50In15m), '+50% in 15 min')}
-            ${tile(i.medianMinutesToPeak != null ? (i.medianMinutesToPeak < 90 ? i.medianMinutesToPeak + 'm' : (i.medianMinutesToPeak / 60).toFixed(1) + 'h') : '–', 'typical time to peak')}
-            ${tile(i.alertsPerDay != null ? trimNum(i.alertsPerDay) : '–', 'alerts a day')}
-            ${tile(i.medianMcap != null ? usd(i.medianMcap) : '–', 'typical entry cap')}
-            ${tile(i.calls, 'calls analysed')}
+            ${tile(pct(i.hit50In15m), '+50% in 15 min', '', i.hit50In15m != null ? pct(i.hit50In15m) + ' of their calls pumped +50% within 15 min of the alert. Only yours if you buy fast.' : '')}
+            ${tile(peakTime(i.medianMinutesToPeak), 'typical time to peak (24h)', '', i.medianMinutesToPeak != null ? 'When one of their calls runs (+30% or more), it usually tops out ' + peakTime(i.medianMinutesToPeak) + ' after the alert, looking at the first 24h.' : '')}
+            ${tile(i.alertsPerDay != null ? trimNum(i.alertsPerDay) : '–', 'alerts a day', '', i.alertsPerDay != null ? 'You\'d get about ' + trimNum(i.alertsPerDay) + ' alerts a day from them.' : '')}
+            ${tile(i.medianMcap != null ? usd(i.medianMcap) : '–', 'typical entry cap', '', 'Median market cap at their ' + (BASIS_LABEL[i.basis] ?? 'calls') + '.')}
+            ${tile(i.calls, 'calls analysed', '', i.calls + ' of their ' + (BASIS_LABEL[i.basis] ?? 'calls') + ' in the last 30 days, each replayed as if you bought ~1 min after the alert, after fees.')}
         </div>` : '<div class="pf-summary">No calls in the last 30 days to rate yet.</div>'}
         ${hasPnl ? `<div class="pf-section">Their own results (public)</div>
         <div class="pf-tiles">
-            ${i.pnl30dUsd != null ? tile(signedUsd(i.pnl30dUsd), 'on-chain PnL, 30d', i.pnl30dUsd >= 0 ? 'good' : 'bad') : ''}
-            ${i.pnl7dUsd != null ? tile(signedUsd(i.pnl7dUsd), 'on-chain PnL, 7d', i.pnl7dUsd >= 0 ? 'good' : 'bad') : ''}
-            ${i.pnlRank30d ? tile('#' + i.pnlRank30d.toLocaleString(), 'pump.fun PnL rank, 30d') : ''}
-            ${i.portfolioPnlUsd != null ? tile(signedUsd(i.portfolioPnlUsd), 'portfolio PnL (pump.fun)', i.portfolioPnlUsd >= 0 ? 'good' : 'bad') : ''}
-            ${i.realizedPnlUsd != null && t.platform === 'Fomo' ? tile(signedUsd(i.realizedPnlUsd), 'realized on FOMO since ' + (i.pnlSince ? fmtDay(i.pnlSince) : 'added'), i.realizedPnlUsd >= 0 ? 'good' : 'bad') : ''}
-            ${i.ownWinRate != null ? tile(pct(i.ownWinRate), 'their own win rate') : ''}
-            ${i.callout2xRate != null ? tile(pct(i.callout2xRate), 'callouts that hit 2x') : ''}
+            ${i.pnl30dUsd != null ? tile(signedUsd(i.pnl30dUsd), 'on-chain PnL, 30d', i.pnl30dUsd >= 0 ? 'good' : 'bad', 'pump.fun\'s number for their wallet over the last 30 days.') : ''}
+            ${i.pnl7dUsd != null ? tile(signedUsd(i.pnl7dUsd), 'on-chain PnL, 7d', i.pnl7dUsd >= 0 ? 'good' : 'bad', 'pump.fun\'s number for their wallet over the last 7 days.') : ''}
+            ${i.pnlRank30d ? tile('#' + i.pnlRank30d.toLocaleString(), 'pump.fun PnL rank, 30d', '', 'Their spot on pump.fun\'s 30-day PnL leaderboard.') : ''}
+            ${i.portfolioPnlUsd != null ? tile(signedUsd(i.portfolioPnlUsd), 'portfolio PnL (pump.fun)', i.portfolioPnlUsd >= 0 ? 'good' : 'bad', 'pump.fun\'s all-time PnL for their portfolio.') : ''}
+            ${i.realizedPnlUsd != null && t.platform === 'Fomo' ? tile(signedUsd(i.realizedPnlUsd), 'realized on FOMO since ' + (i.pnlSince ? fmtDay(i.pnlSince) : 'added'), i.realizedPnlUsd >= 0 ? 'good' : 'bad', pnlOf(t)?.tip ?? '') : ''}
+            ${i.ownWinRate != null ? tile(pct(i.ownWinRate), 'their own win rate', '', pct(i.ownWinRate) + ' of their own closed trades made money. Says little about how following them goes.') : ''}
+            ${i.callout2xRate != null ? tile(pct(i.callout2xRate), 'callouts that hit 2x', '', pct(i.callout2xRate) + ' of their pump.fun callouts hit 2x (pump.fun\'s stat).') : ''}
         </div>` : ''}
         ${strip}`;
 
@@ -1654,7 +1674,7 @@ function closeProfile() { document.getElementById('profileModal').style.display 
 document.getElementById('traderList').addEventListener('click', e => {
     if (e.target.closest('a, input, button, label')) return;
     const row = e.target.closest('tr[data-id]');
-    if (row) openProfile(parseInt(row.dataset.id, 10));
+    if (row && fullAccess) openProfile(parseInt(row.dataset.id, 10));
 });
 document.getElementById('profileCloseBtn').addEventListener('click', closeProfile);
 document.getElementById('profileFollowBtn').addEventListener('click', toggleProfileFollow);
@@ -1686,7 +1706,7 @@ function renderCategories() {
     el.innerHTML = categories.map(c => `
         <span class="cat-chip ${c.followed ? 'on' : ''} ${styleFilter.has(c.id) ? 'filtered' : ''} ${c.id === 'noise' ? 'warn' : ''}" data-cat="${c.id}">
             <button type="button" class="cat-body" aria-pressed="${styleFilter.has(c.id)}"
-                title="${escapeHtml(c.description + '\nAvg score: ' + (c.avgScore ?? 'not yet'))}">
+                title="${escapeHtml(fullAccess ? c.description + '\nAvg score: ' + (c.avgScore ?? 'not yet') : c.description)}">
                 <span>${c.emoji}</span>${escapeHtml(c.label)}</button>
             ${c.followable === false ? '' : `<button type="button" class="cat-follow" aria-pressed="${c.followed}" aria-label="${c.followed ? 'Stop alerts from' : 'Get alerts from'} ${escapeHtml(c.label)}" title="${c.followed ? 'Getting alerts from ' + escapeHtml(c.label) + '. Click to stop.' : 'Get alerts from everyone in ' + escapeHtml(c.label) + ', now and later.'}">${c.followed ? '✓' : '+'}</button>`}
         </span>`).join('');
