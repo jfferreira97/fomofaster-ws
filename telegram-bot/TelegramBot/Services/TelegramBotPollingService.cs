@@ -599,10 +599,12 @@ public class TelegramBotPollingService : BackgroundService
                     isNewBot: _isNewBotInstance
                 );
 
-                // Onboarding follows the current roster but leaves auto-follow as it is (off for
-                // new users), so re-sending /start never switches it back on either.
-                await traderService.FollowAllTradersAsync(newUser.Id, enableAutoFollow: false);
-                var allTradersCount = await traderService.GetAllTradersAsync();
+                // A brand-new user starts on the longer-window categories (live: whoever is in
+                // them now and later), not the whole roster. Re-sending /start leaves follows alone.
+                var starter = await traderService.FollowStarterCategoriesAsync(newUser.Id);
+                var followNotice = starter.Count > 0
+                    ? $"You're following {string.Join(", ", starter.Select(id => TraderCategories.All.First(c => c.Id == id).Label))}: every trader in those categories, now and later. Change it anytime in /manage."
+                    : "Your follows are unchanged. See or change them in /manage.";
 
                 // One-shot free trial: only on the NEW bot, only if this chat has never had
                 // one before (TrialExpiresAt still null), and only if they're not already a
@@ -629,7 +631,7 @@ public class TelegramBotPollingService : BackgroundService
                     chatId: chatId,
                     text: $@"🎉 Welcome to GROUPCHAT!
 {trialNotice}
-You're now following all {allTradersCount.Count} traders by default, configure according to your preferences if needed:
+{followNotice}
 
 /help - show available commands
 /manage - open the web page to browse traders, see who you follow, and manage alerts

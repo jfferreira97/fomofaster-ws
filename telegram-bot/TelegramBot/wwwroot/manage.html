@@ -1329,6 +1329,7 @@ async function loadTraders() {
     }
     allTraders = res.traders;
     renderTraders();
+    if (categories.length) renderCategories();   // button counts follow the loaded list
 }
 
 // Every keystroke that finds nothing would otherwise restart the animation, which reads as
@@ -1361,7 +1362,7 @@ function renderTraders() {
 
     renderSortIndicators();
     document.getElementById('traderCount').innerHTML =
-        `<b>${followingCount}</b> following <span style="opacity:.5">/</span> <b>${allTraders.length}</b> available`;
+        `<b>${followingCount}</b> following <span style="opacity:.5">/</span> <b>${filtered.length}</b> selected <span style="opacity:.5">/</span> <b>${allTraders.length}</b> available`;
 
     const size = pageSize === 'all' ? Math.max(filtered.length, 1) : pageSize;
     const totalPages = Math.max(1, Math.ceil(filtered.length / size));
@@ -1707,7 +1708,7 @@ function renderCategories() {
         <span class="cat-chip ${c.followed ? 'on' : ''} ${styleFilter.has(c.id) ? 'filtered' : ''} ${c.id === 'noise' ? 'warn' : ''}" data-cat="${c.id}">
             <button type="button" class="cat-body" aria-pressed="${styleFilter.has(c.id)}"
                 title="${escapeHtml(fullAccess ? c.description + '\nAvg score: ' + (c.avgScore ?? 'not yet') : c.description)}">
-                <span>${c.emoji}</span>${escapeHtml(c.label)}</button>
+                <span>${c.emoji}</span>${escapeHtml(c.label)} <span class="n">${allTraders.filter(t => (t.intel?.style ?? 'unrated') === c.id).length}</span></button>
             ${c.followable === false ? '' : `<button type="button" class="cat-follow" aria-pressed="${c.followed}" aria-label="${c.followed ? 'Stop alerts from' : 'Get alerts from'} ${escapeHtml(c.label)}" title="${c.followed ? 'Getting alerts from ' + escapeHtml(c.label) + '. Click to stop.' : 'Get alerts from everyone in ' + escapeHtml(c.label) + ', now and later.'}">${c.followed ? '✓' : '+'}</button>`}
         </span>`).join('');
     el.querySelectorAll('.cat-chip').forEach(chip => {

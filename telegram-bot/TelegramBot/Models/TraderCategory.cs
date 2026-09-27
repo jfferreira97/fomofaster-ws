@@ -38,6 +38,9 @@ public static class TraderCategories
 
     public static string Effective(string? id) => IsValid(id) ? id! : Unrated;
 
+    // What a new user follows on their first /start: the longer windows, not the whole roster.
+    public static readonly IReadOnlyList<string> Starter = new[] { Runner, Holder, Flipper };
+
     // −EV and Unrated can be filtered on but not followed as a group.
     public static bool IsFollowable(string? id) => IsValid(id) && id != Noise && id != Unrated;
 }

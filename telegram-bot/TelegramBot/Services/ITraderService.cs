@@ -33,6 +33,10 @@ public interface ITraderService
     // actions do; onboarding on /start does not).
     Task<int> FollowAllTradersAsync(int userId, bool enableAutoFollow = true);
     Task<int> UnfollowAllTradersAsync(int userId);
+
+    // First /start only: a user with no follows at all (no traders, no categories) gets the
+    // starter categories. Returns those it added; empty when the user already follows anything.
+    Task<IReadOnlyList<string>> FollowStarterCategoriesAsync(int userId);
     Task<bool> DeleteTraderAsync(int traderId);
     Task<bool> DeleteTraderByHandleAsync(string handle, Platform platform = Platform.Fomo);
 

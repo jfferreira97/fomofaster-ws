@@ -545,6 +545,21 @@ Use /settings to manage auto-follow and notification preferences.";
         return followedCount;
     }
 
+    public async Task<IReadOnlyList<string>> FollowStarterCategoriesAsync(int userId)
+    {
+        if (await _dbContext.UserTraders.AnyAsync(ut => ut.UserId == userId)
+            || await _dbContext.UserCategoryFollows.AnyAsync(f => f.UserId == userId))
+            return Array.Empty<string>();
+
+        var now = DateTime.UtcNow;
+        foreach (var category in TraderCategories.Starter)
+            _dbContext.UserCategoryFollows.Add(new UserCategoryFollow { UserId = userId, Category = category, FollowedAt = now });
+        await _dbContext.SaveChangesAsync();
+
+        _logger.LogInformation("User {UserId} started on categories {Categories}", userId, string.Join(", ", TraderCategories.Starter));
+        return TraderCategories.Starter;
+    }
+
     public async Task<int> UnfollowAllTradersAsync(int userId)
     {
         var followedTraders = await GetTradersByUserIdAsync(userId);
