@@ -401,7 +401,8 @@ Everything else (traders, categories, alert types, chains) is on the manage page
                     text: @"📚 GROUPCHAT
 
 /manage - traders, categories, alert types, chains: all on one page
-/top [chains] <period> - top tokens (e.g. /top 1h, /top sol 1d)
+
+/top - top tokens (e.g. /top 1h, /top sol 1d)
 /subscribe - full alerts and trader stats
 
 Reply to any alert:
