@@ -57,26 +57,19 @@ public class ManageController : ControllerBase
         return await _userService.GetUserByChatIdAsync(chatId.Value);
     }
 
-    // The manage page is a subscriber perk, not just a logged-in-with-Telegram perk — gate
-    // every action on it, not only "me", so there's no endpoint a non-subscriber can reach
-    // by skipping straight to it. Distinct from the 401 case: a non-subscriber IS a valid,
-    // authenticated user, just not a paying one, so the frontend needs to tell them to
-    // subscribe rather than show the "log in with Telegram" screen again.
+    // Every registered user manages their follows and settings here (the bot's chat commands
+    // for that are gone). What differs by plan is the trader stats: see HasRatings.
     private async Task<(Models.User? User, IActionResult? Error)> ResolveSubscriberAsync()
     {
         var user = await GetCurrentUserAsync();
         if (user == null)
             return (null, Unauthorized(new { status = "error", message = "Not logged in" }));
 
-        var onActiveTrial = user.TrialExpiresAt.HasValue && user.TrialExpiresAt.Value > DateTime.UtcNow;
-        if (!user.IsRegisteredNurse && !user.IsRN4L && !onActiveTrial)
-            return (null, StatusCode(403, new { status = "error", code = "subscription_required", message = "This page is for subscribers only. Use /subscribe in the bot to get access." }));
-
         return (user, null);
     }
 
     // Paying members (lifetime, or a monthly sub the payment poller hasn't expired) get the
-    // trader ratings; trial users get the list, categories and follows, but none of the stats.
+    // trader ratings; everyone else gets the list, categories and follows, but none of the stats.
     // Enforced here, per request, from the session's own user — the page only mirrors it.
     private static bool HasRatings(Models.User user) => user.IsRN4L || user.IsRegisteredNurse;
 

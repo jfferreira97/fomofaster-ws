@@ -32,7 +32,6 @@ public class TelegramBotPollingService : BackgroundService
     // which sends a ForceReply prompt since Telegram buttons can't accept text input directly).
     // Cleared once the reply is consumed. In-memory only — losing a pending prompt on restart
     // just means the user re-taps the button, no real cost.
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<long, Chain> _pendingChainMcapInput = new();
 
     // GROUPCHAT token contract address - update this when token launches
     // private const string TOKEN_CONTRACT_ADDRESS = "6gCEGUjPisdGFc6FhRGL43hoD263dRF81i2L3bo5bonk";
@@ -183,10 +182,6 @@ public class TelegramBotPollingService : BackgroundService
         {
             await HandleCommandAsync(message, userService);
         }
-        else if (_pendingChainMcapInput.TryRemove(chatId, out var pendingChain))
-        {
-            await HandleChainMcapReplyAsync(message, pendingChain, userService);
-        }
         else
         {
             await HandleFreeTextAsync(message);
@@ -265,7 +260,7 @@ public class TelegramBotPollingService : BackgroundService
         var ok = await traderService.SetThresholdAsync(user.Id, trader.Id, minValue);
         if (!ok)
         {
-            await _botClient.SendTextMessageAsync(chatId, $"❌ You're not following {trader.Handle}, so there's no threshold to set. Use /follow {trader.Handle} first.");
+            await _botClient.SendTextMessageAsync(chatId, $"❌ You're not following {trader.Handle}, so there's no minimum to set. Follow them on /manage first.");
             return true;
         }
 
@@ -274,40 +269,6 @@ public class TelegramBotPollingService : BackgroundService
             : $"✅ Minimum alert size for {trader.Handle} cleared (alerts on everything)";
         await _botClient.SendTextMessageAsync(chatId, confirmText);
         return true;
-    }
-
-    private async Task HandleChainMcapReplyAsync(Message message, Chain chain, IUserService userService)
-    {
-        if (_botClient == null) return;
-
-        var chatId = message.Chat.Id;
-        var user = await userService.GetUserByChatIdAsync(chatId);
-        if (user == null) return;
-
-        if (!TryParseMarketCapArg(message.Text ?? "", out var value))
-        {
-            await _botClient.SendTextMessageAsync(
-                chatId: chatId,
-                text: "❌ Invalid amount. Send a number like 50k, 1.2m, or 0 for none. Tap the $ button on /chains to try again."
-            );
-            return;
-        }
-
-        using var scope = _serviceProvider.CreateScope();
-        var chainSettingsServiceForReply = scope.ServiceProvider.GetRequiredService<IChainSettingsService>();
-        await chainSettingsServiceForReply.SetMinMarketCapAsync(user.Id, chain, value);
-
-        var confirmText = value.HasValue
-            ? $"✅ Minimum market cap for {chain} set to ${value.Value:N0}"
-            : $"✅ Minimum market cap for {chain} cleared (no minimum)";
-
-        var updatedSettings = chainSettingsServiceForReply.GetSettingsForUser(user.Id);
-        await _botClient.SendTextMessageAsync(
-            chatId: chatId,
-            text: $"{confirmText}\n\n{ChainsText}",
-            parseMode: ParseMode.Markdown,
-            replyMarkup: BuildChainsKeyboard(updatedSettings)
-        );
     }
 
     private async Task HandleFreeTextAsync(Message message)
@@ -342,47 +303,6 @@ public class TelegramBotPollingService : BackgroundService
     private static bool HasActiveSubscription(Models.User u) =>
         u.IsRN4L || (u.IsRegisteredNurse && u.RNExpiresAt > DateTime.UtcNow);
 
-    // Parses one /follow or /unfollow token into (handle, platform). A null platform means
-    // "look on every platform" — a bare handle should just find the trader, since a user has
-    // no reason to know or care which platform someone posts on. The optional "pump:" /
-    // "fomo:" prefixes are only needed to disambiguate a handle that exists on both.
-    private static (string Handle, Platform? Platform) ParseTraderRef(string part)
-    {
-        var raw = part.Trim().TrimStart('@');
-
-        if (raw.StartsWith("pump:", StringComparison.OrdinalIgnoreCase))
-            return (raw["pump:".Length..].TrimStart('@'), Models.Platform.Pump);
-
-        if (raw.StartsWith("fomo:", StringComparison.OrdinalIgnoreCase))
-            return (raw["fomo:".Length..].TrimStart('@'), Models.Platform.Fomo);
-
-        return (raw, null);
-    }
-
-    // Resolves a token to the actual trader rows it names. A bare handle present on both
-    // platforms resolves to BOTH, so "/follow cap" follows every trader called cap rather
-    // than silently picking one and leaving the other behind.
-    private static async Task<List<Trader>> ResolveTradersAsync(ITraderService traderService, string part)
-    {
-        var (handle, platform) = ParseTraderRef(part);
-        var found = new List<Trader>();
-
-        foreach (var p in platform.HasValue
-                     ? new[] { platform.Value }
-                     : new[] { Models.Platform.Fomo, Models.Platform.Pump })
-        {
-            var t = await traderService.GetTraderByHandleIgnoreCaseAsync(handle, p);
-            if (t != null) found.Add(t);
-        }
-        return found;
-    }
-
-    // "koy (FOMO)" when the same handle lives on both platforms, plain "koy" when it doesn't -
-    // so the common case stays clean and only genuinely ambiguous names get qualified.
-    private static string Label(Trader t, IReadOnlyCollection<Trader> siblings) =>
-        siblings.Count > 1 ? $"{t.Handle} ({t.Platform.ToString().ToUpperInvariant()})" : t.Handle;
-
-    private static string OnOff(bool on) => on ? "✅" : "❌";
     // The ?t= token is redeemed for a session cookie by GET /manage.
     private async Task<InlineKeyboardMarkup> BuildManageButtonAsync(long chatId)
     {
@@ -392,189 +312,12 @@ public class TelegramBotPollingService : BackgroundService
             InlineKeyboardButton.WithUrl("Open Manage Page", $"https://groupchat-bot.tech/manage?t={Uri.EscapeDataString(token)}"));
     }
 
-    private static string BuildSettingsText(Models.User user) => "⚙️ *Notification Settings* — tap a button below to toggle.";
-
-    // Grouped by platform, mirroring the manage page: a FOMO header over its three
-    // toggles, a Pump.fun header over its two, then Trending (which spans both).
-    // Headers are inert — "settings:noop" falls through the handler's default case.
-    // Status goes first in each label so it survives when Telegram ellipsizes a
-    // three-across row on a narrow phone.
-    private static InlineKeyboardMarkup BuildSettingsKeyboard(Models.User user)
-    {
-        return new(new[]
-        {
-            new[] { InlineKeyboardButton.WithCallbackData("— FOMO —", "settings:noop") },
-            new[]
-            {
-                InlineKeyboardButton.WithCallbackData($"{OnOff(user.AutoFollowFomoTraders)} Auto-Follow", "settings:af_fomo"),
-                InlineKeyboardButton.WithCallbackData($"{OnOff(user.NotifyFomoBuySell)} Transactions", "settings:fomo_bs"),
-                InlineKeyboardButton.WithCallbackData($"{OnOff(user.NotifyFomoThesis)} Thesis", "settings:fomo_thesis"),
-            },
-            new[] { InlineKeyboardButton.WithCallbackData("— PUMP.FUN —", "settings:noop") },
-            new[]
-            {
-                InlineKeyboardButton.WithCallbackData($"{OnOff(user.AutoFollowPumpTraders)} Auto-Follow", "settings:af_pump"),
-                InlineKeyboardButton.WithCallbackData($"{OnOff(user.NotifyPumpCallouts)} Callouts", "settings:pump_callouts"),
-            },
-            new[]
-            {
-                InlineKeyboardButton.WithCallbackData($"🔥 Trending Alerts: {OnOff(user.NotifyTrending)}", "settings:trending"),
-            },
-        });
-    }
-
-    private static string FormatMarketCapShort(decimal value)
-    {
-        if (value >= 1_000_000m) return $"${value / 1_000_000m:0.#}M";
-        if (value >= 1_000m) return $"${value / 1_000m:0.#}K";
-        return "$0";
-    }
-
-    private const string ChainsText = "⛓ *Chain Settings*\n\nTap a chain (1st button) to enable/disable it entirely. Tap $ (2nd) to type a new minimum market cap floor — 0 means no minimum. Tap 🔥 (3rd) to mute just Trending alerts for that chain.";
-
-    private static InlineKeyboardMarkup BuildChainsKeyboard(Dictionary<Chain, UserChainSetting> settings)
-    {
-        var rows = new List<InlineKeyboardButton[]>();
-        foreach (var chain in Enum.GetValues<Chain>())
-        {
-            settings.TryGetValue(chain, out var s);
-            var isDisabled = s?.IsDisabled ?? false;
-            var minMarketCap = s?.MinMarketCap ?? 0m;
-            var trendingDisabled = s?.TrendingDisabled ?? false;
-
-            rows.Add(new[]
-            {
-                InlineKeyboardButton.WithCallbackData($"{(isDisabled ? "🔴" : "🟢")} {chain}", $"chains:toggle:{chain}"),
-                InlineKeyboardButton.WithCallbackData($"Min: {FormatMarketCapShort(minMarketCap)}", $"chains:mcap:{chain}"),
-                InlineKeyboardButton.WithCallbackData($"🔥 {(trendingDisabled ? "🔴" : "🟢")}", $"chains:trend:{chain}"),
-            });
-        }
-        return new InlineKeyboardMarkup(rows);
-    }
-
-    private async Task HandleChainsCallbackAsync(CallbackQuery callbackQuery, string data, Message message)
-    {
-        if (_botClient == null) return;
-
-        using var scope = _serviceProvider.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var chainSettingsServiceForCallback = scope.ServiceProvider.GetRequiredService<IChainSettingsService>();
-
-        var user = await dbContext.Users.FirstOrDefaultAsync(u => u.ChatId == message.Chat.Id);
-        if (user == null)
-        {
-            await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id, "Please use /start first.");
-            return;
-        }
-
-        // "chains:toggle:SOL", "chains:mcap:SOL", or "chains:trend:SOL"
-        var parts = data.Split(':');
-        if (parts.Length != 3 || !Enum.TryParse<Chain>(parts[2], out var chain))
-        {
-            await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id);
-            return;
-        }
-
-        if (parts[1] == "mcap")
-        {
-            // Inline buttons can't accept typed input — prompt with a ForceReply instead and
-            // remember which chain this chat is answering for; HandleChainMcapReplyAsync picks
-            // it up off their next plain-text message.
-            _pendingChainMcapInput[message.Chat.Id] = chain;
-            await _botClient.SendTextMessageAsync(
-                chatId: message.Chat.Id,
-                text: $"💬 Reply with the minimum market cap for {chain} (e.g. 50k, 1.2m, or 0 for none):",
-                replyMarkup: new ForceReplyMarkup { Selective = true }
-            );
-            await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id);
-            return;
-        }
-
-        var settings = chainSettingsServiceForCallback.GetSettingsForUser(user.Id);
-        settings.TryGetValue(chain, out var existing);
-
-        switch (parts[1])
-        {
-            case "toggle":
-                await chainSettingsServiceForCallback.SetDisabledAsync(user.Id, chain, !(existing?.IsDisabled ?? false));
-                break;
-            case "trend":
-                await chainSettingsServiceForCallback.SetTrendingDisabledAsync(user.Id, chain, !(existing?.TrendingDisabled ?? false));
-                break;
-            default:
-                await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id);
-                return;
-        }
-
-        var updatedSettings = chainSettingsServiceForCallback.GetSettingsForUser(user.Id);
-        await _botClient.EditMessageTextAsync(
-            chatId: message.Chat.Id,
-            messageId: message.MessageId,
-            text: ChainsText,
-            parseMode: ParseMode.Markdown,
-            replyMarkup: BuildChainsKeyboard(updatedSettings)
-        );
-
-        await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id);
-    }
-
+    // Settings and chains were managed with inline buttons in chat; old messages still carry
+    // them. They all live on /manage now.
     private async Task HandleCallbackQueryAsync(CallbackQuery callbackQuery)
     {
         if (_botClient == null) return;
-
-        var data = callbackQuery.Data;
-        var message = callbackQuery.Message;
-        if (message == null || string.IsNullOrEmpty(data))
-        {
-            await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id);
-            return;
-        }
-
-        if (data.StartsWith("chains:"))
-        {
-            await HandleChainsCallbackAsync(callbackQuery, data, message);
-            return;
-        }
-
-        if (!data.StartsWith("settings:"))
-        {
-            await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id);
-            return;
-        }
-
-        using var scope = _serviceProvider.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var user = await dbContext.Users.FirstOrDefaultAsync(u => u.ChatId == message.Chat.Id);
-        if (user == null)
-        {
-            await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id, "Please use /start first.");
-            return;
-        }
-
-        switch (data)
-        {
-            case "settings:af_fomo": user.AutoFollowFomoTraders = !user.AutoFollowFomoTraders; break;
-            case "settings:af_pump": user.AutoFollowPumpTraders = !user.AutoFollowPumpTraders; break;
-            case "settings:fomo_bs": user.NotifyFomoBuySell = !user.NotifyFomoBuySell; break;
-            case "settings:fomo_thesis": user.NotifyFomoThesis = !user.NotifyFomoThesis; break;
-            case "settings:pump_callouts": user.NotifyPumpCallouts = !user.NotifyPumpCallouts; break;
-            case "settings:trending": user.NotifyTrending = !user.NotifyTrending; break;
-            default:
-                await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id);
-                return;
-        }
-
-        await dbContext.SaveChangesAsync();
-
-        await _botClient.EditMessageTextAsync(
-            chatId: message.Chat.Id,
-            messageId: message.MessageId,
-            text: BuildSettingsText(user),
-            parseMode: ParseMode.Markdown,
-            replyMarkup: BuildSettingsKeyboard(user)
-        );
-
-        await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id);
+        await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id, "Settings moved to the manage page: send /manage", showAlert: true);
     }
 
     private async Task HandleCommandAsync(Message message, IUserService userService)
@@ -587,7 +330,6 @@ public class TelegramBotPollingService : BackgroundService
 
         using var scope = _serviceProvider.CreateScope();
         var traderService = scope.ServiceProvider.GetRequiredService<ITraderService>();
-        var chainSettingsService = scope.ServiceProvider.GetRequiredService<IChainSettingsService>();
 
         switch (command)
         {
@@ -620,7 +362,7 @@ public class TelegramBotPollingService : BackgroundService
                     var trialHours = await appConfig.GetNewBotTrialHoursAsync();
                     var trialExpiresAt = DateTime.UtcNow.AddHours(trialHours);
                     await userService.GrantTrialAsync(chatId, trialExpiresAt);
-                    newUser.TrialExpiresAt = trialExpiresAt; // keep the in-memory copy consistent for BuildSettingsText below
+                    newUser.TrialExpiresAt = trialExpiresAt;
 
                     trialNotice = $@"
 🎁 *Free trial active* — full, unobfuscated alerts (contract addresses, real trade links) for the next {trialHours} hours. After that, alerts go back to limited details unless you /subscribe.
@@ -633,20 +375,10 @@ public class TelegramBotPollingService : BackgroundService
 {trialNotice}
 {followNotice}
 
-/help - show available commands
-/manage - open the web page to browse traders, see who you follow, and manage alerts
-/follow cap - follow a trader (comma-separate for several)
-/unfollow cap - unfollow one
-/unfollow - reply it to any alert to drop that trader
-/autofollow <on/off> - check/toggle auto-follow for new traders (starts OFF by default)
-/settings - full notification menu: auto-follow, transactions, thesis, pump callouts, trending
-/repeatwindow <2h/30m/off> - limit repeat buy/sell alerts per trader+coin — buys and sells don't block each other (off by default)
-/chains - tap-button menu to enable/disable chains and set a minimum market cap per chain
-/top - view top tokens (e.g., /top 1h, /top sol 1d, /top sol,monad 6h)
-
-{BuildSettingsText(newUser)}",
+Everything else (traders, categories, alert types, chains) is on the manage page: tap below, or send /manage anytime. /help for the rest.",
                     parseMode: ParseMode.Markdown,
-                    replyMarkup: BuildSettingsKeyboard(newUser)
+                    replyMarkup: await BuildManageButtonAsync(chatId),
+                    disableWebPagePreview: true
                 );
 
                 // Broadcast new user to dashboard via SignalR
@@ -666,23 +398,15 @@ public class TelegramBotPollingService : BackgroundService
             case "/help":
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
-                    text: @"📚 GROUPCHAT Commands:
+                    text: @"📚 GROUPCHAT
 
-/start - Subscribe to notifications
-/help - Show this help message
-/manage - Open the web page to browse traders, see who you follow, and manage alerts
-/follow <handles> - e.g. /follow cap or /follow cap,koy (pump:cap or fomo:cap if the name is on both)
-/unfollow <handles> - same format
-/follow all | /unfollow all - everything at once
-/unfollow - reply it to any alert to drop that trader
-setmin 50k - reply it to any alert to set that trader's minimum alert size
-/autofollow <on/off> - Check/toggle FOMO auto-follow for new traders (starts OFF by default)
-/settings - Full notification menu: auto-follow (FOMO/Pump), transactions, thesis, pump callouts, trending
-/repeatwindow <2h/30m/off> - Limit repeat buy/sell alerts per trader+coin — buys and sells don't block each other (off by default)
-/chains - Tap-button menu: enable/disable each chain, cycle its minimum market cap floor (also: /chains disable base, /chains minmcap sol 50k)
-/top [chains] <period> - Top tokens (e.g., /top 1h, /top sol 1d, /top sol,monad 6h)
+/manage - traders, categories, alert types, chains: all on one page
+/top [chains] <period> - top tokens (e.g. /top 1h, /top sol 1d)
+/subscribe - full alerts and trader stats
 
-You'll only receive notifications from traders you follow!",
+Reply to any alert:
+unfollow - stop alerts from that trader
+setmin 50k - only alert on their trades above $50K (setmin off to clear)",
                     parseMode: ParseMode.Markdown
                 );
                 break;
@@ -696,560 +420,21 @@ You'll only receive notifications from traders you follow!",
                 );
                 break;
 
-            // Retired 2026-09-03 — browsing/filtering the full trader roster is now 100%
-            // handled by the manage page (search, platform filter, follow, thresholds, all
-            // in one scrollable table instead of chunked wall-of-text messages).
+            // Moved to the manage page. Typed /unfollow lands here too; replying "unfollow" to an
+            // alert is handled earlier (TryHandleNotificationReplyAsync) and still works.
             case "/list":
-                await _botClient.SendTextMessageAsync(
-                    chatId: chatId,
-                    text: "The full trader list now lives on the manage page — search, filter by platform, and follow/unfollow from there.",
-                    replyMarkup: await BuildManageButtonAsync(chatId),
-                    disableWebPagePreview: true
-                );
-                break;
-
-            // Retired 2026-09-03, same as /list — the manage page already shows follow
-            // state inline for every trader, so a separate "just the ones I follow" view
-            // is redundant with it.
             case "/mytraders":
+            case "/follow":
+            case "/unfollow":
+            case "/autofollow":
+            case "/settings":
+            case "/repeatwindow":
+            case "/chains":
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
-                    text: "Your followed traders are on the manage page now — same table as everyone else, just check who's followed.",
+                    text: "That's on the manage page now: follow traders and categories, alert types, chains and repeat alerts, all in one place.\n\nTip: reply \"unfollow\" or \"setmin 50k\" to any alert to act on that trader.",
                     replyMarkup: await BuildManageButtonAsync(chatId),
                     disableWebPagePreview: true
-                );
-                break;
-
-            case "/follow":
-                var userForFollow = await userService.GetUserByChatIdAsync(chatId);
-
-                if (userForFollow == null)
-                {
-                    await _botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: "❌ Please use /start first to register.",
-                        parseMode: ParseMode.Markdown
-                    );
-                    break;
-                }
-
-                var followArgs = message.Text?.Split(' ', 2);
-                if (followArgs == null || followArgs.Length < 2 || string.IsNullOrWhiteSpace(followArgs[1]))
-                {
-                    await _botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: "❌ Please specify traders to follow.\n\nExamples:\n/follow 1,2,3\n/follow trader1,trader2\n/follow 1,trader2,3\n/follow all",
-                        parseMode: ParseMode.Markdown
-                    );
-                    break;
-                }
-
-                var followInput = followArgs[1].Trim();
-
-                // Handle /follow all
-                if (followInput.Equals("all", StringComparison.OrdinalIgnoreCase))
-                {
-                    var followedCount = await traderService.FollowAllTradersAsync(userForFollow.Id);
-                    var allTradersForFollow = await traderService.GetAllTradersAsync();
-
-                    if (allTradersForFollow.Count == 0)
-                    {
-                        await _botClient.SendTextMessageAsync(
-                            chatId: chatId,
-                            text: "❌ No traders available to follow yet."
-                        );
-                        break;
-                    }
-
-                    if (followedCount == 0)
-                    {
-                        await _botClient.SendTextMessageAsync(
-                            chatId: chatId,
-                            text: $"You're already following all {allTradersForFollow.Count} traders."
-                        );
-                    }
-                    else
-                    {
-                        await _botClient.SendTextMessageAsync(
-                            chatId: chatId,
-                            text: $"Now following all traders ({followedCount} new, {allTradersForFollow.Count} total)"
-                        );
-                    }
-                    break;
-                }
-                var followParts = followInput.Split(',').Select(p => p.Trim()).Where(p => !string.IsNullOrEmpty(p)).ToList();
-
-                if (followParts.Count == 0)
-                {
-                    await _botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: "❌ Please specify traders to follow.\n\nExamples:\n/follow 1,2,3\n/follow trader1,trader2",
-                        parseMode: ParseMode.Markdown
-                    );
-                    break;
-                }
-
-                var followedNames = new List<string>();
-                var alreadyFollowingNames = new List<string>();
-                var notFoundList = new List<string>();
-                var crossPlatformHints = new List<string>();
-
-                foreach (var part in followParts)
-                {
-                    // Numeric input is an exact trader id; anything else is a handle, which
-                    // may resolve to a trader on either platform (or both).
-                    List<Trader> matches;
-                    if (int.TryParse(part, out var traderId))
-                    {
-                        var byId = await traderService.GetTraderByIdAsync(traderId);
-                        matches = byId == null ? new List<Trader>() : new List<Trader> { byId };
-                    }
-                    else
-                    {
-                        matches = await ResolveTradersAsync(traderService, part);
-                    }
-
-                    if (matches.Count == 0) { notFoundList.Add(part); continue; }
-
-                    foreach (var trader in matches)
-                    {
-                        var ok = await traderService.FollowTraderAsync(userForFollow.Id, trader.Id);
-                        if (ok) followedNames.Add(Label(trader, matches));
-                        else alreadyFollowingNames.Add(Label(trader, matches));
-                    }
-
-                    if (matches.Count > 1)
-                        crossPlatformHints.Add($"ℹ️ {matches[0].Handle} exists on both platforms — followed both. Use pump:{matches[0].Handle} or fomo:{matches[0].Handle} to target one.");
-                }
-
-                var followResultParts = new List<string>();
-                if (followedNames.Count > 0)
-                    followResultParts.Add($"Now following {string.Join(", ", followedNames)}");
-                if (alreadyFollowingNames.Count > 0)
-                    followResultParts.Add($"Already following {string.Join(", ", alreadyFollowingNames)}");
-                if (notFoundList.Count > 0)
-                    followResultParts.Add($"Not found: {string.Join(", ", notFoundList)}");
-                if (crossPlatformHints.Count > 0)
-                    followResultParts.Add(string.Join("\n", crossPlatformHints.Distinct()));
-
-                var followResultMessage = string.Join("\n", followResultParts);
-
-                await _botClient.SendTextMessageAsync(
-                    chatId: chatId,
-                    text: followResultMessage
-                );
-                break;
-
-            case "/unfollow":
-                var userForUnfollow = await userService.GetUserByChatIdAsync(chatId);
-
-                if (userForUnfollow == null)
-                {
-                    await _botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: "❌ Please use /start first to register.",
-                        parseMode: ParseMode.Markdown
-                    );
-                    break;
-                }
-
-                var unfollowArgs = message.Text?.Split(' ', 2);
-                if (unfollowArgs == null || unfollowArgs.Length < 2 || string.IsNullOrWhiteSpace(unfollowArgs[1]))
-                {
-                    await _botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: "❌ Please specify traders to unfollow.\n\nExamples:\n/unfollow 1,2,3\n/unfollow trader1,trader2\n/unfollow 1,trader2,3\n/unfollow all",
-                        parseMode: ParseMode.Markdown
-                    );
-                    break;
-                }
-
-                var unfollowInput = unfollowArgs[1].Trim();
-
-                // Handle /unfollow all
-                if (unfollowInput.Equals("all", StringComparison.OrdinalIgnoreCase))
-                {
-                    var unfollowedCount = await traderService.UnfollowAllTradersAsync(userForUnfollow.Id);
-
-                    if (unfollowedCount == 0)
-                    {
-                        await _botClient.SendTextMessageAsync(
-                            chatId: chatId,
-                            text: "You're not following any traders."
-                        );
-                    }
-                    else
-                    {
-                        await _botClient.SendTextMessageAsync(
-                            chatId: chatId,
-                            text: $"Unfollowed all traders ({unfollowedCount} total)"
-                        );
-                    }
-                    break;
-                }
-                var unfollowParts = unfollowInput.Split(',').Select(p => p.Trim()).Where(p => !string.IsNullOrEmpty(p)).ToList();
-
-                if (unfollowParts.Count == 0)
-                {
-                    await _botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: "❌ Please specify traders to unfollow.\n\nExamples:\n/unfollow 1,2,3\n/unfollow trader1,trader2",
-                        parseMode: ParseMode.Markdown
-                    );
-                    break;
-                }
-
-                var unfollowedNames = new List<string>();
-                var notFollowingNames = new List<string>();
-                var unfollowNotFoundList = new List<string>();
-                var unfollowHints = new List<string>();
-
-                foreach (var part in unfollowParts)
-                {
-                    List<Trader> matches;
-                    if (int.TryParse(part, out var traderId))
-                    {
-                        var byId = await traderService.GetTraderByIdAsync(traderId);
-                        matches = byId == null ? new List<Trader>() : new List<Trader> { byId };
-                    }
-                    else
-                    {
-                        matches = await ResolveTradersAsync(traderService, part);
-                    }
-
-                    if (matches.Count == 0) { unfollowNotFoundList.Add(part); continue; }
-
-                    foreach (var trader in matches)
-                    {
-                        var ok = await traderService.UnfollowTraderAsync(userForUnfollow.Id, trader.Id);
-                        if (ok) unfollowedNames.Add(Label(trader, matches));
-                        else notFollowingNames.Add(Label(trader, matches));
-                    }
-
-                    if (matches.Count > 1)
-                        unfollowHints.Add($"ℹ️ {matches[0].Handle} exists on both platforms — unfollowed both. Use pump:{matches[0].Handle} or fomo:{matches[0].Handle} to target one.");
-                }
-
-                var unfollowResultParts = new List<string>();
-                if (unfollowedNames.Count > 0)
-                    unfollowResultParts.Add($"Unfollowed {string.Join(", ", unfollowedNames)}");
-                if (notFollowingNames.Count > 0)
-                    unfollowResultParts.Add($"Weren't following {string.Join(", ", notFollowingNames)}");
-                if (unfollowNotFoundList.Count > 0)
-                    unfollowResultParts.Add($"Not found: {string.Join(", ", unfollowNotFoundList)}");
-                if (unfollowHints.Count > 0)
-                    unfollowResultParts.Add(string.Join("\n", unfollowHints.Distinct()));
-
-                var unfollowResultMessage = string.Join("\n", unfollowResultParts);
-
-                await _botClient.SendTextMessageAsync(
-                    chatId: chatId,
-                    text: unfollowResultMessage
-                );
-                break;
-
-            case "/autofollow":
-                var userForAutoFollow = await userService.GetUserByChatIdAsync(chatId);
-
-                if (userForAutoFollow == null)
-                {
-                    await _botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: "❌ Please use /start first to register.",
-                        parseMode: ParseMode.Markdown
-                    );
-                    break;
-                }
-
-                var autoFollowArgs = message.Text?.Split(' ', 2);
-
-                // Just /autofollow - show current status
-                if (autoFollowArgs == null || autoFollowArgs.Length < 2 || string.IsNullOrWhiteSpace(autoFollowArgs[1]))
-                {
-                    var currentStatus = userForAutoFollow.AutoFollowFomoTraders ? "ON" : "OFF";
-                    await _botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: $"Your FOMO auto-follow for new traders is currently: {currentStatus}\n\nUse /autofollow on or /autofollow off to change it, or /settings for the full menu (Pump auto-follow, notification types, etc.).",
-                        parseMode: ParseMode.Markdown
-                    );
-                    break;
-                }
-
-                // /autofollow on/off - toggle the setting (FOMO only; use /settings for Pump)
-                var autoFollowValue = autoFollowArgs[1].Trim().ToLower();
-
-                if (autoFollowValue == "on")
-                {
-                    userForAutoFollow.AutoFollowFomoTraders = true;
-                    using var scope1 = _serviceProvider.CreateScope();
-                    var dbContext1 = scope1.ServiceProvider.GetRequiredService<AppDbContext>();
-                    var userToUpdate1 = await dbContext1.Users.FindAsync(userForAutoFollow.Id);
-                    if (userToUpdate1 != null)
-                    {
-                        userToUpdate1.AutoFollowFomoTraders = true;
-                        await dbContext1.SaveChangesAsync();
-                    }
-
-                    await _botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: "✅ FOMO auto-follow for new traders is now ON\n\nYou'll automatically follow any new FOMO traders added to the system. (Use /settings to manage Pump too.)",
-                        parseMode: ParseMode.Markdown
-                    );
-                }
-                else if (autoFollowValue == "off")
-                {
-                    userForAutoFollow.AutoFollowFomoTraders = false;
-                    using var scope2 = _serviceProvider.CreateScope();
-                    var dbContext2 = scope2.ServiceProvider.GetRequiredService<AppDbContext>();
-                    var userToUpdate2 = await dbContext2.Users.FindAsync(userForAutoFollow.Id);
-                    if (userToUpdate2 != null)
-                    {
-                        userToUpdate2.AutoFollowFomoTraders = false;
-                        await dbContext2.SaveChangesAsync();
-                    }
-
-                    await _botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: "❌ FOMO auto-follow for new traders is now OFF\n\nYou won't automatically follow new FOMO traders added to the system. (Use /settings to manage Pump too.)",
-                        parseMode: ParseMode.Markdown
-                    );
-                }
-                else
-                {
-                    await _botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: "❌ Invalid option. Use /autofollow on or /autofollow off",
-                        parseMode: ParseMode.Markdown
-                    );
-                }
-                break;
-
-            case "/settings":
-                var userForSettings = await userService.GetUserByChatIdAsync(chatId);
-
-                if (userForSettings == null)
-                {
-                    await _botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: "❌ Please use /start first to register.",
-                        parseMode: ParseMode.Markdown
-                    );
-                    break;
-                }
-
-                await _botClient.SendTextMessageAsync(
-                    chatId: chatId,
-                    text: BuildSettingsText(userForSettings),
-                    parseMode: ParseMode.Markdown,
-                    replyMarkup: BuildSettingsKeyboard(userForSettings)
-                );
-                break;
-
-            case "/repeatwindow":
-                var userForRepeatWindow = await userService.GetUserByChatIdAsync(chatId);
-
-                if (userForRepeatWindow == null)
-                {
-                    await _botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: "❌ Please use /start first to register.",
-                        parseMode: ParseMode.Markdown
-                    );
-                    break;
-                }
-
-                var repeatWindowArgs = message.Text?.Split(' ', 2);
-
-                // Just /repeatwindow - show current setting
-                if (repeatWindowArgs == null || repeatWindowArgs.Length < 2 || string.IsNullOrWhiteSpace(repeatWindowArgs[1]))
-                {
-                    var currentDisplay = userForRepeatWindow.RepeatWindowMinutes <= 0
-                        ? "OFF (every trade notifies, even repeats)"
-                        : FormatRepeatWindow(userForRepeatWindow.RepeatWindowMinutes);
-                    await _botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: $"Your repeat window is currently: {currentDisplay}\n\nWithin this window, a trader can trigger at most one BUY alert and one SELL alert per coin — buys and sells are tracked separately, so you'll still get notified for both sides. After the window elapses, a new trade on that coin alerts again.\n\nUse /repeatwindow 2h (or 30m, or off) to change it.",
-                        parseMode: ParseMode.Markdown
-                    );
-                    break;
-                }
-
-                var repeatWindowInput = repeatWindowArgs[1].Trim().ToLower();
-                int? newRepeatWindowMinutes = null;
-
-                if (repeatWindowInput == "off")
-                {
-                    newRepeatWindowMinutes = 0;
-                }
-                else if (repeatWindowInput.EndsWith("h") && int.TryParse(repeatWindowInput[..^1], out var hoursVal) && hoursVal > 0 && hoursVal <= 168)
-                {
-                    newRepeatWindowMinutes = hoursVal * 60;
-                }
-                else if (repeatWindowInput.EndsWith("m") && int.TryParse(repeatWindowInput[..^1], out var minsVal) && minsVal > 0 && minsVal <= 10080)
-                {
-                    newRepeatWindowMinutes = minsVal;
-                }
-                else if (int.TryParse(repeatWindowInput, out var plainMinsVal) && plainMinsVal > 0 && plainMinsVal <= 10080)
-                {
-                    newRepeatWindowMinutes = plainMinsVal;
-                }
-
-                if (newRepeatWindowMinutes == null)
-                {
-                    await _botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: "❌ Invalid value. Examples: /repeatwindow 2h, /repeatwindow 30m, /repeatwindow off",
-                        parseMode: ParseMode.Markdown
-                    );
-                    break;
-                }
-
-                using (var scopeRepeatWindow = _serviceProvider.CreateScope())
-                {
-                    var dbContextRepeatWindow = scopeRepeatWindow.ServiceProvider.GetRequiredService<AppDbContext>();
-                    var userToUpdateRepeatWindow = await dbContextRepeatWindow.Users.FindAsync(userForRepeatWindow.Id);
-                    if (userToUpdateRepeatWindow != null)
-                    {
-                        userToUpdateRepeatWindow.RepeatWindowMinutes = newRepeatWindowMinutes.Value;
-                        await dbContextRepeatWindow.SaveChangesAsync();
-                    }
-                }
-
-                var newDisplay = newRepeatWindowMinutes <= 0
-                    ? "OFF (every trade notifies, even repeats)"
-                    : FormatRepeatWindow(newRepeatWindowMinutes.Value);
-                await _botClient.SendTextMessageAsync(
-                    chatId: chatId,
-                    text: $"✅ Repeat window set to: {newDisplay}",
-                    parseMode: ParseMode.Markdown
-                );
-                break;
-
-            case "/chains":
-                var userForChains = await userService.GetUserByChatIdAsync(chatId);
-
-                if (userForChains == null)
-                {
-                    await _botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: "❌ Please use /start first to register.",
-                        parseMode: ParseMode.Markdown
-                    );
-                    break;
-                }
-
-                var chainsArgs = message.Text?.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-                // Just /chains - show the tap-to-toggle button menu
-                if (chainsArgs == null || chainsArgs.Length < 2)
-                {
-                    var currentChainSettings = chainSettingsService.GetSettingsForUser(userForChains.Id);
-                    await _botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: ChainsText,
-                        parseMode: ParseMode.Markdown,
-                        replyMarkup: BuildChainsKeyboard(currentChainSettings)
-                    );
-                    break;
-                }
-
-                var chainsSubcommand = chainsArgs[1].ToLowerInvariant();
-
-                if (chainsSubcommand is "enable" or "disable")
-                {
-                    if (chainsArgs.Length < 3)
-                    {
-                        await _botClient.SendTextMessageAsync(
-                            chatId: chatId,
-                            text: $"❌ Usage: /chains {chainsSubcommand} <chain>[,<chain2>...]",
-                            parseMode: ParseMode.Markdown
-                        );
-                        break;
-                    }
-
-                    var wantDisabled = chainsSubcommand == "disable";
-                    var chainNames = chainsArgs[2].Split(',', StringSplitOptions.RemoveEmptyEntries);
-                    var appliedChains = new List<Chain>();
-                    var unrecognizedChains = new List<string>();
-
-                    foreach (var name in chainNames)
-                    {
-                        var parsedChain = ChainInfo.FromAlias(name.Trim());
-                        if (parsedChain.HasValue)
-                        {
-                            await chainSettingsService.SetDisabledAsync(userForChains.Id, parsedChain.Value, wantDisabled);
-                            appliedChains.Add(parsedChain.Value);
-                        }
-                        else
-                        {
-                            unrecognizedChains.Add(name.Trim());
-                        }
-                    }
-
-                    var chainsResultLines = new List<string>();
-                    if (appliedChains.Count > 0)
-                        chainsResultLines.Add($"{(wantDisabled ? "❌ Disabled" : "✅ Enabled")}: {string.Join(", ", appliedChains)}");
-                    if (unrecognizedChains.Count > 0)
-                        chainsResultLines.Add($"⚠️ Unrecognized chain(s): {string.Join(", ", unrecognizedChains)}. Valid: {ChainInfo.ChainListForHelp()}");
-
-                    await _botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: string.Join("\n", chainsResultLines),
-                        parseMode: ParseMode.Markdown
-                    );
-                    break;
-                }
-
-                if (chainsSubcommand is "minmcap" or "minmarketcap")
-                {
-                    if (chainsArgs.Length < 4)
-                    {
-                        await _botClient.SendTextMessageAsync(
-                            chatId: chatId,
-                            text: "❌ Usage: /chains minmcap <chain> <amount> (e.g. /chains minmcap sol 50k, or /chains minmcap sol off)",
-                            parseMode: ParseMode.Markdown
-                        );
-                        break;
-                    }
-
-                    var minMcapChain = ChainInfo.FromAlias(chainsArgs[2].Trim());
-                    if (!minMcapChain.HasValue)
-                    {
-                        await _botClient.SendTextMessageAsync(
-                            chatId: chatId,
-                            text: $"❌ Unrecognized chain '{chainsArgs[2]}'. Valid: {ChainInfo.ChainListForHelp()}",
-                            parseMode: ParseMode.Markdown
-                        );
-                        break;
-                    }
-
-                    if (!TryParseMarketCapArg(chainsArgs[3], out var minMcapValue))
-                    {
-                        await _botClient.SendTextMessageAsync(
-                            chatId: chatId,
-                            text: "❌ Invalid amount. Examples: 50k, 1.2m, 250000, off",
-                            parseMode: ParseMode.Markdown
-                        );
-                        break;
-                    }
-
-                    await chainSettingsService.SetMinMarketCapAsync(userForChains.Id, minMcapChain.Value, minMcapValue);
-
-                    var minMcapConfirmText = minMcapValue.HasValue
-                        ? $"✅ Minimum market cap for {minMcapChain.Value} set to ${minMcapValue.Value:N0}"
-                        : $"✅ Minimum market cap for {minMcapChain.Value} cleared";
-                    await _botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: minMcapConfirmText,
-                        parseMode: ParseMode.Markdown
-                    );
-                    break;
-                }
-
-                await _botClient.SendTextMessageAsync(
-                    chatId: chatId,
-                    text: "❌ Unknown /chains subcommand. Use:\n/chains — show status\n/chains disable <chain>\n/chains enable <chain>\n/chains minmcap <chain> <amount>",
-                    parseMode: ParseMode.Markdown
                 );
                 break;
 
@@ -1494,16 +679,6 @@ You'll only receive notifications from traders you follow!",
 
         value = null;
         return false;
-    }
-
-    private static string FormatRepeatWindow(int minutes)
-    {
-        if (minutes % 60 == 0)
-        {
-            var hours = minutes / 60;
-            return hours == 1 ? "1 hour" : $"{hours} hours";
-        }
-        return minutes == 1 ? "1 minute" : $"{minutes} minutes";
     }
 
     private static (string PublicKey, string PrivateKey) GenerateSolanaKeypair()
