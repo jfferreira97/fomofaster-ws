@@ -23,8 +23,8 @@ public static class TraderCategories
     // Display order: longest window first, then the ones most users shouldn't follow.
     public static readonly IReadOnlyList<TraderCategoryInfo> All = new[]
     {
+        new TraderCategoryInfo(Holder, "Multi-day holders", "💎", "They hold for days and it pays off. Slow money."),
         new TraderCategoryInfo(Runner, "Day holds", "📈", "Their calls keep climbing through the day: hold for 3x."),
-        new TraderCategoryInfo(Holder, "Holders", "💎", "They hold for days and it pays off. Slow money."),
         new TraderCategoryInfo(Flipper, "4h flips", "🔁", "Best taken within 4 hours of the call: aim for 2x."),
         new TraderCategoryInfo(Hourly, "1h flips", "⏱", "Best taken within an hour of the call: +50%, out."),
         new TraderCategoryInfo(Scalper, "15m flips", "⚡", "Best taken within 15 minutes of the call: +30%, out."),
@@ -39,7 +39,7 @@ public static class TraderCategories
     public static string Effective(string? id) => IsValid(id) ? id! : Unrated;
 
     // What a new user follows on their first /start: the longer windows, not the whole roster.
-    public static readonly IReadOnlyList<string> Starter = new[] { Runner, Holder, Flipper };
+    public static readonly IReadOnlyList<string> Starter = new[] { Holder, Runner, Flipper };
 
     // −EV and Unrated can be filtered on but not followed as a group.
     public static bool IsFollowable(string? id) => IsValid(id) && id != Noise && id != Unrated;

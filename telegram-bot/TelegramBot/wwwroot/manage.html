@@ -1210,13 +1210,13 @@ const STYLES = {
     hourly:  { label: '⏱ 1h flips', hint: 'Best taken within an hour of the call: +50%, out.' },
     flipper: { label: '🔁 4h flips', hint: 'Best taken within 4 hours of the call: aim for 2x.' },
     runner:  { label: '📈 Day holds', hint: 'Their calls keep climbing through the day: hold for 3x.' },
-    holder:  { label: '💎 Holders', hint: 'They hold for days and it pays off. Slow money.' },
+    holder:  { label: '💎 Multi-day holders', hint: 'They hold for days and it pays off. Slow money.' },
     noise:   { label: '🔇 −EV', hint: 'Acting on their calls lost money over the last 30 days.' },
     unrated: { label: '🆕 Unrated', hint: 'Not enough recent calls to score yet.' },
 };
 const BASIS_LABEL = { thesis: 'theses', buy: 'first buys', callout: 'callouts' };
 const WINDOW_LABEL = { '15m': '15 minutes', '1h': 'an hour', '4h': '4 hours', '24h': 'the day' };
-const STYLE_ORDER = ['runner', 'holder', 'flipper', 'hourly', 'scalper', 'noise', 'unrated'];
+const STYLE_ORDER = ['holder', 'runner', 'flipper', 'hourly', 'scalper', 'noise', 'unrated'];
 function styleRank(t) { const i = STYLE_ORDER.indexOf(t.intel?.style ?? 'unrated'); return i < 0 ? STYLE_ORDER.length : i; }
 
 const FOLLOW_FILTERS = [['all', 'All traders'], ['following', 'Following'], ['not', 'Not following']];

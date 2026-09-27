@@ -463,7 +463,7 @@ public class TraderCategorizerService : BackgroundService
 
     // Rebuilds every FOMO trader's positions from the buys and sells we've captured since they were
     // added: a position opens on a buy and closes once sold down to 5% of its peak size. Saves their
-    // realized profit since added on the trader, and returns the last 30 days' stats (Holders).
+    // realized profit since added on the trader, and returns the last 30 days' stats (Multi-day holders).
     private async Task<Dictionary<int, OwnTrading>> RebuildOwnTradingAsync(AppDbContext db, List<Trader> traders, DateTime now, CancellationToken ct)
     {
         SetStatus(s => s with { Phase = "rebuilding FOMO trades", Done = 0, Total = 0 });

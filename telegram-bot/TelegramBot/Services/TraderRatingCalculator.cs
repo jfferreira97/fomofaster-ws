@@ -9,7 +9,7 @@ public record TraderSample(
     IReadOnlyList<CallOutcome> Basis,  // every first post of that kind in the window, evaluated or not
     IReadOnlyList<CallOutcome> Buys,   // FOMO first buys (dump-on-followers check); empty for pump
     double AlertsPerDay,
-    OwnTrading? Own = null,            // FOMO: their own round trips in the window (Holders)
+    OwnTrading? Own = null,            // FOMO: their own round trips in the window (Multi-day holders)
     double? Pnl30dUsd = null);         // pump.fun's public 30-day PnL for their wallet
 
 // A FOMO trader's own closed positions in the window, rebuilt from their buys and sells.
@@ -68,7 +68,7 @@ public class TraderRatingStats
 //     four exits) + z(their public 30d PnL); the bottom 30% that also lose money on average,
 //     anything losing 6%+ per call, and loud traders with no edge are cut (−EV)
 //   - everyone else goes to the window that paid best: 15-min, 1-hour, 4-hour flips or day holds
-//   - Holders (FOMO only): hold their own buys 12h+ typically, 5+ closed, net profitable. Their game
+//   - Multi-day holders (FOMO only): hold their own buys 12h+ typically, 5+ closed, net profitable. Their game
 //     is longer than the 24h replay, so this wins over the replay's verdict
 public static class TraderRatingCalculator
 {
