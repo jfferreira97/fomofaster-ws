@@ -37,6 +37,15 @@ public interface ITraderService
     // First /start only: a user with no follows at all (no traders, no categories) gets the
     // starter categories. Returns those it added; empty when the user already follows anything.
     Task<IReadOnlyList<string>> FollowStarterCategoriesAsync(int userId);
+
+    // Category follows become real follows: every trader currently in a category someone
+    // follows gets a UserTrader row for them (tagged ViaCategory), unless they muted that trader
+    // after following the category. Only adds; a trader leaving a category keeps the follow.
+    // Idempotent, so it runs after anything that moves traders or category follows.
+    Task<int> SyncCategoryFollowsAsync(int? userId = null);
+
+    // Drop the follows a category added for this user (their own follows stay).
+    Task<int> RemoveCategoryFollowsAsync(int userId, string category);
     Task<bool> DeleteTraderAsync(int traderId);
     Task<bool> DeleteTraderByHandleAsync(string handle, Platform platform = Platform.Fomo);
 

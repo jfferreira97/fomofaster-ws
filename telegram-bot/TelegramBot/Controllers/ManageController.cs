@@ -159,7 +159,7 @@ public class ManageController : ControllerBase
                 category = t.Category,
                 isMuted = t.IsMuted,
                 // getting their alerts through a followed category rather than a direct follow
-                viaCategory = !t.IsFollowing && !t.IsMuted && followedCategories.Contains(t.Category),
+                viaCategory = t.ViaCategory,   // the category that added this follow, or null
                 intel = full
                     ? (object)_intel.Compose(traderRows[t.Id], ratings.GetValueOrDefault(t.Id), withCalls: false)
                     : new { style = TraderCategories.Effective(t.Category) }
@@ -186,7 +186,7 @@ public class ManageController : ControllerBase
         var catFollow = await _dbContext.UserCategoryFollows.FirstOrDefaultAsync(f => f.UserId == user.Id && f.Category == category);
         var excludedAt = (await _dbContext.TraderFollowExclusions.FirstOrDefaultAsync(e => e.UserId == user.Id && e.TraderId == traderId))?.ExcludedAt;
         var isMuted = catFollow != null && TraderService.IsMutedForCategory(excludedAt, catFollow.FollowedAt);
-        var viaCategory = follow == null && catFollow != null && !isMuted;
+        var viaCategory = follow?.ViaCategory;
         return Ok(new
         {
             status = "success",
@@ -331,6 +331,13 @@ public class ManageController : ControllerBase
         else if (!request.Follow && existing != null)
             _dbContext.UserCategoryFollows.Remove(existing);
         await _dbContext.SaveChangesAsync();
+
+        // Following adds everyone in it now (and the daily sync adds whoever joins); unfollowing
+        // takes back only the follows the category added.
+        if (request.Follow)
+            await _traderService.SyncCategoryFollowsAsync(user.Id);
+        else
+            await _traderService.RemoveCategoryFollowsAsync(user.Id, request.Category);
 
         return Ok(new { status = "success", followedCategories = await FollowedCategoriesAsync(user.Id) });
     }

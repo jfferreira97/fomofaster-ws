@@ -9,4 +9,5 @@ public record TraderBrowseEntry(
     bool IsFollowing,
     decimal? MinValueUsd,
     string Category,
-    bool IsMuted);
+    bool IsMuted,
+    string? ViaCategory);

@@ -99,6 +99,10 @@ using (var scope = app.Services.CreateScope())
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     dbContext.Database.Migrate();
     dbContext.Database.ExecuteSqlRaw("PRAGMA journal_mode=WAL;");
+
+    // Category follows are materialized as UserTrader rows; catches up anything missing
+    // (first run: backfills every existing category follow).
+    await scope.ServiceProvider.GetRequiredService<ITraderService>().SyncCategoryFollowsAsync();
 }
 
 // Seed default config values

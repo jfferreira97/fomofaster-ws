@@ -15,14 +15,16 @@ public class TraderCategoriesController : ControllerBase
     private readonly AppDbContext _dbContext;
     private readonly TraderCategorizerService _categorizer;
     private readonly TraderIntelService _intel;
+    private readonly ITraderService _traderService;
     private readonly ILogger<TraderCategoriesController> _logger;
 
     public TraderCategoriesController(AppDbContext dbContext, TraderCategorizerService categorizer, TraderIntelService intel,
-        ILogger<TraderCategoriesController> logger)
+        ITraderService traderService, ILogger<TraderCategoriesController> logger)
     {
         _dbContext = dbContext;
         _categorizer = categorizer;
         _intel = intel;
+        _traderService = traderService;
         _logger = logger;
     }
 
@@ -107,6 +109,7 @@ public class TraderCategoriesController : ControllerBase
         }
         trader.CategorizedAt = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync();
+        await _traderService.SyncCategoryFollowsAsync();   // followers of the new category get them
 
         _logger.LogInformation("Admin moved trader {Handle} ({Platform}): {From} -> {To}{Manual}",
             trader.Handle, trader.Platform, from, trader.Category, reset ? " (back to automatic)" : " (manual)");

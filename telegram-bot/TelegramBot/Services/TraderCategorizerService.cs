@@ -135,10 +135,11 @@ public class TraderCategorizerService : BackgroundService
 
         SetStatus(s => s with { Phase = "rating", Done = 0, Total = 0 });
         var (rated, moved) = await RateAsync(db, feed, traders, traderIds, own, started, ct);
+        var categoryFollowsAdded = await scope.ServiceProvider.GetRequiredService<ITraderService>().SyncCategoryFollowsAsync();
 
         await db.CallOutcomes.Where(c => c.CalledAt < started.AddDays(-60)).ExecuteDeleteAsync(ct);
 
-        var result = $"{added} new posts, {replayed} replayed ({noData} without price data), {rated} traders rated, {moved} changed category, {(DateTime.UtcNow - started).TotalMinutes:0} min";
+        var result = $"{added} new posts, {replayed} replayed ({noData} without price data), {rated} traders rated, {moved} changed category, {categoryFollowsAdded} follows added from followed categories, {(DateTime.UtcNow - started).TotalMinutes:0} min";
         _logger.LogInformation("Trader categorizer: {Result}", result);
         return result;
     }

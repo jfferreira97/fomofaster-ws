@@ -1650,13 +1650,13 @@ function renderProfile() {
         ${strip}`;
 
     const btn = document.getElementById('profileFollowBtn');
-    btn.textContent = t.viaCategory ? 'Mute' : isOn(t) ? 'Unfollow' : 'Follow';
+    btn.textContent = isOn(t) ? 'Unfollow' : 'Follow';
     btn.className = isOn(t) ? 'danger-btn' : 'ghost-btn';
 }
 
 async function toggleProfileFollow() {
     const t = profileTrader; if (!t) return;
-    const nowFollowing = !isOn(t), wasVia = t.viaCategory;
+    const nowFollowing = !isOn(t);
     const res = await fetch(`${API}/api/manage/${nowFollowing ? 'follow' : 'unfollow'}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ traderId: t.id })
     });
@@ -1666,7 +1666,7 @@ async function toggleProfileFollow() {
     if (row) applyFollowChange(row, nowFollowing);
     renderProfile();
     renderTraders();
-    showToast(nowFollowing ? `Following ${t.handle}` : wasVia ? `Muted ${t.handle}` : `Unfollowed ${t.handle}`);
+    showToast(nowFollowing ? `Following ${t.handle}` : `Unfollowed ${t.handle}`);
 }
 
 function closeProfile() { document.getElementById('profileModal').style.display = 'none'; profileTrader = null; }
@@ -1686,10 +1686,10 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && profileTra
 
 let categories = [];
 
-function isOn(t) { return t.isFollowing || t.viaCategory; }
+function isOn(t) { return t.isFollowing; }
 function categoryLabel(id) { return categories.find(c => c.id === id)?.label ?? (STYLES[id]?.label ?? id); }
 function followTag(t) {
-    if (t.viaCategory) return `<span class="via-tag" title="You get their alerts because you follow ${escapeHtml(categoryLabel(t.category))}. Uncheck to mute just this trader.">via ${categories.find(c => c.id === t.category)?.emoji ?? ''}</span>`;
+    if (t.viaCategory) return `<span class="via-tag" title="Added because you follow ${escapeHtml(categoryLabel(t.viaCategory))}. Uncheck to unfollow just them; unfollowing the category removes everyone it added.">via ${categories.find(c => c.id === t.viaCategory)?.emoji ?? ''}</span>`;
     if (t.isMuted && categories.some(c => c.followed && c.id === t.category)) return '<span class="muted-tag" title="Muted: you unchecked them, so their category doesn\'t bring them back. Check to follow them again.">muted</span>';
     return '';
 }
@@ -1731,9 +1731,8 @@ async function toggleCategory(id) {
     if (!res.ok || !body) { showToast(body?.message || 'Failed'); return; }
     const followed = new Set(body.followedCategories);
     categories.forEach(x => x.followed = followed.has(x.id));
-    allTraders.forEach(t => t.viaCategory = !t.isFollowing && !t.isMuted && followed.has(t.category));
     renderCategories();
-    renderTraders();
+    await loadTraders();   // the server added or removed real follows
     showToast(follow ? `Following ${c.label}: ${c.traderCount} traders now, and whoever joins later` : `Stopped following ${c.label}`, 3000);
 }
 
