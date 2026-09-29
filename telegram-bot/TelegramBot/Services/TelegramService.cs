@@ -130,6 +130,13 @@ public class TelegramService : ITelegramService
                 _logger.LogWarning("Telegram rate limited a send to {ChatId}, retrying in {Seconds}s", chatId, wait);
                 await Task.Delay(TimeSpan.FromSeconds(Math.Min(wait, 30)));
             }
+            catch (Telegram.Bot.Exceptions.ApiRequestException ex) when (ex.ErrorCode == 400 && ex.Message.Contains("parse entities", StringComparison.OrdinalIgnoreCase))
+            {
+                // A formatting slip shouldn't cost the user the alert: send it unformatted instead.
+                _logger.LogWarning("Telegram couldn't parse the Markdown for {ChatId} ({Error}), sending as plain text", chatId, ex.Message);
+                var plain = await client.SendTextMessageAsync(chatId: chatId, text: text, disableWebPagePreview: true);
+                return plain.MessageId;
+            }
         }
     }
 
@@ -261,11 +268,18 @@ public class TelegramService : ITelegramService
         var processedMessage = EscapeMarkdown(notification.Message);
         if (!string.IsNullOrEmpty(traderHandle))
         {
-            // Strip @handle — plain name only, no Twitter link
+            // The trader's name links to their FOMO / pump.fun profile. Matched on the escaped
+            // text (EscapeMarkdown turned "_" into "\_"), as a whole word, and with any "@" dropped.
+            // The link text is the raw handle: legacy Markdown takes it literally, no escaping inside.
+            var escapedHandle = EscapeMarkdown(traderHandle);
+            var profileUrl = platform == Platform.Pump
+                ? $"https://pump.fun/profile/{Uri.EscapeDataString(traderHandle)}"
+                : $"https://fomo.family/profile/{Uri.EscapeDataString(traderHandle)}";
+            var linkable = System.Text.RegularExpressions.Regex.IsMatch(traderHandle, @"^[A-Za-z0-9_.\-]+$");
             processedMessage = System.Text.RegularExpressions.Regex.Replace(
                 processedMessage,
-                System.Text.RegularExpressions.Regex.Escape($"@{traderHandle}"),
-                traderHandle,
+                $@"@?(?<![\w\\]){System.Text.RegularExpressions.Regex.Escape(escapedHandle)}(?![\w\\])",
+                _ => linkable ? $"[{traderHandle}]({profileUrl})" : escapedHandle,
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase
             );
         }
