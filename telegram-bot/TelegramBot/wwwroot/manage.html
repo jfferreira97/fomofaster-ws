@@ -627,6 +627,18 @@
     .trial-mode .trader-table th:nth-child(9), .trial-mode .trader-table tbody tr[data-id] td:nth-child(9) { display: none; }
     .trial-mode .trader-table tbody tr[data-id] { cursor: default; }
 
+    /* ---------- Two separate signals: the name is the filter, the bell is the follow ---------- */
+    /* following never touches the outline, only the bell square turns amber */
+    .cat-strip .cat-chip.on { border-color: var(--border); box-shadow: none; }
+    /* picked = the name part fills solid, like a pressed key */
+    .cat-strip .cat-chip.filtered { border-color: var(--text); }
+    .cat-strip .cat-chip.filtered .cat-body { background: var(--text); color: #0b0f14; }
+    .cat-strip .cat-chip.filtered .cat-body .n { color: #0b0f14; opacity: .6; }
+    .cat-strip .cat-chip.filtered .cat-body:hover { background: #fff; color: #0b0f14; }
+    /* while filtering, the groups you didn't pick step back */
+    .cat-strip.has-filter .cat-chip:not(.filtered) { opacity: .45; transition: opacity .12s; }
+    .cat-strip.has-filter .cat-chip:not(.filtered):hover { opacity: 1; }
+    .filter-row .fbub.on { border-color: var(--text); background: var(--text); color: #0b0f14; }
 </style>
 </head>
 <body>
@@ -1706,6 +1718,7 @@ async function loadCategories() {
 
 function renderCategories() {
     const el = document.getElementById('catStrip');
+    el.classList.toggle('has-filter', styleFilter.size > 0);   // unselected groups fade while filtering
     el.innerHTML = categories.map(c => `
         <span class="cat-chip ${c.followed ? 'on' : ''} ${styleFilter.has(c.id) ? 'filtered' : ''} ${c.id === 'noise' ? 'warn' : ''}" data-cat="${c.id}">
             <button type="button" class="cat-body" aria-pressed="${styleFilter.has(c.id)}"
