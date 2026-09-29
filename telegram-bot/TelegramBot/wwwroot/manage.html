@@ -1584,6 +1584,15 @@ function timeAgo(iso) {
 }
 function mult(v) { return v == null ? '–' : (v >= 10 ? Math.round(v) : v.toFixed(1)) + 'x'; }
 function signedPct(v) { return v == null ? '–' : (v >= 0 ? '+' : '') + Math.round(v * 100) + '%'; }
+// Peak market cap within 24h, the multiple, and how long after the call it got there.
+function peakCell(c) {
+    if (c.peak24h == null) return '–';
+    const took = c.peak24h >= 1.05 && c.minutesToPeak > 0   // no time when it never really rose
+        ? ` <small class="pf-mult">in ${c.minutesToPeak < 60 ? c.minutesToPeak + 'm' : c.minutesToPeak < 600 ? (c.minutesToPeak / 60).toFixed(1).replace(/\.0$/, '') + 'h' : Math.round(c.minutesToPeak / 60) + 'h'}</small>` : '';
+    if (!c.mcap) return mult(c.peak24h) + took;
+    return usd(c.mcap * c.peak24h) + ` <small class="pf-mult">(${mult(c.peak24h)})</small>` + took;
+}
+
 function tile(value, label, cls = '', tip = '') {
     return `<div class="pf-tile"${tip ? ` title="${escapeHtml(tip)}" style="cursor:help"` : ''}><b class="${cls}">${value}</b><span>${label}</span></div>`;
 }
@@ -1621,9 +1630,9 @@ function renderProfile() {
         <div class="pf-strip">${[...calls].reverse().map(c => `<div class="pf-bar ${c.peak24h >= 2 ? 'x2' : c.peak24h >= 1.3 ? 'x13' : ''}" style="height:${h(c.peak24h)}%"
             title="${escapeHtml((c.ticker || '?') + ' · ' + mult(c.peak24h) + ' peak · ' + timeAgo(c.t))}"></div>`).join('')}</div>
         <div class="pf-strip-legend"><span><i style="background:var(--good)"></i>2x or more</span><span><i style="background:var(--accent)"></i>+30% to 2x</span><span><i style="background:var(--text-faint)"></i>under +30%</span><span>oldest → newest</span></div>
-        <div class="pf-calls-wrap"><table class="pf-calls"><thead><tr><th title="The coin they called">Coin</th><th>Chain</th><th class="n" title="Market cap when they called it">Called at</th><th class="n" title="Highest market cap within 24h of the call, with how many times the call that is">Peak (24h)</th><th class="n" title="Where it stood 1 hour after the call, vs the market cap at the call">After 1h</th><th class="n" title="How long ago they called it">When</th></tr></thead><tbody>
+        <div class="pf-calls-wrap"><table class="pf-calls"><thead><tr><th title="The coin they called">Coin</th><th>Chain</th><th class="n" title="Market cap when they called it">Called at</th><th class="n" title="Highest market cap within 24h of the call, how many times the call that is, and how long it took to get there">Peak (24h)</th><th class="n" title="Where it stood 1 hour after the call, vs the market cap at the call">After 1h</th><th class="n" title="How long ago they called it">When</th></tr></thead><tbody>
         ${calls.map(c => `<tr><td>${escapeHtml(c.ticker || '?')}</td><td>${escapeHtml(CHAIN_LABEL[c.chain] ?? c.chain ?? '–')}</td><td class="n">${c.mcap ? usd(c.mcap) : '–'}</td>
-            <td class="n" style="color:${c.peak24h >= 2 ? 'var(--good)' : 'inherit'}">${c.mcap && c.peak24h != null ? usd(c.mcap * c.peak24h) + ` <small class="pf-mult">(${mult(c.peak24h)})</small>` : mult(c.peak24h)}</td><td class="n" style="color:${c.r1h >= 0 ? 'var(--good)' : 'var(--bad)'}">${signedPct(c.r1h)}</td><td class="n">${timeAgo(c.t)}</td></tr>`).join('')}
+            <td class="n" style="color:${c.peak24h >= 2 ? 'var(--good)' : 'inherit'}">${peakCell(c)}</td><td class="n" style="color:${c.r1h >= 0 ? 'var(--good)' : 'var(--bad)'}">${signedPct(c.r1h)}</td><td class="n">${timeAgo(c.t)}</td></tr>`).join('')}
         </tbody></table></div>` : '';
 
     const hasPnl = i.pnl30dUsd != null || i.pnl7dUsd != null || i.portfolioPnlUsd != null || i.realizedPnlUsd != null;
