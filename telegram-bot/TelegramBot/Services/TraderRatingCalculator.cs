@@ -38,6 +38,7 @@ public class TraderRatingStats
     public double? Hit2xIn24h { get; set; }
     public double? StopOut30 { get; set; }
     public double? MedianMinutesToPeak { get; set; }
+    public double? MedianPeak24h { get; set; }       // typical 24h peak, as a multiple of the entry
     public double? AvgPerCall { get; set; }
 
     // What users sort by on /manage. ScoreRank: the composite score as a percentile among rated
@@ -102,7 +103,7 @@ public static class TraderRatingCalculator
         public Dictionary<string, (double Ev, int N)> Ev = new();
         public double Hit2x, Sl30, Hit50In15m;
         public int? ScoreRank, Hit2xRank, Return1hRank, StopOutRank, AvgRank, PnlRank;
-        public double? TPeakMed, R1hMed, McapMed, EntryVsCallMed, FastDumpShare, DumpFollowerLoss;
+        public double? TPeakMed, Pk24hMed, R1hMed, McapMed, EntryVsCallMed, FastDumpShare, DumpFollowerLoss;
         public string Style = TraderCategories.Unrated;
         public string BestWindow = "1h";
         public double Best;
@@ -130,6 +131,7 @@ public static class TraderRatingCalculator
                 w.Sl30 = Share(sims, c => c.Sl30 == true);
                 w.Hit50In15m = Share(sims, c => c.Pk15m >= 1.5);
                 w.TPeakMed = Q(sims.Where(c => c.Pk24h >= 1.3).Select(c => c.MinutesToPeak!.Value), 0.5);
+                w.Pk24hMed = Q(sims.Select(c => c.Pk24h!.Value), 0.5);
                 w.R1hMed = Q(sims.Select(c => c.R1h!.Value), 0.5);
                 w.EntryVsCallMed = Q(sims.Where(c => c.EntryVsCall != null).Select(c => c.EntryVsCall!.Value), 0.5);
             }
@@ -272,6 +274,7 @@ public static class TraderRatingCalculator
         stats.Hit2xIn24h = Round(w.Hit2x);
         stats.StopOut30 = Round(w.Sl30);
         stats.MedianMinutesToPeak = w.TPeakMed is double t ? Math.Round(t) : null;
+        stats.MedianPeak24h = w.Pk24hMed is double pk ? Math.Round(pk, 2) : null;
         stats.AvgPerCall = Round(w.EvAll);
         stats.ScoreRank = w.ScoreRank;
         stats.Hit2xRank = w.Hit2xRank;

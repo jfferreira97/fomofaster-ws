@@ -46,6 +46,7 @@ public class TraderIntelEntry
     public double? Hit2xIn24h { get; set; }
     public double? StopOut30 { get; set; }
     public double? MedianMinutesToPeak { get; set; }
+    public double? MedianPeak24h { get; set; }
     public double? AvgPerCall { get; set; }
 
     // Sortable scores (see TraderRatingStats): 0-100 percentile of the composite score and of

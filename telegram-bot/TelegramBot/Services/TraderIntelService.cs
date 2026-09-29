@@ -100,6 +100,7 @@ public class TraderIntelService
         e.Hit2xIn24h = s.Hit2xIn24h;
         e.StopOut30 = s.StopOut30;
         e.MedianMinutesToPeak = s.MedianMinutesToPeak;
+        e.MedianPeak24h = s.MedianPeak24h;
         e.AvgPerCall = s.AvgPerCall;
         e.ScoreRank = s.ScoreRank;
         e.Hit2xRank = s.Hit2xRank;

@@ -639,6 +639,7 @@
     .cat-strip.has-filter .cat-chip:not(.filtered) { opacity: .45; transition: opacity .12s; }
     .cat-strip.has-filter .cat-chip:not(.filtered):hover { opacity: 1; }
     .filter-row .fbub.on { border-color: var(--text); background: var(--text); color: #0b0f14; }
+    .trader-table .peak-time { color: var(--text-faint); font-size: 11px; }
 </style>
 </head>
 <body>
@@ -766,7 +767,7 @@
                                     <th class="num" data-sort="style"><button type="button" class="th-sort" title="Their category, from how following them has played out. Hover a badge for details">Category <span class="sort-ind"></span></button></th>
                                     <th class="num" data-sort="avg"><button type="button" class="th-sort" title="What you'd have made per alert playing them their category's way: bought ~1 min after the alert, after fees. Last 30 days.">Avg / alert <span class="sort-ind"></span></button></th>
                                     <th class="num" data-sort="fast"><button type="button" class="th-sort" title="Share of calls that pumped +50% within 15 minutes of the alert">+50% 15m <span class="sort-ind"></span></button></th>
-                                    <th class="num" data-sort="topeak"><button type="button" class="th-sort" title="Typical time from their call to the token's peak market cap within 24h (median, over calls that ran +30% or more)">Time to peak (24h) <span class="sort-ind"></span></button></th>
+                                    <th class="num" data-sort="topeak"><button type="button" class="th-sort" title="How high their calls typically run within 24h (median, as a multiple of your entry), and how long the ones that run +30% or more take to get there">Peak (24h) <span class="sort-ind"></span></button></th>
                                     <th class="num" data-sort="cap"><button type="button" class="th-sort" title="Median marketcap for their calls/theses">Avg MC <span class="sort-ind"></span></button></th>
                                     <th class="num" data-sort="pnl"><button type="button" class="th-sort" title="Pump traders: pump.fun's 30-day PnL for their wallet. FOMO traders: realized profit since we added them, counted from their trades.">PnL <span class="sort-ind"></span></button></th>
                                     <th class="num" data-sort="alerts"><button type="button" class="th-sort" title="Average alerts per day you would get from this trader">Alerts/day <span class="sort-ind"></span></button></th>
@@ -1126,7 +1127,7 @@ const styleFilter = new Set(), capFilter = new Set();   // empty = show all
 // Clicking the active column flips direction; a new column starts on the direction that
 // is actually useful for it — following first, biggest floor first, handles A-Z.
 const SORT_DEFAULT_DIR = { handle: 'asc', min: 'desc', follow: 'desc', style: 'asc', hit: 'desc', alerts: 'desc', cap: 'asc', pnl: 'desc',
-    score: 'desc', avg: 'desc', fast: 'desc', topeak: 'asc' };
+    score: 'desc', avg: 'desc', fast: 'desc', topeak: 'desc' };
 document.querySelectorAll('#traderHead th[data-sort]').forEach(th => {
     th.querySelector('.th-sort').addEventListener('click', () => {
         const key = th.dataset.sort;
@@ -1175,7 +1176,7 @@ function pnlCell(t) {
 }
 
 const STAT_SORT_FIELD = { hit: 'hit2xIn24h', alerts: 'alertsPerDay', cap: 'medianMcap',
-    avg: 'playEv', fast: 'hit50In15m', topeak: 'medianMinutesToPeak' };
+    avg: 'playEv', fast: 'hit50In15m', topeak: 'medianPeak24h' };
 
 function sortTraders(rows) {
     const dir = sortDir === 'asc' ? 1 : -1;
@@ -1430,7 +1431,7 @@ function renderTraders() {
             <td class="stat-cell"><span class="style-badge ${escapeHtml(t.intel?.style ?? 'unrated')}" title="${escapeHtml(intelTooltip(t))}">${(STYLES[t.intel?.style] ?? STYLES.unrated).label}</span></td>
             ${playCell(t)}
             <td class="stat-cell">${pct(t.intel?.hit50In15m)}</td>
-            <td class="stat-cell">${minutesLabel(t.intel?.medianMinutesToPeak)}</td>
+            <td class="stat-cell">${t.intel?.medianPeak24h != null ? mult(t.intel.medianPeak24h) + (t.intel.medianMinutesToPeak != null ? ` <small class="peak-time">· ${minutesLabel(t.intel.medianMinutesToPeak)}</small>` : '') : minutesLabel(t.intel?.medianMinutesToPeak)}</td>
             <td class="stat-cell">${t.intel?.medianMcap > 0 && t.intel.medianMcap < 2e10 ? usd(t.intel.medianMcap) : '–'}</td>
             ${pnlCell(t)}
             <td class="stat-cell">${t.intel?.alertsPerDay != null ? trimNum(t.intel.alertsPerDay) : '–'}</td>
