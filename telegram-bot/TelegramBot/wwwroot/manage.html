@@ -574,6 +574,7 @@
     .pf-calls th { font: 600 10.5px 'IBM Plex Mono', monospace; color: var(--text-faint); text-transform: uppercase; letter-spacing: .05em; }
     .pf-calls td.n, .pf-calls th.n { text-align: right; font-family: 'IBM Plex Mono', monospace; }
     .pf-calls-wrap { overflow-x: auto; }
+    .pf-calls .pf-mult { font-size: 10.5px; opacity: .7; }
 
     .toast {
         position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
@@ -625,6 +626,7 @@
     .trial-mode .trader-table th:nth-child(8), .trial-mode .trader-table tbody tr[data-id] td:nth-child(8),
     .trial-mode .trader-table th:nth-child(9), .trial-mode .trader-table tbody tr[data-id] td:nth-child(9) { display: none; }
     .trial-mode .trader-table tbody tr[data-id] { cursor: default; }
+
 </style>
 </head>
 <body>
@@ -1606,9 +1608,9 @@ function renderProfile() {
         <div class="pf-strip">${[...calls].reverse().map(c => `<div class="pf-bar ${c.peak24h >= 2 ? 'x2' : c.peak24h >= 1.3 ? 'x13' : ''}" style="height:${h(c.peak24h)}%"
             title="${escapeHtml((c.ticker || '?') + ' · ' + mult(c.peak24h) + ' peak · ' + timeAgo(c.t))}"></div>`).join('')}</div>
         <div class="pf-strip-legend"><span><i style="background:var(--good)"></i>2x or more</span><span><i style="background:var(--accent)"></i>+30% to 2x</span><span><i style="background:var(--text-faint)"></i>under +30%</span><span>oldest → newest</span></div>
-        <div class="pf-calls-wrap"><table class="pf-calls"><thead><tr><th>Coin</th><th>Chain</th><th class="n">Called at</th><th class="n">Peak</th><th class="n">After 1h</th><th class="n">When</th></tr></thead><tbody>
+        <div class="pf-calls-wrap"><table class="pf-calls"><thead><tr><th title="The coin they called">Coin</th><th>Chain</th><th class="n" title="Market cap when they called it">Called at</th><th class="n" title="Highest market cap within 24h of the call, with how many times the call that is">Peak (24h)</th><th class="n" title="Where it stood 1 hour after the call, vs the market cap at the call">After 1h</th><th class="n" title="How long ago they called it">When</th></tr></thead><tbody>
         ${calls.map(c => `<tr><td>${escapeHtml(c.ticker || '?')}</td><td>${escapeHtml(CHAIN_LABEL[c.chain] ?? c.chain ?? '–')}</td><td class="n">${c.mcap ? usd(c.mcap) : '–'}</td>
-            <td class="n" style="color:${c.peak24h >= 2 ? 'var(--good)' : 'inherit'}">${mult(c.peak24h)}</td><td class="n" style="color:${c.r1h >= 0 ? 'var(--good)' : 'var(--bad)'}">${signedPct(c.r1h)}</td><td class="n">${timeAgo(c.t)}</td></tr>`).join('')}
+            <td class="n" style="color:${c.peak24h >= 2 ? 'var(--good)' : 'inherit'}">${c.mcap && c.peak24h != null ? usd(c.mcap * c.peak24h) + ` <small class="pf-mult">(${mult(c.peak24h)})</small>` : mult(c.peak24h)}</td><td class="n" style="color:${c.r1h >= 0 ? 'var(--good)' : 'var(--bad)'}">${signedPct(c.r1h)}</td><td class="n">${timeAgo(c.t)}</td></tr>`).join('')}
         </tbody></table></div>` : '';
 
     const hasPnl = i.pnl30dUsd != null || i.pnl7dUsd != null || i.portfolioPnlUsd != null || i.realizedPnlUsd != null;
