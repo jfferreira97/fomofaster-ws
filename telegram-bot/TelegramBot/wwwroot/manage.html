@@ -1369,8 +1369,9 @@ function renderTraders() {
         (followFilter === 'all'
             || (followFilter === 'following' && isOn(t))
             || (followFilter === 'not' && !isOn(t))) &&
-        (!styleFilter.size || styleFilter.has(t.intel?.style ?? 'unrated')) &&
-        (!capFilter.size || capFilter.has(t.intel?.capTier))
+        // a search looks past the group and cap filters: typing a name always finds them
+        (query || !styleFilter.size || styleFilter.has(t.intel?.style ?? 'unrated')) &&
+        (query || !capFilter.size || capFilter.has(t.intel?.capTier))
     ));
     const followingCount = allTraders.filter(isOn).length;
 
@@ -1699,6 +1700,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && profileTra
 /* ---------- Category follows ---------- */
 
 let categories = [];
+let categoryFilterSeeded = false;
 
 function isOn(t) { return t.isFollowing; }
 function categoryLabel(id) { return categories.find(c => c.id === id)?.label ?? (STYLES[id]?.label ?? id); }
@@ -1712,6 +1714,12 @@ async function loadCategories() {
     const res = await fetch(`${API}/api/manage/categories`).then(r => r.json()).catch(() => null);
     if (!res || res.status !== 'success') return;
     categories = res.categories.sort((a, b) => STYLE_ORDER.indexOf(a.id) - STYLE_ORDER.indexOf(b.id));
+    // First load: open on the groups they follow (none followed = everyone)
+    if (!categoryFilterSeeded) {
+        categoryFilterSeeded = true;
+        categories.filter(c => c.followed).forEach(c => styleFilter.add(c.id));
+        currentPage = 1;
+    }
     renderCategories();
     renderTraders();
 }
