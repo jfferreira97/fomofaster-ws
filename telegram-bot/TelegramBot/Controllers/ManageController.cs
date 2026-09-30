@@ -15,6 +15,7 @@ namespace TelegramBot.Controllers;
 // is reachable by any logged-in Telegram user and must only ever touch their own data.
 [ApiController]
 [Route("api/[controller]")]
+[ServiceFilter(typeof(DataNoticeFilter))]
 public class ManageController : ControllerBase
 {
     private readonly WebSessionService _sessionService;

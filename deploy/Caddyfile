@@ -14,7 +14,7 @@ groupchat-bot.tech {
         -Server
     }
 
-    @public path /manage /api/auth/* /api/manage/* /groupchat-logo.png /logos/* /img/*
+    @public path /manage /api/auth/* /api/manage/* /robots.txt /ai.txt /llms.txt /.well-known/tdmrep.json /groupchat-logo.png /logos/* /img/*
     handle @public {
         reverse_proxy localhost:8000
     }

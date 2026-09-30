@@ -55,6 +55,7 @@ builder.Services.AddSingleton<ChainSettingsCache>();
 builder.Services.AddSingleton<ITelegramService, TelegramService>();
 builder.Services.AddSingleton<AppConfigService>();
 builder.Services.AddSingleton<WebSessionService>();
+builder.Services.AddScoped<DataNoticeFilter>();
 builder.Services.AddSingleton<TraderIntelService>(); // per-trader intel for /manage: live rating + offline public-profile data
 builder.Services.AddSingleton<CandleClient>();
 builder.Services.AddSingleton<PumpProfileClient>();
@@ -132,8 +133,22 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+// Anti-scraping / anti-model-ingestion signals on the two paid surfaces (see DataNotice).
+app.Use(async (ctx, next) =>
+{
+    if (ctx.Request.Path.StartsWithSegments("/manage") || ctx.Request.Path.StartsWithSegments("/api/manage"))
+        DataNotice.ApplyHeaders(ctx.Response);
+    await next();
+});
+
 // Enable static files for dashboard
 app.UseStaticFiles();
+
+// Dot-prefixed folders are hidden from UseStaticFiles, so the TDMRep policy is an endpoint.
+app.MapGet("/.well-known/tdmrep.json", () => Results.Json(new[]
+{
+    new Dictionary<string, object> { ["location"] = "/", ["tdm-reservation"] = 1 }
+}));
 
 app.UseCors("AllowAll");
 app.UseAuthorization();
