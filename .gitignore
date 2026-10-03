@@ -19,3 +19,6 @@ fomo-ws-sidecar/chromium-profile*/
 .DS_Store
 Thumbs.db
 .claude/
+
+# Server-local reverse proxy config (holds every site on this machine); lives on the box, not in the repo
+deploy/Caddyfile*
