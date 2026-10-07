@@ -22,3 +22,6 @@ Thumbs.db
 
 # Server-local reverse proxy config (holds every site on this machine); lives on the box, not in the repo
 deploy/Caddyfile*
+
+# Per-trader scores and stats are product data; generated locally, not published
+telegram-bot/TelegramBot/Intel/trader-intel.json
