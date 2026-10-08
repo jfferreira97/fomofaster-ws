@@ -73,6 +73,7 @@ builder.Services.AddSingleton<PaymentPollerService>();
 builder.Services.AddHostedService(provider => provider.GetRequiredService<PaymentPollerService>()); // Solana payment polling + subscription expiry
 builder.Services.AddSingleton<ConfluenceService>();
 builder.Services.AddHostedService(provider => provider.GetRequiredService<ConfluenceService>()); // Multi-trader confluence -> TRENDING alerts
+builder.Services.AddSingleton<WebAnalyticsService>(); // first-party landing-site analytics + /start attribution
 builder.Services.AddHostedService<NotificationRetentionService>(); // Purges Notifications/SentMessages older than the repeat-window's max lookback
 builder.Services.AddSingleton<ActiveUserCache>();
 builder.Services.AddHostedService(provider => provider.GetRequiredService<ActiveUserCache>()); // In-memory active-user pool for the notification hot path
@@ -100,6 +101,7 @@ using (var scope = app.Services.CreateScope())
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     dbContext.Database.Migrate();
     dbContext.Database.ExecuteSqlRaw("PRAGMA journal_mode=WAL;");
+    await scope.ServiceProvider.GetRequiredService<WebAnalyticsService>().EnsureSchemaAsync(); // WebEvents + BotStarts (raw SQL, outside EF migrations)
 
     // Category follows are materialized as UserTrader rows; catches up anything missing
     // (first run: backfills every existing category follow).

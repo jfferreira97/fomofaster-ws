@@ -23,6 +23,9 @@ public class ActiveUserCache : BackgroundService
         _logger = logger;
     }
 
+    // Called right after a trial grant or a confirmed payment, so access changes reach the alert pipeline now instead of in up to 2 minutes.
+    public Task RefreshNowAsync() => RefreshAsync(CancellationToken.None);
+
     // Zero-DB-query read for the notification hot path.
     public List<User> GetActiveUsers() => _snapshot;
 

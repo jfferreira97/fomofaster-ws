@@ -11,6 +11,9 @@ namespace TelegramBot.Services;
 
 public class TelegramService : ITelegramService
 {
+    // Appended to limited (free-tier) alerts. PaymentPollerService keeps the price in it current.
+    public static volatile string SubscribeFooter = "Full ticker, size and contract: /subscribe";
+
     private readonly TelegramSettings _settings;
     private readonly TelegramBotClient? _botClient;
     private readonly TelegramBotClient? _deprecatedBotClient;
@@ -339,7 +342,7 @@ public class TelegramService : ITelegramService
 📝 Contract: `{redactedCa}`
 🔗 {chainLabel} | {typeBubble}{GenericTradeLinks}
 
-To get full details: /subscribe";
+{SubscribeFooter}";
         }
         else
         {
@@ -351,7 +354,7 @@ To get full details: /subscribe";
 📝 Contract: `{new string('*', 44)}`
 🔗 {chainLabel} | {typeBubble}{GenericTradeLinks}
 
-To get full details: /subscribe";
+{SubscribeFooter}";
         }
 
         // Global per-platform prefix — 👀 mirrors the FOMO logo, 💊 marks Pump-sourced
@@ -631,7 +634,7 @@ To get full details: /subscribe";
         if (!string.IsNullOrEmpty(ticker))
             text = System.Text.RegularExpressions.Regex.Replace(
                 text,
-                System.Text.RegularExpressions.Regex.Escape(ticker),
+                @"(?<![A-Za-z0-9])" + System.Text.RegularExpressions.Regex.Escape(ticker) + @"(?![A-Za-z0-9])",
                 "coin",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 

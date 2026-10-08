@@ -281,8 +281,8 @@ public class TelegramBotPollingService : BackgroundService
 
         // Auto-reply to the user
         var supportText = !string.IsNullOrEmpty(_ownerUsername)
-            ? $"This bot doesn't support direct messages. Message the developer directly: @{_ownerUsername}"
-            : "This bot doesn't support direct messages.";
+            ? $"I'm a bot and can't chat, but your message was passed on to the developer. Try /subscribe, /manage or /help. Anything else: @{_ownerUsername}"
+            : "I'm a bot and can't chat. Try /subscribe, /manage or /help.";
 
         await _botClient.SendTextMessageAsync(
             chatId: chatId,
@@ -294,9 +294,27 @@ public class TelegramBotPollingService : BackgroundService
         {
             await _adminBotClient.SendTextMessageAsync(
                 chatId: _ownerChatId,
-                text: $"📩 Message from @{username} (`{chatId}`):\n\n{text}",
-                parseMode: ParseMode.Markdown
+                text: $"📩 Message from @{username} ({chatId}):\n\n{text}"
             );
+        }
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex Md2Special = new(@"([_*\[\]()~`>#+\-=|{}.!\\])", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static string Md2(string s) => Md2Special.Replace(s, "\\$1");
+    private static string PriceText(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+    // If Telegram rejects the formatting, resend the same text plain so a user never ends up with no message at all.
+    private async Task SendWithFallbackAsync(long chatId, string text, ParseMode mode, IReplyMarkup? markup = null)
+    {
+        try
+        {
+            await _botClient!.SendTextMessageAsync(chatId: chatId, text: text, parseMode: mode, replyMarkup: markup, disableWebPagePreview: true);
+        }
+        catch (Telegram.Bot.Exceptions.ApiRequestException ex) when (ex.Message.Contains("parse", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning(ex, "Formatted message rejected for {ChatId}; resending plain", chatId);
+            var plain = text.Replace("*", "").Replace("\\", "");
+            await _botClient!.SendTextMessageAsync(chatId: chatId, text: plain, replyMarkup: markup, disableWebPagePreview: true);
         }
     }
 
@@ -341,6 +359,13 @@ public class TelegramBotPollingService : BackgroundService
                     isNewBot: _isNewBotInstance
                 );
 
+                // Attribution: remember which website button / link brought this /start (t.me/...?start=web_hero).
+                try
+                {
+                    var startPayload = message.Text!.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries).Skip(1).FirstOrDefault();
+                    await scope.ServiceProvider.GetRequiredService<WebAnalyticsService>().RecordStartAsync(chatId, startPayload);
+                }
+                catch (Exception ex) { _logger.LogWarning(ex, "Could not record /start payload"); }
                 // A brand-new user starts on the longer-window categories (live: whoever is in
                 // them now and later), not the whole roster. Re-sending /start leaves follows alone.
                 var starter = await traderService.FollowStarterCategoriesAsync(newUser.Id);
@@ -353,33 +378,64 @@ public class TelegramBotPollingService : BackgroundService
                 // paying subscriber (no point granting a trial on top of real access). Applies
                 // equally to a brand-new signup and an old-bot user migrating over for the
                 // first time — both look identical here (TrialExpiresAt null either way).
-                var trialNotice = "";
+                var trialGranted = false;
                 if (_isNewBotInstance
                     && newUser.TrialExpiresAt == null
                     && !HasActiveSubscription(newUser))
                 {
-                    var appConfig = scope.ServiceProvider.GetRequiredService<AppConfigService>();
-                    var trialHours = await appConfig.GetNewBotTrialHoursAsync();
+                    var trialCfg = scope.ServiceProvider.GetRequiredService<AppConfigService>();
+                    var trialHours = await trialCfg.GetNewBotTrialHoursAsync();
                     var trialExpiresAt = DateTime.UtcNow.AddHours(trialHours);
                     await userService.GrantTrialAsync(chatId, trialExpiresAt);
                     newUser.TrialExpiresAt = trialExpiresAt;
-
-                    trialNotice = $@"
-🎁 *Free trial active* — full, unobfuscated alerts (contract addresses, real trade links) for the next {trialHours} hours. After that, alerts go back to limited details unless you /subscribe.
-";
+                    trialGranted = true;
                 }
 
-                await _botClient.SendTextMessageAsync(
-                    chatId: chatId,
-                    text: $@"🎉 Welcome to GROUPCHAT!
-{trialNotice}
-{followNotice}
+                // New or returning, make sure the alert pipeline sees this user right away.
+                try { await scope.ServiceProvider.GetRequiredService<ActiveUserCache>().RefreshNowAsync(); }
+                catch (Exception cacheEx) { _logger.LogWarning(cacheEx, "Active user cache refresh after /start failed"); }
 
-Everything else (traders, categories, alert types, chains) is on the manage page: tap below, or send /manage anytime. /help for the rest.",
-                    parseMode: ParseMode.Markdown,
-                    replyMarkup: await BuildManageButtonAsync(chatId),
-                    disableWebPagePreview: true
-                );
+                var startPrice = PriceText(await scope.ServiceProvider.GetRequiredService<AppConfigService>().GetSubscriptionPriceSolAsync());
+                var starterLabels = string.Join(", ", starter.Select(id => TraderCategories.All.First(c => c.Id == id).Label));
+                string welcome;
+                if (trialGranted && starter.Count > 0)
+                {
+                    welcome = $@"👋 *Welcome to GROUPCHAT!*
+
+FOMO and Pump.fun, all in one chat. I alert you the moment top traders act: buys, sells, callouts and theses, with the contract and one-tap trade links. Here is what an alert looks like:
+
+👀 | MOONCAT at $85K MC 🟢 traderone bought $2,400
+
+You start on a profile built for signal over noise: *{starterLabels}*. Tap *Open Manage Page* below to tune every trader, chain and minimum size. Alerts can be frequent at busy hours, and that's where you tune it.
+
+⭐ *Subscribers get a playbook on every trader*: how to play them, hit rate, time to peak, typical entry and their last calls. So you know who to follow, why, and how.
+
+🎁 Your free trial is on, with full alerts, contracts and links. After it: {startPrice} SOL for 30 days, no auto-renew.";
+                }
+                else if (trialGranted)
+                {
+                    welcome = $@"👋 *Welcome back to the new GROUPCHAT.*
+
+Your follows came with you. Your free trial is on, everything unlocked. After it: {startPrice} SOL for 30 days, no auto-renew (/subscribe).
+
+Tap *Open Manage Page* below to adjust who you follow.";
+                }
+                else if (HasActiveSubscription(newUser))
+                {
+                    welcome = newUser.IsRN4L
+                        ? "👋 *You're back.* Full access, no end date.\n\nChange what you follow with the button below."
+                        : $"👋 *You're back.* Full access until {newUser.RNExpiresAt!.Value:yyyy-MM-dd HH:mm} UTC.\n\nChange what you follow with the button below.";
+                }
+                else if (newUser.TrialExpiresAt != null && newUser.TrialExpiresAt > DateTime.UtcNow)
+                {
+                    welcome = "👋 *You're back.* Your free trial is still on. Adjust who you follow with the button below.";
+                }
+                else
+                {
+                    welcome = $"👋 *You're back.* Full access isn't active on this account, so alerts show limited details. {startPrice} SOL for 30 days: /subscribe\n\nChange what you follow with the button below.";
+                }
+
+                await SendWithFallbackAsync(chatId, welcome, ParseMode.Markdown, await BuildManageButtonAsync(chatId));
 
                 // Broadcast new user to dashboard via SignalR
                 await _hubContext.Clients.All.SendAsync("UserJoined", new
@@ -396,18 +452,21 @@ Everything else (traders, categories, alert types, chains) is on the manage page
                 break;
 
             case "/help":
+                var helpPrice = PriceText(await scope.ServiceProvider.GetRequiredService<AppConfigService>().GetSubscriptionPriceSolAsync());
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
-                    text: @"📚 GROUPCHAT
+                    text: $@"📚 GROUPCHAT
 
 /manage - traders, categories, alert types, chains: all on one page
 
 /top - top tokens (e.g. /top 1h, /top sol 1d)
-/subscribe - full alerts and trader stats
+/subscribe - full alerts: ticker, size, contract ({helpPrice} SOL / 30 days)
 
 Reply to any alert:
 unfollow - stop alerts from that trader
-setmin 50k - only alert on their trades above $50K (setmin off to clear)",
+setmin 50k - only alert on their trades above $50K (setmin off to clear)
+
+GROUPCHAT is not affiliated with FOMO or Pump.fun.",
                     parseMode: ParseMode.Markdown
                 );
                 break;
@@ -569,11 +628,7 @@ setmin 50k - only alert on their trades above $50K (setmin off to clear)",
                         : " (All Chains)";
                     var topMessage = $"📊 *Top Tokens*{chainInfo} (Last {periodDisplay})\n\n{string.Join("\n\n", lines)}";
 
-                    await _botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: topMessage,
-                        parseMode: ParseMode.Markdown
-                    );
+                    await SendWithFallbackAsync(chatId, topMessage, ParseMode.Markdown);
                 }
                 break;
 
@@ -586,20 +641,30 @@ setmin 50k - only alert on their trades above $50K (setmin off to clear)",
 
                     if (subscribeUser == null) break;
 
-                    // Already active RN
-                    if (subscribeUser.IsRN4L || (subscribeUser.IsRegisteredNurse && subscribeUser.RNExpiresAt > DateTime.UtcNow))
+                    // Already active: allow renewing during the last 3 days (the new 30 days are added on top of what is left)
+                    var hasAccess = subscribeUser.IsRN4L || (subscribeUser.IsRegisteredNurse && subscribeUser.RNExpiresAt > DateTime.UtcNow);
+                    var renewing = false;
+                    if (hasAccess)
                     {
-                        var until = subscribeUser.IsRN4L ? "forever" : subscribeUser.RNExpiresAt!.Value.ToString("yyyy-MM-dd HH:mm UTC");
-                        await _botClient.SendTextMessageAsync(
-                            chatId: chatId,
-                            text: $"✅ You already have full access ({until}).",
-                            parseMode: ParseMode.Markdown
-                        );
-                        break;
+                        if (subscribeUser.IsRN4L || subscribeUser.RNExpiresAt!.Value - DateTime.UtcNow > TimeSpan.FromDays(3))
+                        {
+                            var until = subscribeUser.IsRN4L ? "forever" : subscribeUser.RNExpiresAt!.Value.ToString("yyyy-MM-dd HH:mm UTC");
+                            await _botClient.SendTextMessageAsync(
+                                chatId: chatId,
+                                text: $"✅ You already have full access ({until}). You can renew during the last 3 days.",
+                                parseMode: ParseMode.Markdown
+                            );
+                            break;
+                        }
+                        renewing = true;
                     }
 
                     var priceSol = await appConfig.GetSubscriptionPriceSolAsync();
-                    var priceDisplay = priceSol.ToString("0.##").Replace(".", "\\.");
+                    var priceText = PriceText(priceSol);
+                    var ownerLine = !string.IsNullOrEmpty(_ownerUsername)
+                        ? $"Problem with a payment? Message the developer: @{_ownerUsername}"
+                        : "Problem with a payment? Message the developer.";
+                    var renewLine = renewing ? Md2("You still have time left on your plan. The new 30 days are added on top, so nothing is lost.") + "\n\n" : "";
 
                     // Check for existing unexpired unconfirmed payment
                     var existing = await dbContext.PendingPayments
@@ -607,17 +672,21 @@ setmin 50k - only alert on their trades above $50K (setmin off to clear)",
                         .OrderByDescending(p => p.CreatedAt)
                         .FirstOrDefaultAsync();
 
+                    string PaymentText(string headline, string address, string price) =>
+                        headline + "\n\n" + renewLine +
+                        Md2("Send ") + "*" + Md2(price + " SOL") + "*" + Md2(" to this address (tap to copy):") + "\n\n" +
+                        "`" + address + "`\n\n" +
+                        Md2("Full access starts right away, and there's no auto-renew.");
+
                     if (existing != null)
                     {
                         var timeLeft = existing.ExpiresAt - DateTime.UtcNow;
                         var expiryDisplay = timeLeft.TotalMinutes >= 60
                             ? $"{(int)timeLeft.TotalHours}h {timeLeft.Minutes}m"
                             : $"{(int)timeLeft.TotalMinutes}m";
-                        await _botClient.SendTextMessageAsync(
-                            chatId: chatId,
-                            text: $"💎 Your payment address is still active — *{expiryDisplay}* left:\n\n`{existing.WalletPublicKey}`\n\nSend *{priceDisplay} SOL* to unlock everything: full contract addresses, live trade links, every call the instant it happens\\. Activates automatically within seconds — refundable within 7 days, zero risk\\.",
-                            parseMode: ParseMode.MarkdownV2
-                        );
+                        await SendWithFallbackAsync(chatId,
+                            PaymentText("⏳ Your payment address is still active \\(*" + Md2(expiryDisplay) + "* left\\):", existing.WalletPublicKey, PriceText(existing.AmountSol > 0 ? existing.AmountSol : priceSol)),
+                            ParseMode.MarkdownV2);
                         break;
                     }
 
@@ -638,11 +707,9 @@ setmin 50k - only alert on their trades above $50K (setmin off to clear)",
                     dbContext.PendingPayments.Add(pending);
                     await dbContext.SaveChangesAsync();
 
-                    await _botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: $"💎 *Your unique payment address* — generated just for you, live for the next hour:\n\n`{keypair.PublicKey}`\n\nSend *{priceDisplay} SOL* to unlock everything: full contract addresses, live trade links, every call the instant it happens\\. Activates automatically within seconds — refundable within 7 days, zero risk\\.\n\n⏳ Expires in 1h — don't sleep on it\\.",
-                        parseMode: ParseMode.MarkdownV2
-                    );
+                    await SendWithFallbackAsync(chatId,
+                        PaymentText("💎 *Unlock full alerts: " + Md2(priceText) + " SOL for 30 days*", keypair.PublicKey, priceText),
+                        ParseMode.MarkdownV2);
                 }
                 break;
 
