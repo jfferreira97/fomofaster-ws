@@ -10,7 +10,8 @@ namespace TelegramBot.Controllers;
 [ApiController]
 public class WebAnalyticsController : ControllerBase
 {
-    private static readonly HashSet<string> Types = new() { "view", "cta", "play", "sec" };
+    // nav = a click on a Feed/Manage link from a site page; feed = something done on /feed (label says what)
+    private static readonly HashSet<string> Types = new() { "view", "cta", "play", "sec", "nav", "feed" };
     private static readonly Regex PathRx = new(@"^/[A-Za-z0-9/_\-.]{0,78}\z", RegexOptions.Compiled);
     private static readonly Regex TokenRx = new(@"^[A-Za-z0-9_\-:.]{0,48}\z", RegexOptions.Compiled);
     private static readonly Regex VisitRx = new(@"^[A-Za-z0-9]{6,12}\z", RegexOptions.Compiled);

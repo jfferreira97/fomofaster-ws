@@ -723,7 +723,7 @@
                 <div class="settings-container">
                     <div class="settings-section">
                         <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;flex-wrap:wrap;">
-                            <div class="settings-section-title" style="margin-bottom:0;">Website &rarr; trials</div>
+                            <div class="settings-section-title" style="margin-bottom:0;">How the website is doing</div>
                             <select id="webDays" onchange="loadWebsite()" style="padding:6px 10px;background:#0e1621;border:1px solid #2b5278;border-radius:6px;color:#e8e9ea;font-size:13px;">
                                 <option value="1">Today</option>
                                 <option value="7" selected>Last 7 days</option>
@@ -735,25 +735,42 @@
                             <span id="webUpdated" style="color:#8a96a0;font-size:12px;"></span>
                         </div>
                         <div style="color:#8a96a0;font-size:12px;margin-bottom:14px;">Cookie-less. A visitor is a hash that changes every day; IP addresses are kept 30 days and then blanked. Your own visits (open the site once with <b>?internal=1</b>, or from this server / Tailscale / WebInternalIps in Config) and bots are kept out unless you tick the box. A trial is counted when someone presses Start from a website button, and the visit it came from travels in the link, so each trial shows its country and device.</div>
-                        <div id="webKpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px;"></div>
-                        <div class="settings-section-title" style="font-size:14px;">Funnel</div>
-                        <div id="webFunnel" style="margin-bottom:22px;"></div>
-                        <div class="settings-section-title" style="font-size:14px;">Per day</div>
-                        <div id="webDaily" style="margin-bottom:22px;"></div>
-                        <div class="settings-section-title" style="font-size:14px;">Latest trials that came from the site</div>
-                        <div id="webTrials" style="margin-bottom:22px;overflow-x:auto;"></div>
-                        <div class="settings-section-title" style="font-size:14px;">Recent visits</div>
-                        <div id="webRecent" style="margin-bottom:22px;overflow-x:auto;"></div>
-                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:22px;">
-                            <div><div class="settings-section-title" style="font-size:14px;">Which button gets clicked</div><div id="webCta"></div></div>
-                            <div><div class="settings-section-title" style="font-size:14px;">Trial starts by button (website only)</div><div id="webStartsBtn"></div></div>
-                            <div><div class="settings-section-title" style="font-size:14px;">Trial starts by source</div><div id="webStartsSrc"></div></div>
-                            <div><div class="settings-section-title" style="font-size:14px;">Where visitors come from</div><div id="webRefs"></div></div>
-                            <div><div class="settings-section-title" style="font-size:14px;">Countries</div><div id="webCountries"></div></div>
-                            <div><div class="settings-section-title" style="font-size:14px;">Browser, system &amp; language</div><div id="webTech"></div></div>
-                            <div><div class="settings-section-title" style="font-size:14px;">Pages</div><div id="webPages"></div></div>
-                            <div><div class="settings-section-title" style="font-size:14px;">How far they scroll &amp; devices</div><div id="webSections"></div></div>
-                        </div>
+                        <div id="webKpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:8px;"></div>
+                        <div id="webNote" style="color:#8a96a0;font-size:12px;margin-bottom:22px;"></div>
+
+                        <div class="settings-section-title" style="font-size:15px;">1. From visit to Telegram</div>
+                        <div style="color:#8a96a0;font-size:12px;margin:-2px 0 8px;">Counts: Home and the guide pages · visitors (people, once per day), then Telegram accounts</div>
+                        <div id="webFunnel" style="margin-bottom:14px;"></div>
+                        <div id="webDaily" style="margin-bottom:26px;"></div>
+
+                        <div class="settings-section-title" style="font-size:15px;">2. Which page does what, and where do people go next?</div>
+                        <div style="color:#8a96a0;font-size:12px;margin:-2px 0 8px;">Counts: every page, including Feed and Manage · visitors. “Went on” means they opened another page later in the same visit.</div>
+                        <div id="webPageTable" style="margin-bottom:26px;overflow-x:auto;"></div>
+
+                        <div class="settings-section-title" style="font-size:15px;">3. Which Telegram button gets clicked?</div>
+                        <div style="color:#8a96a0;font-size:12px;margin:-2px 0 8px;">Counts: clicks on the “open the Telegram bot” buttons, by the page the button is on · visitors</div>
+                        <div id="webCta" style="margin-bottom:26px;overflow-x:auto;"></div>
+
+                        <div class="settings-section-title" style="font-size:15px;">4. Who pressed Start in Telegram?</div>
+                        <div style="color:#8a96a0;font-size:12px;margin:-2px 0 8px;">Counts: Telegram accounts (not website visitors) that pressed Start after clicking a website button</div>
+                        <div id="webTrials" style="margin-bottom:6px;overflow-x:auto;"></div>
+                        <div id="webStarts" style="margin-bottom:26px;"></div>
+
+                        <div class="settings-section-title" style="font-size:15px;">5. Are the people we already have using the app?</div>
+                        <div style="color:#8a96a0;font-size:12px;margin:-2px 0 8px;">Counts: the Feed and Manage pages (not the landing site) · logged-out visitors and users, as labelled</div>
+                        <div id="webApp" style="margin-bottom:26px;"></div>
+
+                        <div class="settings-section-title" style="font-size:15px;">6. Where do visitors come from, and what are they using?</div>
+                        <div id="webSources" style="margin-bottom:26px;"></div>
+
+                        <div class="settings-section-title" style="font-size:15px;">7. How far do they scroll?</div>
+                        <div style="color:#8a96a0;font-size:12px;margin:-2px 0 8px;">Counts: sections reached on each page · visitors</div>
+                        <div id="webSections" style="margin-bottom:26px;overflow-x:auto;"></div>
+
+                        <details style="margin-bottom:10px;">
+                            <summary class="settings-section-title" style="font-size:15px;cursor:pointer;">8. Latest visits, one row per person (click to open)</summary>
+                            <div id="webRecent" style="margin-top:10px;overflow-x:auto;"></div>
+                        </details>
                     </div>
                 </div>
             </div>
@@ -1527,6 +1544,56 @@
         }
         const webFlag = c => '';   // Windows shows flag emoji as letters, so the two-letter country code is shown instead
         const webTime = t => { if (!t) return ''; const d = new Date(t.replace(' ', 'T') + 'Z'); return isNaN(d) ? t : d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); };
+        // Plain-English names for what the tracker records
+        const PAGE_NAMES = { '/': 'Home', '/feed': 'Feed', '/manage': 'Manage', '/terms': 'Terms', '/privacy': 'Privacy', '/fomo-trader-alerts': 'Guide: FOMO alerts', '/pump-fun-callouts-alerts': 'Guide: Pump callouts', '/how-we-score-traders': 'Guide: How we score', '/fomo-app-delay': 'Guide: What delay costs' };
+        const pageName = p => PAGE_NAMES[p] || p;
+        const CTA_NAMES = { web_nav: 'Top bar button (Open in Telegram)', web_hero: 'Main button at the top', web_compare: 'Comparison section button', web_traders: 'Traders section button', web_pricing: 'Pricing section button', web_final: 'Closing banner button', web_sticky: 'Floating button at the bottom', web_footer: 'Footer link' };
+        function ctaName(k) {
+            if (CTA_NAMES[k]) return CTA_NAMES[k];
+            const g = /^guide_(.+?)(_nav)?$/.exec(k || '');
+            return g ? 'Guide page' + (g[2] ? ' top bar button' : ' button') + ': ' + g[1].replace(/_/g, ' ') : (k || '(none)');
+        }
+        const SECTION_NAMES = { speed: 'Speed section', compare: 'Comparison section', traders: 'Traders section', pricing: 'Pricing section', faq: 'FAQ' };
+        const secName = s => SECTION_NAMES[s] || s;
+        const webPct = (a, b) => (b > 0 ? Math.round(1000 * a / b) / 10 : 0) + '%';
+        const webSub = text => '<div style="color:#8a96a0;font-size:12px;margin:-2px 0 8px;">' + text + '</div>';
+        const webTwoCol = (a, b) => '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:22px;margin-top:14px;">' + a + b + '</div>';
+        const webBox = (title, html) => '<div><div class="settings-section-title" style="font-size:14px;">' + title + '</div>' + html + '</div>';
+
+        // Section: the app pages (/feed, /manage)
+        const WEB_EV = {
+            'copy': 'Copied a contract address', 'mute': 'Muted a trader', 'filters:open': 'Opened the filters', 'sound:on': 'Turned sound on', 'sound:off': 'Turned sound off',
+            'notify:on': 'Turned desktop notifications on', 'notify:off': 'Turned desktop notifications off', 'filter:fType': 'Filtered by alert type', 'filter:fPlat': 'Filtered by platform',
+            'filter:fChain': 'Filtered by chain', 'filter:mc': 'Set a minimum market cap', 'filter:usd': 'Set a minimum trade size'
+        };
+        function renderWebApp(d) {
+            const box = document.getElementById('webApp'); if (!box || !d.app) return;
+            const a = d.app, f = a.feed, by = {};
+            f.events.forEach(e => { by[e.label] = e; });
+            const n = l => (by[l] ? by[l].events : 0), v = l => (by[l] ? by[l].visitors : 0);
+            const withPrefix = p => f.events.filter(e => e.label.indexOf(p) === 0);
+            if (!f.views && !a.manage.views) { box.innerHTML = '<div style="color:#8a96a0;font-size:13px;">No one has opened the Feed or Manage page in this period yet.</div>'; return; }
+            const opens = withPrefix('open:'), openTotal = opens.reduce((s, e) => s + e.events, 0);
+            const tiers = [['demo', 'Not logged in (demo)'], ['free', 'Logged in, free or trial'], ['full', 'Logged in, paying']].map(t => [t[1], webNum(v('tier:' + t[0]))]);
+            const kpis =
+                webKpi('Opened the Feed page', webNum(f.visitors), webNum(f.views) + ' times') +
+                webKpi('Opened the Manage page', webNum(a.manage.visitors), webNum(a.manage.views) + ' times') +
+                webKpi('Time spent on the Feed', (n('alive10') * 10 / 60).toFixed(1) + ' h', 'added up from visits; one count per 10 minutes the window was visible') +
+                webKpi('Alerts clicked through to a trading terminal', webNum(openTotal), webNum(opens.reduce((s, e) => s + e.visitors, 0)) + ' people') +
+                webKpi('Contract addresses copied', webNum(n('copy')), webNum(v('copy')) + ' people');
+            const doing = f.events.filter(e => WEB_EV[e.label]).map(e => [WEB_EV[e.label], webNum(e.events), webNum(e.visitors)]);
+            const terms = opens.map(e => ['Opened in ' + e.label.slice(5), webNum(e.events), webNum(e.visitors)])
+                .concat(withPrefix('terminal:').map(e => ['Switched their default to ' + e.label.slice(9), webNum(e.events), webNum(e.visitors)]));
+            box.innerHTML =
+                '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:6px;">' + kpis + '</div>' +
+                webTwoCol(
+                    webBox('Who opens the Feed', webSub('Feed page · people, by account type') + webTable([{ h: 'Account type' }, { h: 'People', r: 1 }], tiers)),
+                    webBox('What they do on the Feed', webSub('Feed page · actions') + webTable([{ h: 'Action' }, { h: 'Times', r: 1 }, { h: 'People', r: 1 }], doing, 'Nothing yet'))) +
+                webTwoCol(
+                    webBox('Which trading terminal they open', webSub('The “Open in” choice on the Feed page') + webTable([{ h: 'Terminal' }, { h: 'Times', r: 1 }, { h: 'People', r: 1 }], terms.map(r => [webEsc(r[0]), r[1], r[2]]), 'No alert has been clicked through yet')),
+                    webBox('Where Feed visitors come from', webSub('Feed page · people') + webTable([{ h: 'Came from' }, { h: 'People', r: 1 }], f.referrers.map(x => [webEsc(x.referrer), webNum(x.visitors)]))));
+        }
+
         async function loadWebsite() {
             const days = document.getElementById('webDays').value;
             const inc = document.getElementById('webInternal').checked;
@@ -1534,54 +1601,83 @@
                 const res = await fetch(API_BASE + '/api/analytics/web?days=' + days + '&includeInternal=' + inc);
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 const d = await res.json();
+                try { renderWebApp(d); } catch (e) { console.error('app section', e); }
                 const f = d.funnel, t = d.totals;
+
+                // 0. headline
                 document.getElementById('webKpis').innerHTML =
-                    webKpi('Visitors', webNum(t.visitors), webNum(t.views) + ' page views') +
-                    webKpi('Clicked Telegram', webNum(t.clickers), f.visitorToClickPct + '% of visitors') +
-                    webKpi('Trial starts (from site)', webNum(f.webStarts), webNum(f.webNew) + ' brand-new users') +
-                    webKpi('Became paying', webNum(f.webPaid), f.startToPaidPct + '% of site starts') +
-                    webKpi('Watched the demo', webNum(t.players), webNum(t.plays) + ' plays') +
-                    webKpi('Your own visits', inc ? 'included' : webNum(d.ownTraffic.visitors), inc ? 'counted in the numbers' : 'kept out of the numbers');
-                const step = (label, n, pct, w) => '<div style="display:grid;grid-template-columns:170px 1fr 150px;gap:10px;align-items:center;margin:6px 0;"><div style="font-size:13px;">' + label +
+                    webKpi('Visitors', webNum(t.visitors), 'on Home and the guides · ' + webNum(t.views) + ' page views') +
+                    webKpi('Clicked a Telegram button', webNum(t.clickers), f.visitorToClickPct + '% of visitors') +
+                    webKpi('Pressed Start in Telegram', webNum(f.webStarts), webNum(f.webNew) + ' were brand new to the bot') +
+                    webKpi('Became paying', webNum(f.webPaid), f.startToPaidPct + '% of those who pressed Start');
+                document.getElementById('webNote').innerHTML = 'Landing site only (Home, guides, Terms, Privacy). Excludes bots' + (inc ? '; your own visits ARE included.' : ' and your own visits (' + webNum(d.ownTraffic.visitors) + ' of yours left out).') +
+                    ' “Visitors” are people counted once per day.';
+
+                // 1. funnel
+                const step = (label, n, pct, w) => '<div style="display:grid;grid-template-columns:230px 1fr 160px;gap:10px;align-items:center;margin:6px 0;"><div style="font-size:13px;">' + label +
                     '</div><div style="background:#0e1621;border-radius:4px;height:20px;"><div style="background:#2b7ad0;height:20px;border-radius:4px;width:' + Math.max(w, n > 0 ? 1.5 : 0) + '%;"></div></div><div style="font-size:13px;text-align:right;"><b>' + webNum(n) + '</b> <span style="color:#8a96a0;">' + pct + '</span></div></div>';
                 const top = Math.max(f.visitors, 1);
                 document.getElementById('webFunnel').innerHTML =
-                    step('Visitors', f.visitors, '', 100) +
-                    step('Clicked Telegram button', f.clickers, f.visitorToClickPct + '% of visitors', 100 * f.clickers / top) +
-                    step('Pressed Start (trial)', f.webStarts, f.clickToStartPct + '% of clickers', 100 * f.webStarts / top) +
-                    step('Became paying', f.webPaid, f.startToPaidPct + '% of starts', 100 * f.webPaid / top) +
-                    '<div style="color:#8a96a0;font-size:12px;margin-top:6px;">Overall visitor &rarr; trial: <b>' + f.visitorToStartPct + '%</b>. Bot starts from any other source: ' + webNum(d.allBotStarts - f.webStarts) + '.</div>';
+                    step('Visited the site', f.visitors, '', 100) +
+                    step('Clicked a Telegram button', f.clickers, f.visitorToClickPct + ' of visitors', 100 * f.clickers / top) +
+                    step('Pressed Start in Telegram', f.webStarts, f.clickToStartPct + ' of those who clicked', 100 * f.webStarts / top) +
+                    step('Became paying', f.webPaid, f.startToPaidPct + ' of those who started', 100 * f.webPaid / top) +
+                    '<div style="color:#8a96a0;font-size:12px;margin-top:6px;">Visitor to started: <b>' + f.visitorToStartPct + '%</b>. Bot starts that did not come from a website button: ' + webNum(d.allBotStarts - f.webStarts) + ' (found the bot another way).</div>';
                 const maxV = Math.max(1, ...d.series.map(x => x.visitors));
-                document.getElementById('webDaily').innerHTML = '<div style="display:flex;align-items:flex-end;gap:' + (d.series.length > 40 ? 2 : 6) + 'px;height:120px;border-bottom:1px solid #2b5278;padding-bottom:2px;">' +
+                document.getElementById('webDaily').innerHTML = '<div style="display:flex;align-items:flex-end;gap:' + (d.series.length > 40 ? 2 : 6) + 'px;height:90px;border-bottom:1px solid #2b5278;padding-bottom:2px;">' +
                     d.series.map(x => '<div title="' + x.day + ': ' + x.visitors + ' visitors, ' + x.clicks + ' clicks, ' + x.starts + ' starts" style="flex:1;min-width:2px;display:flex;flex-direction:column;justify-content:flex-end;align-items:stretch;height:100%;"><div style="background:#2b7ad0;height:' + (100 * x.visitors / maxV) + '%;min-height:' + (x.visitors ? 2 : 0) + 'px;border-radius:2px 2px 0 0;"></div></div>').join('') + '</div>' +
                     '<div style="overflow-x:auto;margin-top:8px;">' + webTable(
-                        [{ h: 'Day' }, { h: 'Visitors', r: 1 }, { h: 'Page views', r: 1 }, { h: 'Clicked', r: 1 }, { h: 'Trial starts', r: 1 }],
+                        [{ h: 'Day' }, { h: 'Visited', r: 1 }, { h: 'Page views', r: 1 }, { h: 'Clicked Telegram', r: 1 }, { h: 'Pressed Start', r: 1 }],
                         [...d.series].reverse().slice(0, 14).map(x => [x.day, webNum(x.visitors), webNum(x.views), webNum(x.clicks), webNum(x.starts)])) + '</div>';
+
+                // 2. which page does what + where they go next
+                const pt = d.pageTable || [];
+                document.getElementById('webPageTable').innerHTML = webTable(
+                    [{ h: 'Page' }, { h: 'Visitors', r: 1 }, { h: 'Views', r: 1 }, { h: 'Clicked a Telegram button', r: 1 }, { h: 'Went on to another page', r: 1 }, { h: 'Left the site from here', r: 1 }],
+                    pt.map(x => [webEsc(pageName(x.path)), webNum(x.visitors), webNum(x.views), webNum(x.clickedTelegram) + ' <span style="color:#8a96a0;">(' + webPct(x.clickedTelegram, x.visitors) + ')</span>', webNum(x.wentOn) + ' <span style="color:#8a96a0;">(' + webPct(x.wentOn, x.visitors) + ')</span>', webNum(x.exits) + ' <span style="color:#8a96a0;">(' + webPct(x.exits, x.visitors) + ')</span>']),
+                    'No page views yet') +
+                    '<div style="margin-top:14px;">' + webTable([{ h: 'Moved from' }, { h: 'To' }, { h: 'Visitors', r: 1 }], (d.flows || []).map(x => [webEsc(pageName(x.from)), webEsc(pageName(x.to)), webNum(x.visitors)]), 'Nobody has gone from one page to another yet') + '</div>';
+
+                // 3. which button works
+                document.getElementById('webCta').innerHTML = webTable(
+                    [{ h: 'Page it is on' }, { h: 'Button' }, { h: 'Clicks', r: 1 }, { h: 'People', r: 1 }, { h: 'Share of that page’s visitors', r: 1 }],
+                    (d.ctaByPage || []).map(x => [webEsc(pageName(x.page)), webEsc(ctaName(x.label || '(none)')), webNum(x.clicks), webNum(x.visitors), webPct(x.visitors, x.pageVisitors)]), 'No button has been clicked yet');
+
+                // 4. who started the bot
                 document.getElementById('webTrials').innerHTML = webTable(
-                    [{ h: 'When' }, { h: 'Who' }, { h: 'Button' }, { h: 'Source' }, { h: 'Country' }, { h: 'Device' }, { h: 'Came from' }, { h: 'New' }, { h: 'Paid' }],
-                    d.latestTrials.map(x => [webTime(x.at), webEsc(x.user), webEsc(x.button), webEsc(x.source), x.country ? webFlag(x.country) + ' ' + webEsc(x.country) : '–', webEsc([x.device, x.browser].filter(Boolean).join(' · ') || '–'), webEsc(x.referrer || (x.country ? 'direct' : '–')), x.isNew ? 'yes' : '', x.paid ? '✅' : '']),
-                    'No trial has come from the site in this period yet');
+                    [{ h: 'When' }, { h: 'Who' }, { h: 'Button they clicked' }, { h: 'Source' }, { h: 'Country' }, { h: 'Device' }, { h: 'Came from' }, { h: 'Brand new' }, { h: 'Paid' }],
+                    d.latestTrials.map(x => [webTime(x.at), webEsc(x.user), webEsc(ctaName(x.button)), webEsc(x.source), x.country ? webFlag(x.country) + ' ' + webEsc(x.country) : '–', webEsc([x.device, x.browser].filter(Boolean).join(' · ') || '–'), webEsc(x.referrer || (x.country ? 'direct' : '–')), x.isNew ? 'yes' : '', x.paid ? '✅' : '']),
+                    'Nobody has pressed Start from a website button in this period yet');
+                const startCols = [{ h: '' }, { h: 'Pressed Start', r: 1 }, { h: 'Brand new', r: 1 }, { h: 'Paid', r: 1 }];
+                document.getElementById('webStarts').innerHTML = webTwoCol(
+                    webBox('By button', webSub('Telegram accounts that pressed Start after clicking a website button') + webTable(startCols, d.startsByButton.map(x => [webEsc(ctaName(x.key)), webNum(x.starts), webNum(x.newUsers), webNum(x.paid)]), 'Nothing yet')),
+                    webBox('By source', webSub('Where those accounts first came from (utm tag, or direct)') + webTable(startCols, d.startsBySource.map(x => [webEsc(x.key), webNum(x.starts), webNum(x.newUsers), webNum(x.paid)]), 'Nothing yet')));
+
+                // 6. where visitors come from, merged device table
+                const unk = s => !s || s === '?' || s === 'Other' || /^unknown$/i.test(s);
+                const deviceRows = [];
+                const addGroup = (label, rows, key) => { let other = 0; rows.forEach(r => { if (unk(r[key])) other += r.visitors; else deviceRows.push([label, webEsc(r[key]), webNum(r.visitors)]); }); if (other) deviceRows.push([label, '<span style="color:#8a96a0;">unknown / other</span>', webNum(other)]); };
+                addGroup('Device', d.devices, 'device'); addGroup('Browser', d.browsers, 'browser'); addGroup('System', d.oses, 'os'); addGroup('Language', d.langs, 'lang');
+                document.getElementById('webSources').innerHTML = webTwoCol(
+                    webBox('Referrers and tags', webSub('Home and guides · visitors') + webTable([{ h: 'Came from' }, { h: 'Visitors', r: 1 }], d.referrers.map(x => [webEsc(x.referrer), webNum(x.visitors)])) +
+                        (d.utm.length ? '<div style="margin-top:10px;">' + webTable([{ h: 'utm_source / ref tag' }, { h: 'Visitors', r: 1 }], d.utm.map(x => [webEsc(x.source), webNum(x.visitors)])) + '</div>' : '')),
+                    webBox('Countries', webSub('Home and guides · visitors') + webTable([{ h: 'Country' }, { h: 'Visitors', r: 1 }, { h: 'Clicked Telegram', r: 1 }, { h: 'Pressed Start*', r: 1 }],
+                        d.countries.filter(x => !unk(x.name) && x.code).map(x => [webFlag(x.code) + ' ' + webEsc(x.name), webNum(x.visitors), webNum(x.clickers), webNum(x.starts)]), 'No visits yet') +
+                        '<div style="color:#8a96a0;font-size:11px;margin-top:6px;">*counted among the 30 latest starts only</div>')) +
+                    '<div style="margin-top:14px;">' + webBox('Devices, browsers, systems, languages', webSub('Home and guides · visitors') + webTable([{ h: 'Kind' }, { h: 'Value' }, { h: 'Visitors', r: 1 }], deviceRows, 'No visits yet')) + '</div>';
+
+                // 7. how far they scroll, by page
+                document.getElementById('webSections').innerHTML = webTable(
+                    [{ h: 'Page' }, { h: 'Section reached' }, { h: 'Visitors', r: 1 }, { h: 'Share of that page’s visitors', r: 1 }],
+                    (d.sectionsByPage || []).map(x => [webEsc(pageName(x.page)), webEsc(secName(x.section)), webNum(x.visitors), webPct(x.visitors, x.pageVisitors)]), 'Nobody has scrolled to a tracked section yet');
+
+                // 8. raw log
                 document.getElementById('webRecent').innerHTML = webTable(
-                    [{ h: 'When' }, { h: 'Country' }, { h: 'IP' }, { h: 'Device' }, { h: 'Came from' }, { h: 'Landed on' }, { h: 'Did', r: 0 }],
+                    [{ h: 'When' }, { h: 'Country' }, { h: 'IP' }, { h: 'Device' }, { h: 'Came from' }, { h: 'Pages visited, in order' }, { h: 'What they did' }],
                     d.recent.map(x => [webTime(x.at) + (x.isInternal ? ' <span style="color:#e8ac3f;">(you)</span>' : ''), webFlag(x.country) + ' ' + webEsc(x.country || '?'), '<span style="font-family:monospace;">' + webEsc(x.ip || '–') + '</span>',
-                        webEsc([x.device, x.browser, x.os].filter(Boolean).join(' · ')), webEsc((x.referrer || 'direct') + (x.utm ? ' · ' + x.utm : '')), webEsc(x.page || '/'),
-                        [x.buttons ? '<b style="color:#52d982;">clicked ' + webEsc(x.buttons) + '</b>' : '', x.plays ? 'watched demo' : '', x.sections ? x.sections + ' sections' : ''].filter(Boolean).join(' · ') || 'just looked']),
-                    'No visits yet in this period');
-                document.getElementById('webCta').innerHTML = webTable([{ h: 'Button' }, { h: 'Clicks', r: 1 }, { h: 'People', r: 1 }], d.cta.map(x => [webEsc(x.label || '(none)'), webNum(x.clicks), webNum(x.visitors)]), 'No button clicks yet');
-                const startCols = [{ h: '' }, { h: 'Starts', r: 1 }, { h: 'New', r: 1 }, { h: 'Paid', r: 1 }];
-                document.getElementById('webStartsBtn').innerHTML = webTable(startCols, d.startsByButton.map(x => [webEsc(x.key), webNum(x.starts), webNum(x.newUsers), webNum(x.paid)]), 'No trial starts from the website yet');
-                document.getElementById('webStartsSrc').innerHTML = webTable(startCols, d.startsBySource.map(x => [webEsc(x.key), webNum(x.starts), webNum(x.newUsers), webNum(x.paid)]));
-                document.getElementById('webRefs').innerHTML = webTable([{ h: 'Referrer' }, { h: 'Visitors', r: 1 }], d.referrers.map(x => [webEsc(x.referrer), webNum(x.visitors)])) +
-                    (d.utm.length ? '<div style="margin-top:10px;">' + webTable([{ h: 'utm_source / ref' }, { h: 'Visitors', r: 1 }], d.utm.map(x => [webEsc(x.source), webNum(x.visitors)])) + '</div>' : '');
-                document.getElementById('webCountries').innerHTML = webTable([{ h: 'Country' }, { h: 'Visitors', r: 1 }, { h: 'Clicked', r: 1 }, { h: 'Trials*', r: 1 }],
-                    d.countries.map(x => [webFlag(x.code) + ' ' + webEsc(x.name), webNum(x.visitors), webNum(x.clickers), webNum(x.starts)]), 'No visits yet') +
-                    '<div style="color:#8a96a0;font-size:11px;margin-top:6px;">*among the 30 latest trials</div>';
-                document.getElementById('webTech').innerHTML = webTable([{ h: 'Browser' }, { h: 'Visitors', r: 1 }], d.browsers.map(x => [webEsc(x.browser), webNum(x.visitors)])) +
-                    '<div style="margin-top:10px;">' + webTable([{ h: 'System' }, { h: 'Visitors', r: 1 }], d.oses.map(x => [webEsc(x.os), webNum(x.visitors)])) + '</div>' +
-                    '<div style="margin-top:10px;">' + webTable([{ h: 'Language' }, { h: 'Visitors', r: 1 }], d.langs.map(x => [webEsc(x.lang), webNum(x.visitors)])) + '</div>';
-                document.getElementById('webPages').innerHTML = webTable([{ h: 'Page' }, { h: 'Visitors', r: 1 }, { h: 'Views', r: 1 }], d.pages.map(x => [webEsc(x.path), webNum(x.visitors), webNum(x.views)]));
-                document.getElementById('webSections').innerHTML = webTable([{ h: 'Section reached' }, { h: 'Visitors', r: 1 }], d.sections.map(x => [webEsc(x.section), webNum(x.visitors)])) +
-                    '<div style="margin-top:10px;">' + webTable([{ h: 'Device' }, { h: 'Visitors', r: 1 }], d.devices.map(x => [webEsc(x.device), webNum(x.visitors)])) + '</div>';
+                        webEsc([x.device, x.browser, x.os].filter(Boolean).join(' · ')), webEsc((x.referrer || 'direct') + (x.utm ? ' · ' + x.utm : '')), webEsc((x.pages && x.pages.length ? x.pages : [x.page || '/']).map(pageName).join(' → ')),
+                        [x.buttons ? '<b style="color:#52d982;">clicked ' + webEsc(x.buttons.split(',').map(ctaName).join(', ')) + '</b>' : '', x.plays ? 'watched the demo video' : '', x.sections ? 'scrolled to ' + x.sections + (x.sections === 1 ? ' section' : ' sections') : '', x.appActions ? 'used the Feed (' + x.appActions + ' actions)' : ''].filter(Boolean).join(' · ') || 'only looked']),
+                    'No visits yet in this period') + '<div style="color:#8a96a0;font-size:12px;margin-top:6px;">One row per person per day. Pages are in the order they were opened. A person is recognised for the day by an anonymous hash of address and browser (no cookies).</div>';
                 document.getElementById('webUpdated').textContent = 'updated ' + new Date().toLocaleTimeString() + (t.botViewsIgnored ? ' · ' + t.botViewsIgnored + ' bot views ignored' : '');
             } catch (e) {
                 document.getElementById('webKpis').innerHTML = '<div style="color:#ff6b6b;">Could not load analytics: ' + webEsc(e.message) + '</div>';

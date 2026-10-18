@@ -682,6 +682,7 @@
             <span class="brand-name">Alert Console</span>
         </div>
         <div class="topbar-right">
+            <a class="logout-btn" href="/feed" style="text-decoration:none;display:inline-block">Live feed</a>
             <span class="whoami" id="whoami"></span>
             <button class="logout-btn" id="logoutLink">Log out</button>
         </div>
@@ -1618,7 +1619,12 @@ async function openProfile(traderId) {
     modal.style.display = 'flex';
     body.innerHTML = '<div class="empty-state">Loading…</div>';
     const res = await fetch(`${API}/api/manage/traders/${traderId}`).then(r => r.json()).catch(() => null);
-    if (!res || res.status !== 'success') { body.innerHTML = '<div class="empty-state">Couldn\'t load this trader.</div>'; return; }
+    if (!res || res.status !== 'success') {
+        // The server refuses non-subscribers with a reason; show it instead of a generic failure.
+        const why = res?.code === 'ratings_require_subscription' ? res.message : res?.message === 'Not logged in' ? 'Your session expired. Open /manage from the bot again.' : 'Couldn\'t load this trader.';
+        body.innerHTML = `<div class="empty-state">${escapeHtml(why)}</div>`;
+        return;
+    }
     profileTrader = res.trader;
     renderProfile();
 }
@@ -1990,5 +1996,6 @@ function showSuggestDone(sent) {
 
 init();
 </script>
+<script src="/t.js" defer></script>
 </body>
 </html>

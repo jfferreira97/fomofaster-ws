@@ -242,7 +242,10 @@ public class WebAnalyticsService
         using var scope = _services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var P = ("@from", (object?)fromDay);
-        var W = "Day >= @from AND IsBot = 0" + (includeInternal ? "" : " AND IsInternal = 0");
+        var Wbase = "Day >= @from AND IsBot = 0" + (includeInternal ? "" : " AND IsInternal = 0");
+        // /feed and /manage are the app, not the landing funnel: they get their own section below, so people coming back to
+        // use the product do not dilute visitor -> Telegram-click rates.
+        var W = Wbase + " AND Path NOT IN ('/feed', '/manage')";
 
         var t = (await QueryAsync(db, $@"SELECT
               SUM(CASE WHEN Type='view' THEN 1 ELSE 0 END),
@@ -296,15 +299,31 @@ public class WebAnalyticsService
             WHERE {W} AND Type IN ('view','cta') GROUP BY Country ORDER BY 2 DESC", P))
             .Select(r => (Code: S(r[0]), Visitors: L(r[1]), Clickers: L(r[2]))).ToList();
 
-        // One row per visit (visitor + day): the latest visits, with the address they came from
+        // The pages each visit opened, in order. No cookie needed: a visitor is an anonymous per-day hash of address + browser, so one
+        // person's page loads on the same day already share an id. Last 30 days only, which is plenty for the "recent visits" list.
+        var journeyFrom = DateTime.UtcNow.Date.AddDays(-30).ToString("yyyy-MM-dd");
+        var journeyRows = await QueryAsync(db, $"SELECT Visitor, Day, Type, Path, Label FROM WebEvents WHERE {Wbase} AND Day >= '{journeyFrom}' AND Type IN ('view', 'feed', 'nav') ORDER BY At", P);
+        var journeys = journeyRows.GroupBy(r => S(r[0]) + "|" + S(r[1])).ToDictionary(g => g.Key, g => g.ToList());
+        string[] PagesOf(string key)
+        {
+            var pages = new List<string>();
+            if (journeys.TryGetValue(key, out var rows))
+                foreach (var r in rows.Where(r => S(r[2]) == "view")) { var p = S(r[3]); if (pages.Count == 0 || pages[^1] != p) pages.Add(p); }
+            return pages.ToArray();
+        }
+        long AppActions(string key) => journeys.TryGetValue(key, out var rows)
+            ? rows.Count(r => S(r[2]) == "feed" && !S(r[4]).StartsWith("tier:") && S(r[4]) != "alive10") : 0;
+
+        // One row per visit (visitor + day): the latest visits, with the address they came from. All pages, app included.
         var recent = (await QueryAsync(db, $@"SELECT MIN(At), MAX(Ip), MAX(Country), MAX(Device), MAX(Browser), MAX(Os), MAX(Ref), MAX(Utm),
               MIN(CASE WHEN Type='view' THEN Path END), SUM(CASE WHEN Type='cta' THEN 1 ELSE 0 END), SUM(CASE WHEN Type='play' THEN 1 ELSE 0 END),
-              COUNT(DISTINCT CASE WHEN Type='sec' THEN Label END), MAX(IsInternal), GROUP_CONCAT(DISTINCT CASE WHEN Type='cta' THEN Label END), MAX(Lang)
-            FROM WebEvents WHERE {W} GROUP BY Visitor, Day ORDER BY MIN(At) DESC LIMIT 40", P))
+              COUNT(DISTINCT CASE WHEN Type='sec' THEN Label END), MAX(IsInternal), GROUP_CONCAT(DISTINCT CASE WHEN Type='cta' THEN Label END), MAX(Lang), Visitor, Day
+            FROM WebEvents WHERE {Wbase} GROUP BY Visitor, Day ORDER BY MIN(At) DESC LIMIT 40", P))
             .Select(r => new
             {
                 at = S(r[0]), ip = S(r[1]), country = S(r[2]), device = S(r[3]), browser = S(r[4]), os = S(r[5]), referrer = S(r[6]), utm = S(r[7]),
                 page = S(r[8]), clicks = L(r[9]), plays = L(r[10]), sections = L(r[11]), isInternal = L(r[12]) == 1, buttons = S(r[13]), lang = S(r[14]),
+                pages = PagesOf(S(r[15]) + "|" + S(r[16])), appActions = AppActions(S(r[15]) + "|" + S(r[16])),
             }).ToList();
 
         // Bot /start attribution: one row per (payload, chat) in range, joined to the user for "joined in range" and "paid".
@@ -362,6 +381,81 @@ public class WebAnalyticsService
             starts = startsByCountry.TryGetValue(c.Code, out var n) ? n : 0,
         }).ToList();
 
+        // ---- per page: what each page does, where people go next, which buttons and sections, on which page (all pages) ----
+        var evRows = await QueryAsync(db, $"SELECT Visitor, Day, Type, Path, Label FROM WebEvents WHERE {Wbase} AND Type IN ('view', 'cta', 'sec') ORDER BY At LIMIT 200000", P);
+        var visits = evRows.GroupBy(r => S(r[0]) + "|" + S(r[1])).Select(g => g.ToList()).ToList();
+        var pv = new Dictionary<string, (long Views, HashSet<int> Visitors, HashSet<int> Clicked, HashSet<int> WentOn, HashSet<int> Exited)>();
+        var flowSets = new Dictionary<(string From, string To), HashSet<int>>();
+        var ctaPage = new Dictionary<(string Page, string Label), (long Clicks, HashSet<int> Visitors)>();
+        var secPage = new Dictionary<(string Page, string Section), HashSet<int>>();
+        var pageVisitors = new Dictionary<string, HashSet<int>>();
+        var vid = 0;
+        foreach (var v in visits)
+        {
+            vid++;
+            (long Views, HashSet<int> Visitors, HashSet<int> Clicked, HashSet<int> WentOn, HashSet<int> Exited) Slot(string p)
+            {
+                if (!pv.TryGetValue(p, out var s)) pv[p] = s = (0, new HashSet<int>(), new HashSet<int>(), new HashSet<int>(), new HashSet<int>());
+                return s;
+            }
+            var seq = new List<string>();
+            foreach (var r in v)
+            {
+                var type = S(r[2]); var path = S(r[3]); var label = S(r[4]);
+                if (type == "view")
+                {
+                    var s = Slot(path); pv[path] = (s.Views + 1, s.Visitors, s.Clicked, s.WentOn, s.Exited); s.Visitors.Add(vid);
+                    if (seq.Count == 0 || seq[^1] != path) seq.Add(path);
+                }
+                else if (type == "cta")
+                {
+                    Slot(path).Clicked.Add(vid);
+                    ctaPage.TryGetValue((path, label), out var c); c.Visitors ??= new HashSet<int>(); c.Visitors.Add(vid);
+                    ctaPage[(path, label)] = (c.Clicks + 1, c.Visitors);
+                }
+                else if (type == "sec")
+                {
+                    if (!secPage.TryGetValue((path, label), out var set)) secPage[(path, label)] = set = new HashSet<int>();
+                    set.Add(vid);
+                }
+            }
+            for (var i = 0; i < seq.Count; i++)
+            {
+                if (i < seq.Count - 1)
+                {
+                    Slot(seq[i]).WentOn.Add(vid);
+                    var key = (seq[i], seq[i + 1]);
+                    if (!flowSets.TryGetValue(key, out var fs)) flowSets[key] = fs = new HashSet<int>();
+                    fs.Add(vid);
+                }
+                else Slot(seq[i]).Exited.Add(vid);
+            }
+        }
+        var pageTable = pv.Select(kv => new { path = kv.Key, views = kv.Value.Views, visitors = (long)kv.Value.Visitors.Count, clickedTelegram = (long)kv.Value.Clicked.Count, wentOn = (long)kv.Value.WentOn.Count, exits = (long)kv.Value.Exited.Count })
+            .OrderByDescending(x => x.visitors).ThenByDescending(x => x.views).ToList();
+        var pageTotals = pv.ToDictionary(kv => kv.Key, kv => kv.Value.Visitors.Count);
+        var flows = flowSets.Select(kv => new { from = kv.Key.From, to = kv.Key.To, visitors = (long)kv.Value.Count }).OrderByDescending(x => x.visitors).Take(25).ToList();
+        var ctaByPage = ctaPage.Select(kv => new { page = kv.Key.Page, label = kv.Key.Label, clicks = kv.Value.Clicks, visitors = (long)kv.Value.Visitors.Count, pageVisitors = (long)(pageTotals.TryGetValue(kv.Key.Page, out var pt) ? pt : 0) })
+            .OrderByDescending(x => x.clicks).Take(30).ToList();
+        var sectionsByPage = secPage.Select(kv => new { page = kv.Key.Page, section = kv.Key.Section, visitors = (long)kv.Value.Count, pageVisitors = (long)(pageTotals.TryGetValue(kv.Key.Page, out var pt2) ? pt2 : 0) })
+            .OrderBy(x => x.page).ThenByDescending(x => x.visitors).Take(40).ToList();
+
+        // ---- app pages: /feed and /manage (page-wide counts, no per-person data) ----
+        var AF = Wbase + " AND Path = '/feed'";
+        var feedKpi = (await QueryAsync(db, $"SELECT COUNT(*), COUNT(DISTINCT Visitor) FROM WebEvents WHERE {AF} AND Type = 'view'", P))[0];
+        var manageKpi = (await QueryAsync(db, $"SELECT COUNT(*), COUNT(DISTINCT Visitor) FROM WebEvents WHERE {Wbase} AND Path = '/manage' AND Type = 'view'", P))[0];
+        var feedDaily = (await QueryAsync(db, $"SELECT Day, COUNT(*), COUNT(DISTINCT Visitor) FROM WebEvents WHERE {AF} AND Type = 'view' GROUP BY Day ORDER BY Day", P))
+            .Select(r => new { day = S(r[0]), views = L(r[1]), visitors = L(r[2]) }).ToList();
+        var feedEvents = (await QueryAsync(db, $"SELECT Label, COUNT(*), COUNT(DISTINCT Visitor) FROM WebEvents WHERE {AF} AND Type = 'feed' GROUP BY Label ORDER BY 2 DESC LIMIT 60", P))
+            .Select(r => new { label = S(r[0]), events = L(r[1]), visitors = L(r[2]) }).ToList();
+        var feedDevices = (await QueryAsync(db, $"SELECT Device, COUNT(DISTINCT Visitor) FROM WebEvents WHERE {AF} AND Type = 'view' GROUP BY Device ORDER BY 2 DESC", P))
+            .Select(r => new { device = S(r[0]), visitors = L(r[1]) }).ToList();
+        var feedRefs = (await QueryAsync(db, $"SELECT CASE WHEN Ref = '' THEN '(direct / app link)' ELSE Ref END, COUNT(DISTINCT Visitor) FROM WebEvents WHERE {AF} AND Type = 'view' GROUP BY 1 ORDER BY 2 DESC LIMIT 8", P))
+            .Select(r => new { referrer = S(r[0]), visitors = L(r[1]) }).ToList();
+        // where people click through to the app from the site (label: feed_top / manage_top / manage_footer ..., Path = the page it was on)
+        var nav = (await QueryAsync(db, $"SELECT Label, Path, COUNT(*), COUNT(DISTINCT Visitor) FROM WebEvents WHERE {Wbase} AND Type = 'nav' GROUP BY Label, Path ORDER BY 3 DESC LIMIT 30", P))
+            .Select(r => new { link = S(r[0]), from = S(r[1]), clicks = L(r[2]), visitors = L(r[3]) }).ToList();
+
         return new
         {
             days,
@@ -388,6 +482,13 @@ public class WebAnalyticsService
             referrers = refs,
             utm = utms,
             pages,
+            pageTable, flows, ctaByPage, sectionsByPage,
+            app = new
+            {
+                feed = new { views = L(feedKpi[0]), visitors = L(feedKpi[1]), daily = feedDaily, events = feedEvents, devices = feedDevices, referrers = feedRefs },
+                manage = new { views = L(manageKpi[0]), visitors = L(manageKpi[1]) },
+                nav,
+            },
             devices,
             browsers,
             oses,
