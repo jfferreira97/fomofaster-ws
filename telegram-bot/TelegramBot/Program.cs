@@ -52,6 +52,7 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ITraderService, TraderService>();
 builder.Services.AddScoped<IChainSettingsService, ChainSettingsService>();
 builder.Services.AddSingleton<ChainSettingsCache>();
+builder.Services.AddSingleton<FeedService>(); // /feed: web twin of the Telegram alert stream (SSE)
 builder.Services.AddSingleton<ITelegramService, TelegramService>();
 builder.Services.AddSingleton<AppConfigService>();
 builder.Services.AddSingleton<WebSessionService>();
@@ -111,6 +112,8 @@ using (var scope = app.Services.CreateScope())
 // Seed default config values
 var appConfigService = app.Services.GetRequiredService<AppConfigService>();
 await appConfigService.SeedDefaultsAsync();
+
+await app.Services.GetRequiredService<FeedService>().SeedAsync(); // /feed history survives restarts
 
 // Warm the in-memory chain-settings cache so the notification hot path never hits the DB
 var chainSettingsCache = app.Services.GetRequiredService<ChainSettingsCache>();
@@ -202,6 +205,15 @@ app.MapGet("/manage", async (HttpContext context, WebSessionService sessionServi
     context.Response.ContentType = "text/html";
     var html = await System.IO.File.ReadAllTextAsync("wwwroot/manage.html");
     await context.Response.WriteAsync(html);
+});
+
+// Live alert feed, built to sit in a narrow window beside a trading terminal. Logged in (the
+// /manage cookie) it mirrors the user's Telegram alerts; logged out it is the delayed demo.
+app.MapGet("/feed", async context =>
+{
+    context.Response.ContentType = "text/html";
+    context.Response.Headers.CacheControl = "no-cache";
+    await context.Response.WriteAsync(await System.IO.File.ReadAllTextAsync("wwwroot/feed.html"));
 });
 
 app.MapGet("/", () => new { message = "GROUPCHAT Backend Running", version = "1.0.0" });

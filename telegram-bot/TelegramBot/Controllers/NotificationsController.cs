@@ -76,6 +76,21 @@ public class NotificationsController : ControllerBase
         }
     }
 
+    // One string out of a stored raw event (the feed shows its pictures), null when absent or malformed.
+    private static string? RawString(string? raw, params string[] path)
+    {
+        if (string.IsNullOrEmpty(raw)) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(raw);
+            var el = doc.RootElement;
+            foreach (var p in path)
+                if (el.ValueKind != JsonValueKind.Object || !el.TryGetProperty(p, out el)) return null;
+            return el.ValueKind == JsonValueKind.String ? el.GetString() : null;
+        }
+        catch (JsonException) { return null; }
+    }
+
     [HttpPost("structured")]
     public async Task<IActionResult> ReceiveStructuredNotification([FromBody] StructuredNotificationRequest req)
     {
@@ -148,7 +163,9 @@ public class NotificationsController : ControllerBase
                 marketCap: notifMarketCap,
                 notificationType: notifType,
                 fomoWsTradeId: req.WsId,
-                usdAmount: req.UsdAmount
+                usdAmount: req.UsdAmount,
+                tokenImage: RawString(wsEvent?.RawJson, "tokenImageUrl"),
+                traderImage: req.ProfilePictureLink ?? RawString(wsEvent?.RawJson, "profilePictureLink")
             );
 
             await _dbContext.WsEvents
@@ -227,7 +244,9 @@ public class NotificationsController : ControllerBase
                 marketCap: req.MarketCap,
                 notificationType: notifType,
                 platform: Platform.Pump,
-                usdAmount: req.PositionCostBasisUsd
+                usdAmount: req.PositionCostBasisUsd,
+                tokenImage: RawString(pumpEvent?.RawJson, "coinImage"),
+                traderImage: RawString(pumpEvent?.RawJson, "author", "profileImage")
             );
 
             // Non-blocking hand-off to confluence detection (TRENDING alerts) — callouts

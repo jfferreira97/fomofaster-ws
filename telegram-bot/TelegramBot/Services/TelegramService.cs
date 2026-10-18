@@ -22,6 +22,7 @@ public class TelegramService : ITelegramService
     private readonly IHubContext<DashboardHub> _hubContext;
     private readonly ChainSettingsCache _chainSettingsCache;
     private readonly ActiveUserCache _activeUserCache;
+    private readonly FeedService _feed;
     private PaymentPollerService? _paymentPoller;
 
     public TelegramService(
@@ -30,7 +31,8 @@ public class TelegramService : ITelegramService
         ILogger<TelegramService> logger,
         IHubContext<DashboardHub> hubContext,
         ChainSettingsCache chainSettingsCache,
-        ActiveUserCache activeUserCache)
+        ActiveUserCache activeUserCache,
+        FeedService feed)
     {
         _settings = settings.Value;
         _serviceProvider = serviceProvider;
@@ -38,6 +40,7 @@ public class TelegramService : ITelegramService
         _hubContext = hubContext;
         _chainSettingsCache = chainSettingsCache;
         _activeUserCache = activeUserCache;
+        _feed = feed;
 
         if (!string.IsNullOrEmpty(_settings.BotToken))
         {
@@ -143,7 +146,7 @@ public class TelegramService : ITelegramService
         }
     }
 
-    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, string? contractAddress = null, Chain? chain = null, string? traderHandle = null, string? ticker = null, double? marketCap = null, NotificationType notificationType = NotificationType.Unknown, string? fomoWsTradeId = null, Platform platform = Platform.Fomo, double? usdAmount = null)
+    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, string? contractAddress = null, Chain? chain = null, string? traderHandle = null, string? ticker = null, double? marketCap = null, NotificationType notificationType = NotificationType.Unknown, string? fomoWsTradeId = null, Platform platform = Platform.Fomo, double? usdAmount = null, string? tokenImage = null, string? traderImage = null)
     {
         if (_botClient == null)
         {
@@ -398,6 +401,9 @@ public class TelegramService : ITelegramService
             Platform = platform,
             FK_WsEvent_WsId = fomoWsTradeId
         };
+        // The web feed gets it now, ahead of the DB write and the Telegram fan-out.
+        _feed.Publish(notificationRecord, users.Select(u => u.ChatId), usdAmount, tokenImage, traderImage);
+
         dbContext.Notifications.Add(notificationRecord);
         await dbContext.SaveChangesAsync();
 
