@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How GROUPCHAT scores traders | follower-based replay</title>
+<meta name="description" content="How GROUPCHAT rates {{TRADERS}} FOMO and Pump.fun traders: every alert is replayed against price candles as a follower would have traded it, delay and fees included.">
+<link rel="canonical" href="https://groupchat-bot.tech/how-we-score-traders"><meta name="robots" content="index, follow, max-image-preview:large">
+<link rel="icon" type="image/png" href="/favicon.png"><meta name="theme-color" content="#0b0b0c">
+<meta property="og:type" content="article"><meta property="og:site_name" content="GROUPCHAT"><meta property="og:url" content="https://groupchat-bot.tech/how-we-score-traders">
+<meta property="og:title" content="How GROUPCHAT scores traders | follower-based replay"><meta property="og:description" content="How GROUPCHAT rates {{TRADERS}} FOMO and Pump.fun traders: every alert is replayed against price candles as a follower would have traded it, delay and fees included."><meta property="og:image" content="https://groupchat-bot.tech/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preload" href="/fonts/geist-normal-400.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="/fonts/fonts.css">
+<link rel="stylesheet" href="/legal.css"><link rel="stylesheet" href="/article.css">
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Article","datePublished":"2026-10-08","image":"https://groupchat-bot.tech/og.png","author":{"@type":"Organization","name":"GROUPCHAT","url":"https://groupchat-bot.tech/"},"headline":"How GROUPCHAT scores traders","description":"How GROUPCHAT rates {{TRADERS}} FOMO and Pump.fun traders: every alert is replayed against price candles as a follower would have traded it, delay and fees included.","mainEntityOfPage":"https://groupchat-bot.tech/how-we-score-traders","dateModified":"2026-10-08","publisher":{"@type":"Organization","name":"GROUPCHAT","url":"https://groupchat-bot.tech/"}},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Why replay the alert instead of using the trader's own result?","acceptedAnswer":{"@type":"Answer","text":"Because a follower cannot buy at the trader's price. By the time the alert reaches you the price has moved, so the replay buys about a minute later."}},{"@type":"Question","name":"How often do scores update?","acceptedAnswer":{"@type":"Answer","text":"They are recalculated as traders keep trading, using the last 30 days of calls."}},{"@type":"Question","name":"Can a trader with a high score still lose?","acceptedAnswer":{"@type":"Answer","text":"Yes. The score describes the past. Treat it as a filter."}}]}]}</script>
+</head>
+<body>
+<header><div class="in"><a class="brand" href="/"><img src="/mark.png" alt="" width="28" height="28">groupchat</a><span class="navr"><a class="nl" href="/manage">Manage</a><a class="nl" href="/feed">Feed</a><a class="cta-sm" href="https://t.me/GROUPCHAT_ALERTS_BOT?start=guide_how_we_score_traders_nav">Free trial on Telegram</a></span></div></header>
+<main class="art">
+<p class="crumb"><a href="/">GROUPCHAT</a> / Guides</p>
+<h1>Scored on what a follower <i>would have made.</i></h1>
+<p class="lead">Most trader rankings use the trader's own fills. That ignores the gap between their trade and your alert, which is where the money is lost. This is how GROUPCHAT does it instead.</p>
+<a class="cta" href="https://t.me/GROUPCHAT_ALERTS_BOT?start=guide_how_we_score_traders">Free trial on Telegram</a>
+<h2>The replay</h2>
+<p>For each trader we take every call from the last 30 days: a FOMO trader's first buy into a token, or a Pump.fun callout. Each one is replayed against price candles as if you had bought about one minute after the alert, after fees. That gives the result a follower would have seen, not the one the trader saw.</p>
+<h2>What you can see for each trader</h2>
+<ul>
+        <li><b>Score</b>, from 0 to 100, based on the replay.</li>
+        <li><b>+50% in 15 minutes</b>: the share of their calls that rose 50% within 15 minutes of the alert.</li>
+        <li><b>Time to peak</b>: when their calls usually top out within 24 hours.</li>
+        <li><b>Typical entry cap</b>: the median market cap they call at.</li>
+        <li><b>Calls analysed</b> and alerts per day.</li>
+        <li><b>Their last calls</b>: how high each one ran within 24 hours, and where it stood an hour later.</li>
+      </ul>
+<h2>Categories</h2>
+<p>Traders are grouped by how their calls tend to play out, such as <i>Multi-day holders</i>, <i>Day holds</i>, <i>4h flips</i>, <i>1h flips</i> and <i>15m flips</i>. Traders whose alerts lost money on average for followers are muted, and traders with too few calls are marked unrated. You can follow a whole category in one tap and new traders who fit it are added automatically.</p>
+<h2>What it does not tell you</h2>
+<p>A score is a historical replay. It does not predict future results, and your own results will differ because of delay, slippage, fees and the decisions you make. Use it to filter traders, not to decide for you.</p>
+<h2>Questions</h2>
+<details><summary>Why replay the alert instead of using the trader's own result?</summary><p>Because a follower cannot buy at the trader's price. By the time the alert reaches you the price has moved, so the replay buys about a minute later.</p></details>
+<details><summary>How often do scores update?</summary><p>They are recalculated as traders keep trading, using the last 30 days of calls.</p></details>
+<details><summary>Can a trader with a high score still lose?</summary><p>Yes. The score describes the past. Treat it as a filter.</p></details>
+<div class="end"><p class="more" style="margin-bottom:14px">The bot: <a href="https://t.me/GROUPCHAT_ALERTS_BOT">@GROUPCHAT_ALERTS_BOT</a> on Telegram.</p><a class="cta" href="https://t.me/GROUPCHAT_ALERTS_BOT?start=guide_how_we_score_traders_end">Free trial on Telegram</a><p class="more">More: <a href="/fomo-trader-alerts">FOMO trader alerts in Telegram</a> &middot; <a href="/pump-fun-callouts-alerts">Pump.fun callout alerts in Telegram</a><p class="more">Also: <a href="/fomo-app-delay">What a late entry costs you</a></p></p></div>
+</main>
+<footer><div class="in">&copy; GROUPCHAT &middot; <a href="/">Home</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/privacy">Privacy</a> &middot; Not affiliated with FOMO or Pump.fun.</div></footer>
+<script src="/t.js" defer></script>
+</body></html>

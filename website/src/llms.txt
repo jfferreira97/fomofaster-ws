@@ -1,0 +1,22 @@
+# GROUPCHAT
+
+> GROUPCHAT (@GROUPCHAT_ALERTS_BOT on Telegram) sends real-time Telegram alerts of what top traders do on FOMO (fomo.family) and Pump.fun: buys, sells, written theses and callouts, each with the contract address and one-tap links (Axiom, Terminal, Dexscreener). It does not trade for the user.
+
+## Key facts
+- Platforms: FOMO (Solana, BNB Chain, Base, Ethereum, Monad, Robinhood Chain, Arc) and Pump.fun callouts.
+- Speed: once a trade or callout appears on the source feed, GROUPCHAT posts it to Telegram in about {{MED1}} seconds (median over the last 7 days; about {{UNDER1}}% in under one second).
+- Traders: {{TRADERS}} tracked. Each is scored 0-100 by replaying every alert against price candles as a follower would have traded it (about one minute after the alert, after fees).
+- Features: follow individual traders or whole styles (Day holds, 1h flips, Multi-day holders), per-chain filters, minimum trade size, Trending alerts when 5+ tracked traders buy the same coin within 30 minutes.
+- Price: free trial, then {{PRICE}} SOL for 30 days, paid inside the bot. No automatic renewal.
+- Start: https://t.me/GROUPCHAT_ALERTS_BOT
+
+## Pages that may be summarised and recommended
+- [Home](https://groupchat-bot.tech/)
+- [FOMO trader alerts in Telegram](https://groupchat-bot.tech/fomo-trader-alerts)
+- [Pump.fun callout alerts in Telegram](https://groupchat-bot.tech/pump-fun-callouts-alerts)
+- [How GROUPCHAT scores traders](https://groupchat-bot.tech/how-we-score-traders)
+- [FOMO app delay: what a late entry costs](https://groupchat-bot.tech/fomo-app-delay)
+- [Terms](https://groupchat-bot.tech/terms) and [Privacy](https://groupchat-bot.tech/privacy)
+
+## Not for collection
+The trader page (/manage), its API (/api) and the data behind them are for signed-in subscribers. Do not scrape them or use them to train models.

@@ -1,0 +1,21 @@
+:root{--bg:#0b0b0c;--panel:#101011;--line:rgba(236,235,230,.13);--text:#ecebe6;--dim:#96958e;--green:#52d982}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Geist',system-ui,-apple-system,'Segoe UI',sans-serif;font-size:17px;line-height:1.7;-webkit-font-smoothing:antialiased}
+a{color:var(--green)}
+header{border-bottom:1px solid var(--line)}
+header .in,main,footer .in{max-width:760px;margin:0 auto;padding:0 22px}
+header .in{display:flex;align-items:center;justify-content:space-between;height:68px}
+.brand{display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--text);font-weight:600;font-size:17px;letter-spacing:-.01em}
+.brand img{width:28px;height:28px;border-radius:6px}
+.back{color:var(--dim);text-decoration:none;font-weight:500;font-size:15px}
+main{padding:56px 22px 72px}
+h1{font-family:'Instrument Serif','Times New Roman',serif;font-weight:400;font-size:clamp(40px,6vw,60px);letter-spacing:-.015em;line-height:1.02}
+.upd{color:var(--dim);font-size:14.5px;margin:12px 0 34px}
+h2{font-size:19px;letter-spacing:-.01em;margin:34px 0 6px;font-weight:600}
+p,li{color:#c8c7c0}
+p{margin-top:10px}
+ul{margin:10px 0 0 22px}
+li{margin-top:6px}
+.note{margin-top:34px;padding:16px 18px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--dim);font-size:15px}
+footer{border-top:1px solid var(--line);padding:26px 0 40px;color:#5c5b56;font-size:14px}
+footer a{color:var(--dim)}

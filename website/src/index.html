@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trader alerts for FOMO and Pump.fun, in Telegram | GROUPCHAT</title>
+<meta name="description" content="Live Telegram alerts of what top FOMO and Pump.fun traders buy and call, with the contract and one-tap links, posted in under a second. Free trial.">
+<link rel="canonical" href="https://groupchat-bot.tech/">
+<meta name="theme-color" content="#0b0b0c">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="GROUPCHAT">
+<meta property="og:url" content="https://groupchat-bot.tech/">
+<meta property="og:title" content="Know what the best traders just bought">
+<meta property="og:description" content="FOMO and Pump.fun trader alerts in Telegram, posted in under a second. Enjoy your free trial.">
+<meta property="og:image" content="https://groupchat-bot.tech/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Know what the best traders just bought">
+<meta name="twitter:description" content="FOMO and Pump.fun trader alerts in Telegram, posted in under a second. Enjoy your free trial.">
+<meta name="twitter:image" content="https://groupchat-bot.tech/og.png">
+
+<link rel="preload" href="/fonts/geist-normal-400.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="/fonts/fonts.css">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://groupchat-bot.tech/#org",
+      "name": "GROUPCHAT",
+      "alternateName": ["GROUPCHAT ALERTS BOT", "GROUPCHAT_ALERTS_BOT"],
+      "url": "https://groupchat-bot.tech/",
+      "logo": "https://groupchat-bot.tech/mark.png",
+      "sameAs": ["https://t.me/GROUPCHAT_ALERTS_BOT"]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://groupchat-bot.tech/#site",
+      "name": "GROUPCHAT",
+      "alternateName": "GROUPCHAT ALERTS BOT",
+      "url": "https://groupchat-bot.tech/",
+      "publisher": { "@id": "https://groupchat-bot.tech/#org" }
+    },
+    {
+      "@type": "SoftwareApplication",
+      "name": "GROUPCHAT",
+      "alternateName": "@GROUPCHAT_ALERTS_BOT",
+      "applicationCategory": "FinanceApplication",
+      "operatingSystem": "Telegram",
+      "url": "https://groupchat-bot.tech/",
+      "image": "https://groupchat-bot.tech/og.png",
+      "screenshot": "https://groupchat-bot.tech/shot-alerts.jpg",
+      "description": "Telegram alerts of what top FOMO (fomo.family) and Pump.fun traders are doing: buys, sells, theses and callouts, with contract addresses and one-tap links. It sends alerts only and does not trade for you. Free trial, then {{PRICE}} SOL for 30 days.",
+      "featureList": ["Buys, sells, theses and callouts from FOMO and Pump.fun traders", "A playbook and follower-based score for every trader", "Filters by chain and minimum trade size", "Contract address and one-tap links in every alert"],
+      "offers": { "@type": "Offer", "price": "{{PRICE}}", "priceCurrency": "SOL", "description": "30 days, paid in the bot, no automatic renewal. A free trial comes first." },
+      "publisher": { "@id": "https://groupchat-bot.tech/#org" }
+    },
+    {
+      "@type": "VideoObject",
+      "name": "GROUPCHAT demo: real FOMO and Pump.fun alerts in Telegram",
+      "description": "A 56 second walkthrough of real alerts from the live bot.",
+      "thumbnailUrl": "https://groupchat-bot.tech/shot-alerts.jpg",
+      "contentUrl": "https://groupchat-bot.tech/promo-v2.mp4",
+      "uploadDate": "2026-10-08",
+      "duration": "PT56S"
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        { "@type": "Question", "name": "How fast are the alerts?", "acceptedAnswer": { "@type": "Answer", "text": "Once a trade or callout shows up on FOMO's or Pump.fun's feed, GROUPCHAT posts it to Telegram in about {{MED1}} seconds. Over the last 7 days the median was {{MED2}} s for FOMO and {{PUMP_MED2}} s for Pump.fun, and about {{UNDER1}}% of alerts were posted in under a second." } },
+        { "@type": "Question", "name": "Which chains and platforms?", "acceptedAnswer": { "@type": "Answer", "text": "FOMO activity on Solana, BNB Chain, Base, Ethereum, Monad, Robinhood Chain and Arc, plus Pump.fun callouts. You can filter by chain." } },
+        { "@type": "Question", "name": "What happens after the free trial?", "acceptedAnswer": { "@type": "Answer", "text": "Alerts become limited: the ticker, buy size, contract address and trade links are hidden until you subscribe. Subscribing is {{PRICE}} SOL for 30 days, paid in the bot with /subscribe, and it never renews automatically." } },
+        { "@type": "Question", "name": "Does it trade for me?", "acceptedAnswer": { "@type": "Answer", "text": "No. It only sends alerts. You decide and trade yourself." } },
+        { "@type": "Question", "name": "Do you ask for my wallet keys?", "acceptedAnswer": { "@type": "Answer", "text": "Never. You sign in with Telegram, and the bot never asks for a private key or seed phrase. Anyone who does is not us." } }
+      ]
+    }
+  ]
+}
+</script>
+
+<noscript><style>.rv{opacity:1!important;transform:none!important}.sticky{display:none}</style></noscript>
+<style>
+  :root {
+    --bg: #0b0b0c;
+    --bg-2: #101011;
+    --ink: #ecebe6;
+    --dim: #96958e;
+    --faint: #5c5b56;
+    --rule: rgba(236,235,230,.13);
+    --green: #52d982;
+    --green-ink: #06210f;
+    --max: 1180px;
+    --serif: 'Instrument Serif', 'Times New Roman', serif;
+    --sans: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 17px; line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+  a { color: inherit; }
+  img, video { display: block; max-width: 100%; height: auto; }
+  .wrap { width: 100%; max-width: var(--max); margin: 0 auto; padding: 0 28px; }
+  .label { font-family: var(--mono); font-size: 12.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+  .label b { color: var(--green); font-weight: 500; }
+  h1, h2 { font-family: var(--serif); font-weight: 400; letter-spacing: -.015em; line-height: 1.02; }
+  h1 { font-size: clamp(50px, 7.2vw, 96px); }
+  h2 { font-size: clamp(36px, 4.6vw, 60px); }
+  h1 i, h2 i { font-style: italic; }
+  p.sub { color: var(--dim); font-size: 19px; max-width: 30em; }
+
+  .btn { display: inline-flex; align-items: center; gap: 10px; background: var(--green); color: var(--green-ink); font-weight: 600; font-size: 16px; text-decoration: none; padding: 15px 24px; border-radius: 4px; transition: background .15s, transform .15s; }
+  .btn:hover { background: #7ae6a0; transform: translateY(-1px); }
+  .btn svg { width: 18px; height: 18px; }
+  .btn-sm { padding: 9px 16px; font-size: 14.5px; }
+  .btn:focus-visible, a:focus-visible, summary:focus-visible, button:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
+  .fine { font-family: var(--mono); font-size: 13px; color: var(--dim); }
+
+  /* header */
+  header.bar { border-bottom: 1px solid var(--rule); }
+.navr{display:flex;align-items:center;gap:22px}.nl{color:var(--dim);text-decoration:none;font-size:15px;font-weight:500;transition:color .15s}.nl:hover{color:var(--ink)}@media(max-width:520px){.navr{gap:14px}.nl{font-size:14px}}@media(max-width:430px){.nl{display:none}}
+  header.bar .wrap { display: flex; align-items: center; justify-content: space-between; height: 68px; }
+  .brand { display: flex; align-items: center; gap: 11px; text-decoration: none; font-weight: 600; font-size: 17px; letter-spacing: -.01em; }
+  .brand img { width: 28px; height: 28px; border-radius: 6px; }
+
+  /* hero */
+  .hero { padding: 76px 0 92px; }
+  .hero .wrap { display: grid; grid-template-columns: 1fr 1.02fr; gap: 64px; align-items: center; }
+  .hero h1 { margin: 20px 0 26px; }
+  .hero h1 i { color: var(--green); }
+  .hero .cta { margin-top: 36px; display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+  .vid { position: relative; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; background: #000; aspect-ratio: 16/9; }
+  .vid video { width: 100%; height: 100%; object-fit: cover; }
+  .play { position: absolute; inset: 0; border: 0; background: linear-gradient(180deg, transparent 60%, rgba(0,0,0,.55)); display: flex; align-items: flex-end; justify-content: flex-start; padding: 18px; cursor: pointer; color: #fff; font-family: var(--sans); transition: opacity .2s; }
+  .play .pill { display: inline-flex; align-items: center; gap: 12px; padding: 7px 20px 7px 7px; border-radius: 999px; background: rgba(11,11,12,.82); border: 1px solid var(--rule); font-weight: 500; font-size: 15px; }
+  .play .dot { width: 42px; height: 42px; border-radius: 50%; background: var(--green); color: var(--green-ink); display: flex; align-items: center; justify-content: center; }
+  .play svg { width: 18px; height: 18px; margin-left: 2px; }
+  .play:hover .pill { border-color: rgba(82,217,130,.6); }
+  .vid.playing .play { opacity: 0; pointer-events: none; }
+  .vcap { margin-top: 12px; }
+
+  /* sections */
+  section.s { border-top: 1px solid var(--rule); padding: 84px 0 92px; }
+  .grid2 { display: grid; grid-template-columns: .82fr 1.18fr; gap: 64px; align-items: start; }
+  .grid2 h2 { margin: 16px 0 22px; }
+  .grid2 p { color: var(--dim); max-width: 27em; }
+  .grid2 p + p { margin-top: 14px; }
+
+  .prow { display: grid; grid-template-columns: 560px 1fr; gap: 72px; align-items: start; margin-top: 56px; }
+  .prow h2 { margin: 16px 0 20px; }
+  .plead { color: var(--dim); max-width: 27em; }
+  .prow .pts { grid-template-columns: 1fr; margin-top: 30px; }
+  .prow .pt { padding: 18px 0 18px; border-top: 1px solid var(--rule); }
+  .prow .pt + .pt { padding-left: 0; border-left: 0; }
+  .head2 { display: grid; grid-template-columns: 1.1fr .9fr; gap: 64px; align-items: end; }
+  .head2 h2 { margin-top: 16px; }
+  .head2 p { color: var(--dim); max-width: 26em; }
+
+  /* chart */
+  .chart { border: 1px solid var(--rule); border-radius: 6px; background: var(--bg-2); padding: 26px 28px 22px; }
+  .chart .ct { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 30px; }
+  .hist { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; align-items: end; height: 190px; }
+  .hcol { display: flex; flex-direction: column; justify-content: flex-end; height: 100%; align-items: stretch; }
+  .hbar { background: #3a3a37; border-radius: 3px 3px 0 0; height: 0; transition: height 1s cubic-bezier(.2,.8,.2,1); position: relative; }
+  .hbar.g { background: var(--green); }
+  .hbar span { position: absolute; left: 0; right: 0; top: -22px; text-align: center; font-family: var(--mono); font-size: 12px; color: var(--ink); }
+  .hx { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-top: 8px; border-top: 1px solid var(--rule); padding-top: 8px; }
+  .hx span { text-align: center; font-family: var(--mono); font-size: 11.5px; color: var(--dim); }
+  .chart .legend { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 16px; }
+  .chart .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 8px; vertical-align: -1px; }
+  .cmp { margin-top: 34px; padding-top: 26px; border-top: 1px solid var(--rule); }
+  .row { display: grid; grid-template-columns: 210px 1fr 64px; gap: 14px; align-items: center; margin-top: 12px; }
+  .row .n { font-size: 14.5px; color: var(--dim); }
+  .row.us .n { color: var(--ink); font-weight: 500; }
+  .row .track { height: 18px; position: relative; }
+  .row .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: #3a3a37; border-radius: 0 3px 3px 0; transition: width 1.1s cubic-bezier(.2,.8,.2,1); }
+  .row.us .fill { background: var(--green); }
+  .row .v { font-family: var(--mono); font-size: 14px; text-align: right; }
+  .row.us .v { color: var(--green); }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 30px; border-top: 1px solid var(--rule); }
+  .stat { padding: 18px 0 0; }
+  .stat + .stat { padding-left: 22px; border-left: 1px solid var(--rule); margin-left: 22px; }
+  .stat b { display: block; font-family: var(--serif); font-weight: 400; font-size: 44px; line-height: 1; letter-spacing: -.01em; }
+  .stat span { font-size: 13.5px; color: var(--dim); }
+  .chart p.note { margin-top: 18px; max-width: none; color: var(--dim); }
+
+  /* traders */
+  .shot { border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; background: #000; }
+  .pts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; margin-top: 44px; border-top: 1px solid var(--rule); }
+  .pt { padding: 22px 28px 0 0; }
+  .pt + .pt { padding-left: 28px; border-left: 1px solid var(--rule); }
+  .pt .num { font-family: var(--mono); font-size: 12.5px; color: var(--green); }
+  .pt h3 { font-weight: 500; font-size: 19px; margin: 8px 0 6px; letter-spacing: -.01em; }
+  .pt p { color: var(--dim); font-size: 15.5px; }
+
+  /* price */
+  .price { display: grid; grid-template-columns: auto 1fr auto; gap: 56px; align-items: center; }
+  .price .big { font-family: var(--serif); font-size: clamp(64px, 8vw, 110px); line-height: .95; letter-spacing: -.02em; }
+  .price .big small { font-family: var(--mono); font-size: 15px; color: var(--dim); letter-spacing: 0; margin-left: 10px; }
+  .price p { color: var(--dim); max-width: 26em; }
+  .price p b { color: var(--ink); font-weight: 500; }
+
+  /* faq */
+  .faq { max-width: 860px; margin-top: 12px; }
+  details { border-bottom: 1px solid var(--rule); }
+  details:first-child { border-top: 1px solid var(--rule); }
+  summary { cursor: pointer; list-style: none; padding: 21px 0; font-size: 18.5px; font-weight: 500; letter-spacing: -.01em; display: flex; justify-content: space-between; gap: 20px; align-items: center; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: '+'; font-family: var(--mono); font-size: 22px; color: var(--green); flex: none; transition: transform .2s; }
+  details[open] summary::after { transform: rotate(45deg); }
+  details p { color: var(--dim); padding: 0 0 22px; max-width: 40em; }
+
+  footer { border-top: 1px solid var(--rule); padding: 34px 0 44px; }
+  footer .wrap { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; align-items: center; }
+  footer .l { display: flex; gap: 22px; flex-wrap: wrap; font-size: 14.5px; color: var(--dim); }
+  footer .l a { text-decoration: none; } footer .l a:hover { color: var(--ink); }
+  footer .fine { color: var(--faint); }
+
+  /* comparison */
+  .cmp-wrap { margin-top: 44px; overflow-x: auto; border: 1px solid var(--rule); border-radius: 6px; background: var(--bg-2); }
+  table.vs { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 15.5px; }
+  .vs th, .vs td { text-align: left; padding: 17px 20px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  .vs thead th { font-family: var(--mono); font-size: 12px; letter-spacing: .07em; text-transform: uppercase; color: var(--dim); font-weight: 500; }
+  .vs tbody th { color: var(--dim); font-weight: 500; width: 21%; }
+  .vs tr:last-child th, .vs tr:last-child td { border-bottom: 0; }
+  .vs .us { background: rgba(82,217,130,.07); border-left: 1px solid rgba(82,217,130,.4); border-right: 1px solid rgba(82,217,130,.4); color: var(--ink); font-weight: 600; }
+  .vs thead .us { color: var(--green); }
+  .vs td { color: var(--dim); }
+  .vs .us b { font-family: var(--serif); font-weight: 400; font-size: 26px; letter-spacing: -.01em; }
+  .cmp-note { margin-top: 14px; }
+  .usd { font-family: var(--mono); font-size: 14px; color: var(--green); letter-spacing: 0; margin-top: 10px; }
+  .cta-inline { margin-top: 28px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  .cta-band { text-align: center; padding: 96px 0; }
+  .cta-band h2 { margin-bottom: 14px; }
+  .cta-band p { color: var(--dim); margin: 0 auto 30px; max-width: 30em; }
+  .btn-lg { padding: 18px 32px; font-size: 18px; }
+  .sticky { position: fixed; left: 50%; bottom: 20px; transform: translate(-50%, 90px); z-index: 60; display: inline-flex; align-items: center; gap: 10px; background: var(--green); color: var(--green-ink); font-weight: 600; font-size: 16px; text-decoration: none; padding: 14px 24px; border-radius: 999px; box-shadow: 0 10px 34px rgba(0,0,0,.55); opacity: 0; pointer-events: none; transition: transform .3s ease, opacity .3s ease; white-space: nowrap; }
+  .sticky.on { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
+  .sticky svg { width: 18px; height: 18px; }
+  .sticky:hover { background: #7ae6a0; }
+  @media (max-width: 560px) { .sticky { left: 16px; right: 16px; width: auto; transform: translateY(90px); justify-content: center; bottom: 14px; } .sticky.on { transform: none; } .cta-band { padding: 64px 0; } }
+  .tbl { margin-top: 16px; }
+  .tbl summary { font-family: var(--mono); font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); padding: 8px 0; font-weight: 400; }
+  .tbl table { width: 100%; border-collapse: collapse; font-size: 14.5px; margin: 6px 0 4px; }
+  .tbl th, .tbl td { text-align: left; padding: 7px 0; border-top: 1px solid var(--rule); font-weight: 400; }
+  .tbl td { text-align: right; font-family: var(--mono); }
+  .rv { opacity: 0; transform: translateY(14px); transition: opacity .6s ease, transform .6s ease; }
+  .rv.in { opacity: 1; transform: none; }
+
+  @media (max-width: 960px) {
+    .hero { padding: 44px 0 64px; }
+    .hero .wrap, .grid2, .head2, .prow { grid-template-columns: 1fr; gap: 28px; }
+    .prow { margin-top: 40px; }
+    section.s { padding: 60px 0 68px; }
+    .price { grid-template-columns: 1fr; gap: 26px; }
+    .pts { grid-template-columns: 1fr; }
+    .pt { padding: 20px 0 0; } .pt + .pt { padding-left: 0; border-left: 0; border-top: 1px solid var(--rule); margin-top: 20px; }
+  }
+  @media (max-width: 560px) {
+    body { font-size: 16px; }
+    .wrap { padding: 0 20px; }
+    .chart { padding: 20px 16px 18px; }
+    .hist { height: 150px; gap: 5px; } .hx { gap: 5px; } .hx span { font-size: 10px; }
+    .hbar span { font-size: 10.5px; top: -19px; }
+    .row { grid-template-columns: 1fr 52px; } .row .n { grid-column: 1 / -1; margin-bottom: -6px; }
+    .stat b { font-size: 34px; } .stat + .stat { padding-left: 14px; margin-left: 14px; }
+    .btn { width: 100%; justify-content: center; } .btn-sm { width: auto; }
+  }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .rv { opacity: 1; transform: none; transition: none; } .hbar, .fill { transition: none; } }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="wrap">
+    <a class="brand" href="/" aria-label="GROUPCHAT home"><img src="/mark.png" alt="" width="28" height="28">groupchat</a>
+    <nav class="navr" aria-label="Product"><a class="nl" href="/manage">Manage</a><a class="nl" href="/feed">Feed</a><a class="btn btn-sm" href="https://t.me/GROUPCHAT_ALERTS_BOT?start=web_nav">Open in Telegram</a></nav>
+  </div>
+</header>
+
+<main>
+<section class="hero">
+  <div class="wrap">
+    <div>
+      <div class="label">FOMO + Pump.fun <b>&rarr;</b> Telegram</div>
+      <h1>Know what the best traders <i>just bought.</i></h1>
+      <p class="sub">FOMO and Pump.fun social trading, all in one Telegram chat. A playbook on every trader, so you know who to follow, why, and how to play them. In your Telegram in under a second. One flat price.</p>
+      <div class="cta">
+        <a class="btn" href="https://t.me/GROUPCHAT_ALERTS_BOT?start=web_hero">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.94 3.4a1.2 1.2 0 0 0-1.23-.2L2.9 10.07c-.9.36-.88 1.66.03 1.98l4.3 1.5 1.67 5.28c.2.64 1 .85 1.48.4l2.4-2.27 4.4 3.25c.58.43 1.4.12 1.56-.58L22.2 4.6a1.2 1.2 0 0 0-.26-1.2ZM9.2 13.4l8.2-5.9-6.6 6.8-.3 2.6-1.3-3.5Z"/></svg>
+          Free trial on Telegram
+        </a>
+        <span class="fine">Enjoy your free trial.</span>
+      </div>
+    </div>
+    <div>
+      <div class="vid" id="vcard">
+        <video id="promo" preload="none" playsinline poster="/shot-alerts.jpg" aria-label="GROUPCHAT demo"></video>
+        <button class="play" id="playbtn" aria-label="Play the 56 second demo"><span class="pill"><span class="dot"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.2v13.6a1 1 0 0 0 1.53.85l10.9-6.8a1 1 0 0 0 0-1.7L9.53 4.35A1 1 0 0 0 8 5.2Z"/></svg></span>Watch the 56s demo</span></button>
+      </div>
+      <div class="fine vcap">Real alerts from the live bot, @GROUPCHAT_ALERTS_BOT.</div>
+    </div>
+  </div>
+</section>
+
+<section class="s" id="speed">
+  <div class="wrap">
+    <div class="grid2">
+      <div class="rv">
+        <div class="label"><b>01</b> &nbsp;Speed</div>
+        <h2>Posted to Telegram in <i>under a second.</i></h2>
+        <p>Once a trade or callout shows up, GROUPCHAT has it in your Telegram in about {{MED1}} seconds. {{UNDER1}}% of alerts go out in under a second.</p>
+        <p>It comes to you. No tab to keep open, no refresh to hit, and it works with your phone locked.</p>
+      </div>
+      <div class="chart rv" id="chart">
+        <div class="ct"><span class="label">How long we took to post an alert</span><span class="label">% of {{N}} FOMO alerts</span></div>
+        <div class="hist" id="hist" aria-hidden="true"></div>
+        <div class="hx" aria-hidden="true"><span>0-.25s</span><span>.25-.5</span><span>.5-.75</span><span>.75-1s</span><span>1-2s</span><span>2-5s</span><span>5s+</span></div>
+        <div class="legend fine"><span><i style="background:var(--green)"></i>under 1 s: {{UNDER1}}%</span><span><i style="background:#3a3a37"></i>slower: {{SLOWER}}%</span></div>
+
+        <details class="tbl"><summary>See the numbers</summary><table><caption class="fine" style="text-align:left;padding:6px 0">Share of {{N}} FOMO alerts by time to post (last 7 days)</caption><tbody>{{BUCKET_ROWS}}</tbody></table></details>
+
+        <div class="stats">
+          <div class="stat"><b>{{MED1}}s</b><span>median time to post</span></div>
+          <div class="stat"><b>{{UNDER1}}%</b><span>posted in under 1 second</span></div>
+          <div class="stat"><b>{{P90}}s</b><span>covers 9 in 10 alerts</span></div>
+        </div>
+        <p class="fine note">Measured on {{N}} FOMO alerts from the last 7 days, from the moment the trade shows up on the feed to the first Telegram message. Pump.fun callouts: median {{PUMP_MED2}} s, {{PUMP_UNDER1}}% under a second.</p>
+      </div>
+    </div>
+  
+  </div>
+</section>
+
+<section class="s" id="compare">
+  <div class="wrap">
+    <div class="head2">
+      <div class="rv">
+        <div class="label"><b>02</b> &nbsp;How it compares</div>
+        <h2>Better than the rest. <i>At the best price.</i></h2>
+      </div>
+      <p class="rv">FOMO and Pump.fun together, every trader scored and explained, for {{PRICE}} SOL a month.</p>
+    </div>
+    <div class="cmp-wrap rv">
+      <table class="vs">
+        <thead><tr><th></th><th class="us">GROUPCHAT</th><th>Paid FOMO alert services</th><th>Copy-trade bots</th></tr></thead>
+        <tbody>
+          <tr><th>Price</th><td class="us"><b>{{PRICE}} SOL</b> a month, flat</td><td>$99+ a month</td><td>A cut of every trade</td></tr>
+          <tr><th>Coverage</th><td class="us">FOMO and Pump.fun, 7 chains</td><td>FOMO only</td><td>Their own picks</td></tr>
+          <tr><th>A playbook on every trader</th><td class="us">Yes. Who to follow, why, and how to play them</td><td>No</td><td>No</td></tr>
+          <tr><th>Control over every trader</th><td class="us">Yes. Mute, size and style, trader by trader</td><td>No</td><td>No</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="cta-inline"><a class="btn btn-lg" href="https://t.me/GROUPCHAT_ALERTS_BOT?start=web_compare"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.94 3.4a1.2 1.2 0 0 0-1.23-.2L2.9 10.07c-.9.36-.88 1.66.03 1.98l4.3 1.5 1.67 5.28c.2.64 1 .85 1.48.4l2.4-2.27 4.4 3.25c.58.43 1.4.12 1.56-.58L22.2 4.6a1.2 1.2 0 0 0-.26-1.2ZM9.2 13.4l8.2-5.9-6.6 6.8-.3 2.6-1.3-3.5Z"/></svg> Free trial on Telegram</a><span class="fine">See the alerts before you pay.</span></div>
+  </div>
+</section>
+
+<section class="s" id="traders">
+  <div class="wrap">
+    <div class="head2">
+      <div class="rv">
+        <div class="label"><b>03</b> &nbsp;Choose who to follow</div>
+        <h2>{{TRADERS}} traders, scored on <i>what a follower would have made.</i></h2>
+      </div>
+      <p class="rv">Every alert is replayed against price candles, delay included, and the trader gets a score from 0 to 100. Pick people, or follow a whole style in one tap.</p>
+    </div>
+    <div class="prow">
+      <div class="rv"><div class="shot"><img src="/dash-profile.jpg" alt="A trader profile: score, +50% in 15 minutes, time to peak, calls analysed, and how high each of their last calls ran" width="1280" height="1958" loading="lazy"></div></div>
+      <div class="rv">
+        <div class="label"><b>04</b> &nbsp;Tap any trader</div>
+        <h2>A playbook on <i>every trader.</i></h2>
+        <p class="plead">The best way to play them, their hit rate, how long their calls take to peak, where they usually get in, and how high their last calls ran. So you know who to follow, why, and how to play them. Included with your subscription.</p>
+        <div class="pts">
+          <div class="pt"><span class="fine" style="color:var(--green)">01</span><h3>A follower's score</h3><p>Not the trader's own fills. What you would have got, with the delay.</p></div>
+          <div class="pt"><span class="fine" style="color:var(--green)">02</span><h3>Follow a style</h3><p>Day holds, 1h flips, holders. New traders in a style are added for you.</p></div>
+          <div class="pt"><span class="fine" style="color:var(--green)">03</span><h3>Your filters</h3><p>By chain and minimum trade size. Seven chains plus Pump.fun.</p></div>
+        </div>
+        <p class="fine" style="margin-top:22px">Historical replay, not a prediction.</p>
+        <div class="cta-inline"><a class="btn" href="https://t.me/GROUPCHAT_ALERTS_BOT?start=web_traders"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.94 3.4a1.2 1.2 0 0 0-1.23-.2L2.9 10.07c-.9.36-.88 1.66.03 1.98l4.3 1.5 1.67 5.28c.2.64 1 .85 1.48.4l2.4-2.27 4.4 3.25c.58.43 1.4.12 1.56-.58L22.2 4.6a1.2 1.2 0 0 0-.26-1.2ZM9.2 13.4l8.2-5.9-6.6 6.8-.3 2.6-1.3-3.5Z"/></svg> Free trial on Telegram</a></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="s" id="pricing">
+  <div class="wrap">
+    <h2 class="label rv" style="margin-bottom:26px"><b>05</b> &nbsp;Price</h2>
+    <div class="price rv">
+      <div class="big">{{PRICE}} SOL<small>/ 30 days</small><div class="usd">all of it, one flat price</div></div>
+      <p><b>Enjoy your free trial first.</b> Full alerts. Then pay in SOL inside the bot. It doesn't renew on its own.</p>
+      <a class="btn" href="https://t.me/GROUPCHAT_ALERTS_BOT?start=web_pricing">Free trial on Telegram</a>
+    </div>
+  </div>
+</section>
+
+<section class="s" id="faq">
+  <div class="wrap">
+    <h2 class="label rv" style="margin-bottom:20px"><b>06</b> &nbsp;Questions</h2>
+    <div class="faq rv">
+      <details><summary>How fast are the alerts?</summary><p>Once a trade or callout shows up on FOMO's or Pump.fun's feed, GROUPCHAT posts it to Telegram in about {{MED1}} seconds. Over the last 7 days the median was {{MED2}} s for FOMO and {{PUMP_MED2}} s for Pump.fun, and about {{UNDER1}}% of alerts were posted in under a second.</p></details>
+      <details><summary>Which chains and platforms?</summary><p>FOMO activity on Solana, BNB Chain, Base, Ethereum, Monad, Robinhood Chain and Arc, plus Pump.fun callouts. You can filter by chain.</p></details>
+      <details><summary>What happens after the free trial?</summary><p>Alerts become limited: the ticker, buy size, contract address and trade links are hidden until you subscribe. Subscribing is {{PRICE}} SOL for 30 days, paid in the bot with /subscribe, and it never renews automatically.</p></details>
+      <details><summary>Does it trade for me?</summary><p>No. It only sends alerts. You decide and trade yourself.</p></details>
+      <details><summary>Do you ask for my wallet keys?</summary><p>Never. You sign in with Telegram, and the bot never asks for a private key or seed phrase. Anyone who does is not us.</p></details>
+    </div>
+  </div>
+</section>
+<section class="s cta-band">
+  <div class="wrap">
+    <h2 class="rv">Stop watching feeds. <i>Get the alert.</i></h2>
+    <p class="rv">Start the free trial and the moves worth following land in your Telegram, ranked and ready.</p>
+    <a class="btn btn-lg rv" href="https://t.me/GROUPCHAT_ALERTS_BOT?start=web_final"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.94 3.4a1.2 1.2 0 0 0-1.23-.2L2.9 10.07c-.9.36-.88 1.66.03 1.98l4.3 1.5 1.67 5.28c.2.64 1 .85 1.48.4l2.4-2.27 4.4 3.25c.58.43 1.4.12 1.56-.58L22.2 4.6a1.2 1.2 0 0 0-.26-1.2ZM9.2 13.4l8.2-5.9-6.6 6.8-.3 2.6-1.3-3.5Z"/></svg> Free trial on Telegram</a>
+  </div>
+</section>
+</main>
+
+<a class="sticky" id="sticky" href="https://t.me/GROUPCHAT_ALERTS_BOT?start=web_sticky"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.94 3.4a1.2 1.2 0 0 0-1.23-.2L2.9 10.07c-.9.36-.88 1.66.03 1.98l4.3 1.5 1.67 5.28c.2.64 1 .85 1.48.4l2.4-2.27 4.4 3.25c.58.43 1.4.12 1.56-.58L22.2 4.6a1.2 1.2 0 0 0-.26-1.2ZM9.2 13.4l8.2-5.9-6.6 6.8-.3 2.6-1.3-3.5Z"/></svg> Free trial on Telegram</a>
+
+<footer>
+  <div class="wrap">
+    <a class="brand" href="/"><img src="/mark.png" alt="" width="28" height="28">groupchat</a>
+    <div class="l"><a href="https://t.me/GROUPCHAT_ALERTS_BOT?start=web_footer">@GROUPCHAT_ALERTS_BOT</a><a href="/fomo-trader-alerts">FOMO alerts</a><a href="/pump-fun-callouts-alerts">Pump.fun callouts</a><a href="/manage">Manage alerts</a><a href="/feed">Live feed</a><a href="/how-we-score-traders">How we score</a><a href="/fomo-app-delay">What delay costs</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a></div>
+    <div class="fine">Not affiliated with FOMO or Pump.fun.</div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* measured live from the bot database: seconds from the event reaching us to the first Telegram message */
+  var BUCKETS = {{BUCKETS}};                      // % of alerts by seconds to post: 0-.25, .25-.5, .5-.75, .75-1, 1-2, 2-5, 5+
+  var hist = document.getElementById('hist');
+  var max = Math.max.apply(null, BUCKETS);
+  BUCKETS.forEach(function (v, i) {
+    var col = document.createElement('div'); col.className = 'hcol';
+    var bar = document.createElement('div'); bar.className = 'hbar' + (i < 4 ? ' g' : ''); bar.dataset.h = Math.max(1.5, v / max * 82) + '%';
+    bar.innerHTML = '<span>' + Math.round(v) + '</span>';
+    col.appendChild(bar); hist.appendChild(col);
+  });
+  function drawChart() {
+    hist.querySelectorAll('.hbar').forEach(function (b, i) { setTimeout(function () { b.style.height = b.dataset.h; }, reduce ? 0 : i * 70); });
+    document.querySelectorAll('.fill').forEach(function (f, i) { setTimeout(function () { f.style.width = Math.max(1.2, parseFloat(f.dataset.v) / 30 * 100) + '%'; }, reduce ? 0 : 250 + i * 120); });
+  }
+
+  /* sticky call to action: shows after the first screen */
+  var sticky = document.getElementById('sticky');
+  function stick() { if (sticky) sticky.classList.toggle('on', window.scrollY > 700); }
+  window.addEventListener('scroll', stick, { passive: true }); stick();
+
+  /* video: nothing downloads until play is pressed */
+  var v = document.getElementById('promo'), card = document.getElementById('vcard'), btn = document.getElementById('playbtn');
+  btn.addEventListener('click', function () {
+    if (!v.getAttribute('src')) v.src = '/promo-v2.mp4';
+    card.classList.add('playing'); v.controls = true;
+    v.play().catch(function () { card.classList.remove('playing'); v.controls = false; });
+  });
+  v.addEventListener('ended', function () { card.classList.remove('playing'); v.controls = false; });
+
+  /* reveal + chart on scroll */
+  var els = document.querySelectorAll('.rv'), chart = document.getElementById('chart');
+  if ('IntersectionObserver' in window && !reduce) {
+    var io = new IntersectionObserver(function (es) {
+      es.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        e.target.classList.add('in'); if (e.target === chart) drawChart(); io.unobserve(e.target);
+      });
+    }, { threshold: .15, rootMargin: '0px 0px -30px 0px' });
+    els.forEach(function (el) { io.observe(el); });
+  } else { els.forEach(function (el) { el.classList.add('in'); }); drawChart(); }
+})();
+</script>
+<script src="/t.js" defer></script>
+</body>
+</html>

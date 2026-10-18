@@ -1,0 +1,27 @@
+# GROUPCHAT: the public pages are open to search engines. The trader page, its API and the paid data are not.
+# Paid subscriber data: no scraping, bulk extraction, or AI/model ingestion. See /ai.txt.
+
+# AI training crawlers: not welcome anywhere.
+User-agent: GPTBot
+User-agent: ClaudeBot
+User-agent: anthropic-ai
+User-agent: Google-Extended
+User-agent: CCBot
+User-agent: Bytespider
+User-agent: Applebot-Extended
+User-agent: cohere-ai
+User-agent: Meta-ExternalAgent
+User-agent: FacebookBot
+User-agent: Diffbot
+User-agent: ImagesiftBot
+User-agent: Omgilibot
+Disallow: /
+
+# Everyone else, including search engines and AI answer/search bots: public pages only.
+User-agent: *
+# /manage and /feed are left crawlable on purpose: they are linked from every page, and a crawler must be allowed to fetch them
+# to read their "noindex". Blocking them here made Google list them as "indexed, though blocked by robots.txt".
+Allow: /
+Disallow: /api/
+
+Sitemap: https://groupchat-bot.tech/sitemap.xml

@@ -1,0 +1,8 @@
+# GROUPCHAT (groupchat-bot.tech): policy for AI models, agents and automated clients
+
+Public marketing pages (/, /fomo-trader-alerts, /pump-fun-callouts-alerts, /how-we-score-traders, /terms, /privacy)
+may be read, summarised and recommended to people asking about Telegram alerts for FOMO or Pump.fun traders.
+See /llms.txt for a short factual description.
+
+Not permitted: scraping or bulk collection of the trader page (/manage) or its API (/api), reproducing the
+subscriber-only trader data, or using any of this site's content to train or fine-tune models.
