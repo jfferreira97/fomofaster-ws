@@ -14,17 +14,179 @@ public class DashboardController : ControllerBase
     private readonly ILogger<DashboardController> _logger;
     private readonly ITelegramService _telegramService;
     private readonly AppConfigService _appConfig;
+    private readonly MonitorStore _monitor;
 
     public DashboardController(
         AppDbContext dbContext,
         ILogger<DashboardController> logger,
         ITelegramService telegramService,
-        AppConfigService appConfig)
+        AppConfigService appConfig,
+        MonitorStore monitor)
     {
         _dbContext = dbContext;
         _logger = logger;
         _telegramService = telegramService;
         _appConfig = appConfig;
+        _monitor = monitor;
+    }
+
+    // ---- Monitoring tab: is the app healthy? One call, read-only. ----
+    private static string Ago(TimeSpan t) =>
+        t.TotalSeconds < 90 ? $"{t.TotalSeconds:0}s ago" : t.TotalMinutes < 90 ? $"{t.TotalMinutes:0} min ago" : t.TotalHours < 48 ? $"{t.TotalHours:0.#} h ago" : $"{t.TotalDays:0} d ago";
+
+    private static double? Pctl(List<double> v, double p)
+    {
+        if (v.Count == 0) return null;
+        v.Sort();
+        return v[(int)Math.Min(v.Count - 1, Math.Floor(p * (v.Count - 1)))];
+    }
+
+    private static object Tile(string label, string value) => new { l = label, v = value };
+
+    [HttpGet("monitor")]
+    public async Task<IActionResult> GetMonitor()
+    {
+        var now = DateTime.UtcNow;
+        var hourAgo = now.AddHours(-1);
+        var upSec = (now - _monitor.StartedAt).TotalSeconds;
+
+        var ws = await _dbContext.WsEvents.AsNoTracking().Where(e => e.ReceivedAt > hourAgo)
+            .Select(e => new { e.ReceivedAt, e.CreatedAt }).ToListAsync();
+        var pump = await _dbContext.PumpEvents.AsNoTracking().Where(e => e.ReceivedAt > hourAgo)
+            .Select(e => new { e.ReceivedAt, e.CreatedAt, e.Kind }).ToListAsync();
+        var lastWs = await _dbContext.WsEvents.AsNoTracking().OrderByDescending(e => e.Id).Select(e => (DateTime?)e.ReceivedAt).FirstOrDefaultAsync();
+        var lastPump = await _dbContext.PumpEvents.AsNoTracking().OrderByDescending(e => e.Id).Select(e => (DateTime?)e.ReceivedAt).FirstOrDefaultAsync();
+
+        var components = new List<object>();
+
+        object Sidecar(string name, string label, string source, int events, List<double> lags, DateTime? lastEvent, params object[] extraTiles)
+        {
+            var beat = _monitor.GetBeat(source);
+            double? age = beat.HasValue ? (now - beat.Value.Last).TotalSeconds : null;
+            var state = age == null ? (upSec < 120 ? "idle" : "down") : age <= 90 ? "ok" : age <= 180 ? "degraded" : "down";
+            var summary = age == null ? "no heartbeat since the backend started" : state == "ok" ? $"alive · last heartbeat {age:0}s ago" : $"heartbeat is stale: {age:0}s ago";
+            var med = Pctl(lags, 0.5);
+            var p95 = Pctl(lags, 0.95);
+            var tiles = new List<object>
+            {
+                Tile("Last heartbeat", age == null ? "—" : $"{age:0}s ago"),
+                Tile("Events (1 h)", events.ToString()),
+                Tile("Median delay", med == null ? "—" : $"{med / 1000.0:0.0} s"),
+                Tile("Slowest 5%", p95 == null ? "—" : $"{p95 / 1000.0:0.0} s"),
+                Tile("Last event", lastEvent == null ? "—" : Ago(now - lastEvent.Value)),
+            };
+            tiles.AddRange(extraTiles);
+            return new { name, label, state, summary, tiles, recent = Array.Empty<object>(), info = new Dictionary<string, string>() };
+        }
+
+        static List<double> Lags(IEnumerable<(DateTime rec, DateTime? cr)> xs) =>
+            xs.Where(x => x.cr.HasValue).Select(x => Math.Max(0, (x.rec - x.cr!.Value).TotalMilliseconds)).ToList();
+
+        components.Add(Sidecar("fomo", "👀 FOMO sidecar (account 2)", "fomo-ws-sidecar", ws.Count,
+            Lags(ws.Select(e => (e.ReceivedAt, e.CreatedAt))), lastWs));
+        var pumpTrades = pump.Count(e => e.Kind == "trade");
+        components.Add(Sidecar("pump", "💊 Pump sidecar (live stream + safety poll)", "pump-ws-sidecar", pump.Count,
+            Lags(pump.Select(e => (e.ReceivedAt, e.CreatedAt))), lastPump,
+            Tile("Pump trades (1 h)", pumpTrades.ToString())));
+
+        // Telegram delivery
+        var alerts = _monitor.Alerts(TimeSpan.FromHours(1));
+        var sent = alerts.Sum(a => a.Recipients);
+        var failed = alerts.Sum(a => a.Failed);
+        var failRate = sent + failed == 0 ? 0.0 : failed / (double)(sent + failed);
+        var fan = alerts.Select(a => (double)a.FanOutMs).ToList();
+        var lastAlert = alerts.Count == 0 ? (DateTime?)null : alerts.Max(a => a.At);
+        var deliveryState = !_telegramService.IsConfigured() ? "down" : alerts.Count == 0 ? "idle" : failRate > 0.30 ? "down" : failRate > 0.05 ? "degraded" : "ok";
+        var deliverySummary = !_telegramService.IsConfigured() ? "Telegram bot is not configured"
+            : alerts.Count == 0 ? "no alert has gone out since the backend started (or in the last hour)"
+            : $"{alerts.Count} alerts reached {sent} chats in the last hour" + (failed > 0 ? $", {failed} failed" : ", none failed");
+        components.Add(new
+        {
+            name = "telegram", label = "✈️ Telegram delivery", state = deliveryState, summary = deliverySummary,
+            tiles = new List<object>
+            {
+                Tile("Alerts (1 h)", alerts.Count.ToString()),
+                Tile("Messages sent", sent.ToString()),
+                Tile("Failed", failed.ToString()),
+                Tile("Fan-out median", Pctl(fan.ToList(), 0.5) is double m ? $"{m / 1000.0:0.0} s" : "—"),
+                Tile("Fan-out slowest", fan.Count == 0 ? "—" : $"{fan.Max() / 1000.0:0.0} s"),
+                Tile("Last alert", lastAlert == null ? "—" : Ago(now - lastAlert.Value)),
+            },
+            recent = Array.Empty<object>(),
+            info = new Dictionary<string, string> { ["Alerts since start"] = _monitor.Alerts(TimeSpan.FromHours(24)).Count.ToString() },
+        });
+
+        // Website: the real public path, and the local Caddy
+        object Site(string name, string label, string probe, string what)
+        {
+            var ps = _monitor.Probes(probe);
+            if (ps.Count == 0)
+                return new { name, label, state = "idle", summary = "waiting for the first check", tiles = new List<object>(), recent = Array.Empty<object>(), info = new Dictionary<string, string>() };
+            var last = ps[^1];
+            bool Ok(ProbeRecord p) => p.Status is >= 200 and < 400;
+            var state = Ok(last) ? "ok" : ps.TakeLast(3).All(p => !Ok(p)) && ps.Count >= 3 ? "down" : "degraded";
+            var okMs = ps.Where(Ok).TakeLast(15).Select(p => (double)p.Ms).ToList();
+            var summary = Ok(last) ? $"{what}: HTTP {last.Status} in {last.Ms} ms" : $"{what}: failing ({(last.Status == 0 ? last.Error : "HTTP " + last.Status)})";
+            return new
+            {
+                name, label, state, summary,
+                tiles = new List<object>
+                {
+                    Tile("Last check", Ago(now - last.At)),
+                    Tile("Latency (median)", Pctl(okMs, 0.5) is double md ? $"{md:0} ms" : "—"),
+                    Tile("Success (last " + ps.Count + ")", $"{100.0 * ps.Count(Ok) / ps.Count:0}%"),
+                },
+                recent = ps.Select(p => new { at = p.At, status = p.Status, ms = p.Ms }).ToArray(),
+                info = new Dictionary<string, string>(),
+            };
+        }
+        components.Add(Site("site-public", "🌐 Website, public path", "public", "internet → Cloudflare → tunnel → this PC"));
+        components.Add(Site("site-local", "🏠 Website, local Caddy", "local", "127.0.0.1:8080"));
+
+        // Users + database + machine
+        var users = await _dbContext.Users.AsNoTracking().Where(u => u.IsActive)
+            .Select(u => new { u.IsRN4L, u.IsRegisteredNurse, u.RNExpiresAt, u.TrialExpiresAt, u.NotifyPumpBuySell, u.NotifyPumpCallouts, u.NotifyFomoBuySell }).ToListAsync();
+        var rn4l = users.Count(u => u.IsRN4L);
+        var paid = users.Count(u => !u.IsRN4L && u.IsRegisteredNurse && u.RNExpiresAt > now);
+        var trial = users.Count(u => !u.IsRN4L && !(u.IsRegisteredNurse && u.RNExpiresAt > now) && u.TrialExpiresAt > now);
+        var free = users.Count - rn4l - paid - trial;
+
+        double dbMb = 0; try { dbMb = new FileInfo("fomofaster_ws.db").Length / 1048576.0; } catch { }
+        double freeGb = 0; try { freeGb = new DriveInfo(Path.GetPathRoot(Environment.CurrentDirectory)!).AvailableFreeSpace / 1073741824.0; } catch { }
+        var proc = System.Diagnostics.Process.GetCurrentProcess();
+        var memMb = proc.WorkingSet64 / 1048576.0;
+        var sysState = freeGb < 3 ? "down" : freeGb < 10 || memMb > 2500 ? "degraded" : "ok";
+        components.Add(new
+        {
+            name = "system", label = "🖥️ This machine and the database", state = sysState,
+            summary = $"backend up {(upSec < 3600 ? (upSec / 60).ToString("0") + " min" : (upSec / 3600).ToString("0.#") + " h")} · {freeGb:0} GB free on disk",
+            tiles = new List<object>
+            {
+                Tile("Backend uptime", upSec < 3600 ? $"{upSec / 60:0} min" : $"{upSec / 3600:0.#} h"),
+                Tile("Backend memory", $"{memMb:0} MB"),
+                Tile("Database", $"{dbMb:0} MB"),
+                Tile("Free disk", $"{freeGb:0} GB"),
+            },
+            recent = Array.Empty<object>(),
+            info = new Dictionary<string, string>(),
+        });
+
+        var live = components.Select(c => (dynamic)c).Where(c => (string)c.state != "idle").ToList();
+        var bad = live.Where(c => (string)c.state != "ok").ToList();
+        var overall = bad.Any(c => (string)c.state == "down") ? "down" : bad.Count > 0 ? "degraded" : "ok";
+        var text = bad.Count == 0 ? "All systems healthy" : bad.Count == 1 ? $"1 thing needs attention: {(string)bad[0].label}" : $"{bad.Count} things need attention";
+
+        var byType = await _dbContext.Notifications.AsNoTracking().Where(n => n.SentAt > hourAgo)
+            .GroupBy(n => new { n.Platform, n.Type }).Select(g => new { platform = g.Key.Platform.ToString(), type = g.Key.Type.ToString(), n = g.Count() }).ToListAsync();
+
+        return Ok(new
+        {
+            monitor = new { overall = new { state = overall, text }, uptimeSec = (int)upSec, components },
+            alertsLastHour = byType.OrderByDescending(x => x.n),
+            users = new { active = users.Count, rn4l, paid, trial, free, pumpTxOn = users.Count(u => u.NotifyPumpBuySell), pumpCalloutsOn = users.Count(u => u.NotifyPumpCallouts), fomoTxOn = users.Count(u => u.NotifyFomoBuySell) },
+            rollout = new { pumpTradeAlerts = (await _appConfig.GetAsync("PumpTradeAlerts")) ?? "owner" },
+            generatedAt = now,
+        });
     }
 
     [HttpGet("notifications")]

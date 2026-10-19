@@ -79,6 +79,8 @@ builder.Services.AddHostedService<NotificationRetentionService>(); // Purges Not
 builder.Services.AddSingleton<ActiveUserCache>();
 builder.Services.AddHostedService(provider => provider.GetRequiredService<ActiveUserCache>()); // In-memory active-user pool for the notification hot path
 builder.Services.AddHttpClient(); // For Helius API calls and DexScreener API calls
+builder.Services.AddSingleton<MonitorStore>(); // dashboard Monitoring tab: sidecar heartbeats, alert fan-out, site probes
+builder.Services.AddHostedService<SiteProbeService>();
 
 // Configure settings from appsettings.json or environment variables
 builder.Services.Configure<TelegramSettings>(

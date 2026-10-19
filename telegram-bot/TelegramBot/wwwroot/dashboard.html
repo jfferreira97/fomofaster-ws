@@ -573,6 +573,37 @@
         .cb-tag { font-size: 10.5px; padding: 0 5px; border-radius: 4px; border: 1px solid #e8ac3f; color: #e8ac3f; white-space: nowrap; }
         .cb-card select { margin-top: 5px; width: 100%; padding: 3px 6px; background: #0e1621; border: 1px solid #2b5278; border-radius: 5px; color: #e8e9ea; font-size: 12px; }
         .cb-empty { font-size: 12px; color: #6c7883; text-align: center; padding: 12px 0; }
+    
+        /* ---- Monitoring tab ---- */
+        .mon-dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-left:6px; background:#6b7a88; vertical-align:middle; }
+        .mon-dot.ok, .mon-state-dot.ok { background:#3ecf8e; }
+        .mon-dot.degraded, .mon-state-dot.degraded { background:#f0b429; }
+        .mon-dot.down, .mon-state-dot.down { background:#ef5350; }
+        .mon-dot.idle, .mon-state-dot.idle { background:#6b7a88; }
+        .mon-state-dot { display:inline-block; width:11px; height:11px; border-radius:50%; flex:none; }
+        .mon-banner { display:flex; align-items:center; gap:14px; padding:16px 20px; border-radius:12px; margin-bottom:16px; font-size:17px; font-weight:600; border:1px solid #2b5278; background:#17212b; }
+        .mon-banner.ok { border-color:#25603f; background:linear-gradient(90deg,#14301f,#17212b 60%); }
+        .mon-banner.degraded { border-color:#7a5d1a; background:linear-gradient(90deg,#33290f,#17212b 60%); }
+        .mon-banner.down { border-color:#7a2a2a; background:linear-gradient(90deg,#361818,#17212b 60%); }
+        .mon-banner .sub { margin-left:auto; font-weight:400; font-size:13px; color:#8a96a0; }
+        .mon-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(380px,1fr)); gap:14px; }
+        .mon-card { background:#17212b; border:1px solid #243447; border-radius:12px; padding:16px 18px; }
+        .mon-head { display:flex; align-items:center; gap:10px; font-size:15.5px; font-weight:600; }
+        .mon-head .st { margin-left:auto; font-size:12.5px; font-weight:500; color:#8a96a0; }
+        .mon-sum { margin:6px 0 12px; color:#8a96a0; font-size:13.5px; }
+        .mon-tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(118px,1fr)); gap:8px; }
+        .mon-tile { background:#0e1621; border-radius:8px; padding:8px 11px; }
+        .mon-tile .v { font-size:16px; font-weight:600; }
+        .mon-tile .l { font-size:11px; color:#8a96a0; text-transform:uppercase; letter-spacing:.4px; }
+        .mon-strip { display:flex; gap:2px; margin:12px 0 2px; height:22px; align-items:flex-end; }
+        .mon-strip i { flex:1; max-width:11px; border-radius:2px; background:#3ecf8e; min-height:7px; opacity:.9; }
+        .mon-strip i.bad { background:#ef5350; height:100% !important; }
+        .mon-strip i.none { background:#243447; height:7px; }
+        .mon-h2 { font-size:14px; font-weight:600; color:#c3ccd5; margin:22px 0 8px; text-transform:uppercase; letter-spacing:.5px; }
+        .mon-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
+        .mon-stat { background:#17212b; border:1px solid #243447; border-radius:10px; padding:12px 16px; }
+        .mon-stat .v { font-size:22px; font-weight:700; }
+        .mon-stat .l { font-size:11.5px; color:#8a96a0; text-transform:uppercase; letter-spacing:.4px; }
     </style>
 </head>
 <body>
@@ -591,6 +622,7 @@
         <!-- Tabs -->
         <div class="tabs">
             <div class="tab active" onclick="switchTab('notifications')">Notifications</div>
+            <div class="tab" onclick="switchTab('monitoring')">Monitoring<span class="mon-dot idle" id="monDot" title="App health"></span></div>
             <div class="tab" onclick="switchTab('users')">Users</div>
             <div class="tab" onclick="switchTab('categories')">Categories</div>
             <div class="tab" onclick="switchTab('payments')">Payments</div>
@@ -603,6 +635,22 @@
         <div id="notifications-tab" class="tab-content active">
             <div class="chat-area" id="chatArea">
                 <div class="loading" id="loading">Loading notifications...</div>
+            </div>
+        </div>
+
+        <!-- Monitoring Tab -->
+        <div id="monitoring-tab" class="tab-content">
+            <div class="chat-area" style="overflow-y: auto;">
+                <div class="settings-container">
+                    <div class="settings-section">
+                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+                            <div class="settings-section-title" style="margin-bottom:0;">Is the app healthy?</div>
+                            <button onclick="loadMonitor()" class="btn btn-secondary" style="padding:6px 12px;font-size:13px;">Refresh</button>
+                            <span id="monUpdated" style="color:#8a96a0;font-size:12px;"></span>
+                        </div>
+                        <div id="monBody"><div class="loading">Loading monitoring…</div></div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -1100,18 +1148,72 @@
             }, 3000);
         }
 
+        // ---------- Monitoring ----------
+        const MON_STATE = { ok: 'Healthy', degraded: 'Degraded', down: 'Down', idle: 'Quiet' };
+        const monEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+        function renderMonitor(d) {
+            const m = d.monitor;
+            const up = m.uptimeSec < 3600 ? Math.round(m.uptimeSec / 60) + ' min' : (m.uptimeSec / 3600).toFixed(1) + ' h';
+            let h = '<div class="mon-banner ' + m.overall.state + '"><span class="mon-state-dot ' + m.overall.state + '"></span><span>' + monEsc(m.overall.text) + '</span><span class="sub">backend up ' + up + '</span></div>';
+            h += '<div class="mon-grid">' + m.components.map(c => {
+                const tiles = c.tiles.map(t => '<div class="mon-tile"><div class="v">' + monEsc(t.v) + '</div><div class="l">' + monEsc(t.l) + '</div></div>').join('');
+                const strip = c.recent && c.recent.length
+                    ? '<div class="mon-strip" title="Last checks, newest on the right">' + Array.from({ length: 60 }, (_, i) => {
+                        const p = c.recent[c.recent.length - 60 + i];
+                        if (!p) return '<i class="none"></i>';
+                        const ok = p.status >= 200 && p.status < 400;
+                        return '<i class="' + (ok ? '' : 'bad') + '" style="height:' + (ok ? Math.min(100, 20 + p.ms / 12) : 100) + '%" title="' + new Date(p.at + (String(p.at).endsWith('Z') ? '' : 'Z')).toLocaleTimeString() + ' · ' + (p.status || 'ERR') + ' · ' + p.ms + 'ms"></i>';
+                    }).join('') + '</div>' : '';
+                const info = Object.entries(c.info || {}).map(([k, v]) => '<span style="display:inline-block;margin:8px 8px 0 0;padding:3px 9px;background:#0e1621;border-radius:12px;font-size:12px;"><span style="color:#8a96a0;">' + monEsc(k) + '</span> ' + monEsc(v) + '</span>').join('');
+                return '<div class="mon-card"><div class="mon-head"><span class="mon-state-dot ' + c.state + '"></span>' + monEsc(c.label) + '<span class="st">' + MON_STATE[c.state] + '</span></div>' +
+                    '<div class="mon-sum">' + monEsc(c.summary) + '</div><div class="mon-tiles">' + tiles + '</div>' + strip + info + '</div>';
+            }).join('') + '</div>';
+
+            const u = d.users, ty = d.alertsLastHour || [];
+            h += '<div class="mon-h2">Alerts in the last hour (all, from the database)</div><div class="mon-stats">' +
+                (ty.length ? ty.map(x => '<div class="mon-stat"><div class="v">' + x.n + '</div><div class="l">' + (x.platform === 'Pump' ? '💊 Pump ' : '👀 FOMO ') + monEsc(x.type) + '</div></div>').join('') : '<div style="color:#8a96a0;font-size:13px;">none</div>') + '</div>';
+            h += '<div class="mon-h2">People</div><div class="mon-stats">' +
+                [['Active users', u.active], ['RN4L', u.rn4l], ['Paying', u.paid], ['Trial', u.trial], ['Free', u.free], ['Pump transactions on', u.pumpTxOn], ['Pump callouts on', u.pumpCalloutsOn], ['FOMO transactions on', u.fomoTxOn]]
+                    .map(([l, v]) => '<div class="mon-stat"><div class="v">' + v + '</div><div class="l">' + l + '</div></div>').join('') + '</div>';
+            h += '<div class="mon-h2">Rollout</div><div style="color:#c3ccd5;font-size:13.5px;">Pump transaction alerts: <b>' + monEsc(d.rollout.pumpTradeAlerts) + '</b> <span style="color:#8a96a0;">(off · owner = canary only · on = everyone with the setting)</span></div>';
+            document.getElementById('monBody').innerHTML = h;
+            document.getElementById('monUpdated').textContent = 'updated ' + new Date().toLocaleTimeString() + ' · refreshes every 10 s while this tab is open';
+        }
+
+        async function loadMonitor() {
+            try {
+                const res = await fetch(API_BASE + '/api/dashboard/monitor');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const d = await res.json();
+                renderMonitor(d);
+                setMonDot(d.monitor.overall.state);
+            } catch (e) {
+                document.getElementById('monBody').innerHTML = '<div class="mon-banner down"><span class="mon-state-dot down"></span><span>Cannot reach the backend: ' + monEsc(e.message) + '</span></div>';
+                setMonDot('down');
+            }
+        }
+        function setMonDot(state) { const d = document.getElementById('monDot'); if (d) d.className = 'mon-dot ' + state; }
+        // The dot on the tab label stays current even when the tab is closed; the open tab refreshes faster.
+        async function monLight() { try { const r = await fetch(API_BASE + '/api/dashboard/monitor'); if (r.ok) setMonDot((await r.json()).monitor.overall.state); else setMonDot('down'); } catch { setMonDot('down'); } }
+        setInterval(() => { const t = document.getElementById('monitoring-tab'); if (t && t.classList.contains('active')) loadMonitor(); }, 10000);
+        setInterval(monLight, 30000);
+        monLight();
+
         // Tab switching
         function switchTab(tabName) {
             // Update tab buttons
             document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
-            event.target.classList.add('active');
+            (event.currentTarget || event.target).classList.add('active');
 
             // Update tab content
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
             document.getElementById(tabName + '-tab').classList.add('active');
 
             // Load data based on tab
-            if (tabName === 'users') {
+            if (tabName === 'monitoring') {
+                loadMonitor();
+            } else if (tabName === 'users') {
                 loadUsers();
             } else if (tabName === 'payments') {
                 loadPayments();

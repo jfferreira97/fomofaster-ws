@@ -23,6 +23,7 @@ public class TelegramService : ITelegramService
     private readonly ChainSettingsCache _chainSettingsCache;
     private readonly ActiveUserCache _activeUserCache;
     private readonly FeedService _feed;
+    private readonly MonitorStore _monitor;
     private PaymentPollerService? _paymentPoller;
 
     public TelegramService(
@@ -32,8 +33,10 @@ public class TelegramService : ITelegramService
         IHubContext<DashboardHub> hubContext,
         ChainSettingsCache chainSettingsCache,
         ActiveUserCache activeUserCache,
-        FeedService feed)
+        FeedService feed,
+        MonitorStore monitor)
     {
+        _monitor = monitor;
         _settings = settings.Value;
         _serviceProvider = serviceProvider;
         _logger = logger;
@@ -147,6 +150,7 @@ public class TelegramService : ITelegramService
             return;
         }
 
+        var fanOutClock = System.Diagnostics.Stopwatch.StartNew();   // for the Monitoring tab
         using var scope = _serviceProvider.CreateScope();
         var userService = scope.ServiceProvider.GetRequiredService<IUserService>();
         var traderService = scope.ServiceProvider.GetRequiredService<ITraderService>();
@@ -508,6 +512,8 @@ public class TelegramService : ITelegramService
             totalUsers = totalActiveUsers.Count,
             marketCapAtNotification = notificationRecord.MarketCapAtNotification
         });
+
+        _monitor.RecordAlert(new AlertRecord(DateTime.UtcNow, platform.ToString(), notificationType.ToString(), traderHandle, ticker, successCount, failCount, (int)fanOutClock.ElapsedMilliseconds));
 
         _logger.LogInformation("✅ Notification sent to {Success}/{Total} users ({Failed} failed)",
             successCount, users.Count, failCount);
