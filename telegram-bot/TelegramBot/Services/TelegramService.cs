@@ -102,24 +102,17 @@ public class TelegramService : ITelegramService
     // Alert fan-out: sends in flight per notification, and one limiter for the whole process
     // (several alerts can be fanning out at once) sized under Telegram's ~30 msg/s bulk limit.
     private const int MaxParallelSends = 8;
-    private static readonly System.Threading.RateLimiting.TokenBucketRateLimiter SendLimiter = new(
-        new System.Threading.RateLimiting.TokenBucketRateLimiterOptions
-        {
-            TokenLimit = 25,
-            TokensPerPeriod = 25,
-            ReplenishmentPeriod = TimeSpan.FromSeconds(1),
-            QueueLimit = int.MaxValue,
-            QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
-            AutoReplenishment = true
-        });
+    // Same 25 msg/s budget as the old token bucket, but with two lanes: subscribers and trial users
+    // (priority) are always served before free users, across every alert in flight — see PrioritySendLimiter.
+    private static readonly PrioritySendLimiter SendLimiter = new(perSecond: 25, burst: 25);
 
     // Sends one alert, retrying once if Telegram says to slow down — before, a 429 just meant
     // that user silently missed the alert.
-    private async Task<int> SendWithRateLimitAsync(TelegramBotClient client, long chatId, string text)
+    private async Task<int> SendWithRateLimitAsync(TelegramBotClient client, long chatId, string text, bool priority = false)
     {
         for (var attempt = 0; ; attempt++)
         {
-            using var lease = await SendLimiter.AcquireAsync(1);
+            await SendLimiter.AcquireAsync(priority);
             try
             {
                 var sent = await client.SendTextMessageAsync(
@@ -252,7 +245,7 @@ public class TelegramService : ITelegramService
         // through unfiltered.
         users = users.Where(u => notificationType switch
         {
-            NotificationType.Buy or NotificationType.Sell => u.NotifyFomoBuySell,
+            NotificationType.Buy or NotificationType.Sell => platform == Platform.Pump ? u.NotifyPumpBuySell : u.NotifyFomoBuySell,
             NotificationType.Thesis                        => u.NotifyFomoThesis,
             NotificationType.Callout or NotificationType.Repost or NotificationType.Reply => u.NotifyPumpCallouts,
             NotificationType.CUSTOM_Trending => u.NotifyTrending,
@@ -448,7 +441,7 @@ public class TelegramService : ITelegramService
             await gate.WaitAsync();
             try
             {
-                var messageId = await SendWithRateLimitAsync(item.Client, item.User.ChatId, item.Text);
+                var messageId = await SendWithRateLimitAsync(item.Client, item.User.ChatId, item.Text, priority: HasFullAccess(item.User));
                 return (item.User, MessageId: (int?)messageId, SentAt: DateTime.UtcNow, Blocked: false);
             }
             catch (Telegram.Bot.Exceptions.ApiRequestException apiEx) when (apiEx.Message.Contains("bot was blocked by the user") || apiEx.Message.Contains("user is deactivated") || apiEx.Message.Contains("chat not found"))

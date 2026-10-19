@@ -583,6 +583,9 @@ namespace TelegramBot.Migrations
                     b.Property<bool>("NotifyFomoThesis")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("NotifyPumpBuySell")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("NotifyPumpCallouts")
                         .HasColumnType("INTEGER");
 

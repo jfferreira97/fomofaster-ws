@@ -968,8 +968,9 @@ function renderSettings() {
         </section>
         <section class="plat">
             <div class="plat-head"><img src="/logos/pump.png" alt="" width="20" height="20">Pump.fun</div>
-            <div class="chip-grid cols-2">
+            <div class="chip-grid even-3">
                 ${toggle('autoFollowPumpTraders', 'Auto&#8209;follow new traders', autoFollowTip('Pump.fun'))}
+                ${toggle('notifyPumpBuySell', 'Transactions', 'Get notified for buys/sells of PUMP traders you personally follow.')}
                 ${toggle('notifyPumpCallouts', 'Callouts', 'Get notified for callouts of PUMP traders you personally follow.')}
             </div>
         </section>`;

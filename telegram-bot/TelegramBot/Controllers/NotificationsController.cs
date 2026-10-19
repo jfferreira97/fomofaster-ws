@@ -16,6 +16,7 @@ public class NotificationsController : ControllerBase
     private readonly AppDbContext _dbContext;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ConfluenceService _confluenceService;
+    private readonly AppConfigService _appConfig;
     private readonly ILogger<NotificationsController> _logger;
 
     public NotificationsController(
@@ -24,6 +25,7 @@ public class NotificationsController : ControllerBase
         AppDbContext dbContext,
         IHttpClientFactory httpClientFactory,
         ConfluenceService confluenceService,
+        AppConfigService appConfig,
         ILogger<NotificationsController> logger)
     {
         _telegramService = telegramService;
@@ -31,8 +33,13 @@ public class NotificationsController : ControllerBase
         _dbContext = dbContext;
         _httpClientFactory = httpClientFactory;
         _confluenceService = confluenceService;
+        _appConfig = appConfig;
         _logger = logger;
     }
+
+    // Canary pacing: while PumpTradeAlerts=owner at most one sample every 15s reaches the canary chat.
+    private static DateTime _lastCanaryAt = DateTime.MinValue;
+    private static readonly object _canaryLock = new();
 
     private static string FormatMarketCap(double mc) => mc switch
     {
@@ -189,6 +196,78 @@ public class NotificationsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing structured notification (tradeId={TradeId})", req.TradeId);
+            return StatusCode(500, new { status = "error", message = "Internal server error" });
+        }
+    }
+
+    // Pump transactions: the counterpart to "structured" above (FOMO swap_buy / swap_sell). Same message
+    // shape, same fan-out (follow filter, per-trader MinValueUsd, chain settings, repeat window, tiers);
+    // the per-user toggle is NotifyPumpBuySell. Rollout is gated by AppConfig PumpTradeAlerts (off|owner|on).
+    [HttpPost("pump-trade")]
+    public async Task<IActionResult> ReceiveStructuredPumpTrade([FromBody] StructuredPumpTradeRequest req)
+    {
+        try
+        {
+            var mode = (await _appConfig.GetAsync("PumpTradeAlerts"))?.Trim().ToLowerInvariant() ?? "owner";
+            if (mode == "off")
+                return Ok(new { accepted = false, reason = "disabled" });
+
+            var pumpEvent = await _dbContext.PumpEvents.FirstOrDefaultAsync(e => e.ExternalId == req.ExternalId);
+            if (pumpEvent?.Handled == true)
+                return Ok(new { accepted = false, reason = "duplicate" });
+
+            var chain = ChainInfo.FromNetworkId(req.ChainId);
+            var sideWord = req.IsBuy ? "bought" : "sold";
+            var emoji = req.IsBuy ? "🟢" : "🔴";
+            var mc = req.MarketCap.HasValue ? $" at ${FormatMarketCap(req.MarketCap.Value)} MC" : "";
+            var message = $"{req.Symbol}{mc} {emoji} {req.ActorHandle} {sideWord} ${req.AmountUsd:0.##}";
+
+            _logger.LogInformation("PUMP TRADE [{Mode}]: {Message} (tx={Tx})", mode, message, req.ExternalId);
+
+            if (mode != "on")
+            {
+                // Canary: nobody but the configured chat sees anything, and only a sample of it.
+                var canary = await _appConfig.GetAsync("PumpTradeCanaryChatId");
+                var send = false;
+                lock (_canaryLock)
+                {
+                    if ((DateTime.UtcNow - _lastCanaryAt).TotalSeconds >= 15) { _lastCanaryAt = DateTime.UtcNow; send = true; }
+                }
+                if (send && long.TryParse(canary, out var canaryChat))
+                {
+                    var ageS = Math.Max(0, (DateTime.UtcNow - req.CreatedAt).TotalSeconds);
+                    await _telegramService.SendPlainMessageAsync(canaryChat,
+                        $"🧪 canary, only you see this ({ageS:0.#}s after the trade)\n💊 | {message}\n\nContract: {req.CoinMint}");
+                }
+            }
+            else
+            {
+                // Deliberately no AddOrUpdateTraderAsync here: a trade must never create a trader (that would
+                // auto-follow it for everyone with auto-follow on). Unknown traders simply have no followers.
+                await _telegramService.SendNotificationToAllUsersAsync(
+                    new NotificationRequest { Message = message },
+                    contractAddress: req.CoinMint,
+                    chain: chain,
+                    traderHandle: req.ActorHandle,
+                    ticker: req.Symbol,
+                    marketCap: req.MarketCap,
+                    notificationType: req.IsBuy ? NotificationType.Buy : NotificationType.Sell,
+                    platform: Platform.Pump,
+                    usdAmount: req.AmountUsd,
+                    tokenImage: RawString(pumpEvent?.RawJson, "coinImage"),
+                    traderImage: RawString(pumpEvent?.RawJson, "author", "profileImage")
+                );
+            }
+
+            await _dbContext.PumpEvents
+                .Where(e => e.ExternalId == req.ExternalId && !e.Handled)
+                .ExecuteUpdateAsync(s => s.SetProperty(e => e.Handled, true));
+
+            return Ok(new { accepted = true, mode });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing pump trade (tx={Tx})", req.ExternalId);
             return StatusCode(500, new { status = "error", message = "Internal server error" });
         }
     }

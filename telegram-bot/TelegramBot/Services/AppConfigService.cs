@@ -22,6 +22,9 @@ public class AppConfigService
         ["ConfluenceRealertDebounceSeconds"]   = "60",
         ["TraderCategorizerIntervalHours"]     = "24",
         ["FomoRealizedPnlStartDate"]           = "2026-08-01",
+        // Rollout switch for pump transactions: off | owner (canary: a sample goes to PumpTradeCanaryChatId only) | on (everyone who follows the trader and has the setting on)
+        ["PumpTradeAlerts"]                    = "owner",
+        ["PumpTradeCanaryChatId"]              = "",
     };
 
     public AppConfigService(IServiceProvider serviceProvider, ILogger<AppConfigService> logger)
@@ -90,6 +93,8 @@ public class AppConfigService
                         "ConfluenceRolloverSteps"          => "Comma-separated extension minutes per new trader after the first (last value repeats). Empty = extend by full window length",
                         "ConfluenceRealertDebounceSeconds" => "Minimum seconds between re-alerts for the same token",
                         "FomoRealizedPnlStartDate"         => "FOMO traders' PnL counts only their trades from this date (yyyy-MM-dd), or from when they were added if later. Applied on the next re-rate",
+                        "PumpTradeAlerts"                  => "Pump transactions rollout: off | owner (canary sample to PumpTradeCanaryChatId only) | on (all followers with the setting enabled)",
+                        "PumpTradeCanaryChatId"            => "Telegram chat id that receives the pump-transaction canary sample while PumpTradeAlerts=owner",
                         "TraderCategorizerIntervalHours"   => "Hours between trader re-categorization runs (replays the last 30 days of theses/callouts/buys). 0 = off; the dashboard's Run now still works",
                         _ => null
                     },

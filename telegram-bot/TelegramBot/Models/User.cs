@@ -30,6 +30,11 @@ public class User
     // subscriber they're all just "pump activity from people you follow."
     public bool NotifyPumpCallouts { get; set; } = true;
 
+    // Pump's counterpart to NotifyFomoBuySell: buys/sells by pump.fun traders the user follows.
+    // Existing users were seeded from NotifyPumpCallouts (see the AddNotifyPumpBuySell migration),
+    // i.e. anyone who already gets pump activity gets pump transactions by default.
+    public bool NotifyPumpBuySell { get; set; } = true;
+
     public bool NotifyTrending { get; set; } = true;
 
     public int RepeatWindowMinutes { get; set; } = 0;

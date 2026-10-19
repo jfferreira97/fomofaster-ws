@@ -92,6 +92,7 @@ public class ManageController : ControllerBase
                 notifyFomoBuySell = user.NotifyFomoBuySell,
                 notifyFomoThesis = user.NotifyFomoThesis,
                 notifyPumpCallouts = user.NotifyPumpCallouts,
+                notifyPumpBuySell = user.NotifyPumpBuySell,
                 notifyTrending = user.NotifyTrending,
                 repeatWindowMinutes = user.RepeatWindowMinutes
             }
@@ -112,6 +113,9 @@ public class ManageController : ControllerBase
         user.NotifyFomoBuySell = request.NotifyFomoBuySell;
         user.NotifyFomoThesis = request.NotifyFomoThesis;
         user.NotifyPumpCallouts = request.NotifyPumpCallouts;
+        // Nullable on purpose: a manage page cached from before this setting existed posts no
+        // value, which must leave the preference alone rather than silently turn it off.
+        if (request.NotifyPumpBuySell.HasValue) user.NotifyPumpBuySell = request.NotifyPumpBuySell.Value;
         user.NotifyTrending = request.NotifyTrending;
         user.RepeatWindowMinutes = request.RepeatWindowMinutes;
 
@@ -549,7 +553,8 @@ public record UpdateManageSettingsRequest(
     bool NotifyFomoThesis,
     bool NotifyPumpCallouts,
     bool NotifyTrending,
-    int RepeatWindowMinutes);
+    int RepeatWindowMinutes,
+    bool? NotifyPumpBuySell = null);
 
 public record ManageTraderRequest(int TraderId);
 public record SetThresholdRequest(int TraderId, decimal? MinValueUsd);
