@@ -3,6 +3,8 @@ import { postPumpEvent, postStructuredPump, heartbeat } from './client';
 import { transformItem, type PumpFeedItem } from './transform';
 import { runVerifiedSync } from './verifiedSync';
 import { logTiming } from './timingLog';
+import { startAlertStream, type AlertStream, type StreamEvent } from './stream';
+import { logPumpTrade, tradeFromEvent } from './tradeLog';
 
 const ts = () => { const d = new Date(); return `[${new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().replace('T', ' ').slice(0, 19)}]`; };
 
@@ -11,17 +13,17 @@ const PROFILE_DIR = './chromium-profile';
 const PUMP_URL = 'https://pump.fun/';
 const ALERTS_API = 'https://frontend-api-v3.pump.fun/following-positions/alerts?pageSize=20&kinds=callout,repost,reply&minTradeAmountUsd=10';
 const HEARTBEAT_INTERVAL_MS = 30_000;
-const POLL_INTERVAL_MS = 500;
+// pump.fun's own contract for GET /following-positions/alerts: the first page is memoized for
+// `maxAgeSeconds` ("Never poll faster than this"), and live news comes over NATS (see stream.ts).
+// Hammering it at 2 req/s got this IP a Cloudflare challenge, so polling is now a safety net:
+// slow while the live stream is healthy, a little quicker (never faster than maxAge) while it is not.
+const STREAM_FALLBACK_POLL_MS = Number(process.env.STREAM_FALLBACK_POLL_MS) || 30_000;
+const DEGRADED_POLL_MS = Number(process.env.POLL_INTERVAL_MS) || 3_000;
+const MIN_POLL_GAP_MS = 400;          // never two fetches closer than this, whatever rings the doorbell
 const RATE_LIMIT_BACKOFF_MS = 30_000;
 const FETCH_FAIL_BACKOFF_MS = 5_000;
-// Remembered externalIds, so an in-flight item is not re-claimed by the next tick.
-// 20 per page at 1/s — a few hundred covers many minutes of history.
+// Remembered externalIds, so an item already handled is not re-processed by a later fetch.
 const CLAIM_MEMORY = 500;
-// The alerts fetch has a ~2.2s median round trip, so ONE in flight caps how often we can
-// see the feed at ~2.2s no matter what POLL_INTERVAL_MS says. Overlapping fetches do not
-// steal work (each returns the same page) — they shorten the gap between successive views
-// of the feed. The claim set above is what makes that overlap safe.
-const MAX_CONCURRENT_FETCHES = 4;
 const PROBE_INTERVAL_MS = 15_000;
 const PROBE_TIMEOUT_MS = 10_000;
 const PROBE_FAILURES_BEFORE_RELOAD = 3;
@@ -30,7 +32,17 @@ const VERIFIED_SYNC_INTERVAL_MS = Number(process.env.VERIFIED_SYNC_INTERVAL_MS) 
 interface AlertsProbeResult {
   ok: boolean;
   status?: number;
-  data?: { items?: PumpFeedItem[] };
+  data?: { items?: PumpFeedItem[]; maxAgeSeconds?: number };
+}
+
+// Login check that does not touch the alerts endpoint (so waiting for a login never adds to its load).
+async function isLoggedIn(page: import('playwright').Page): Promise<boolean> {
+  return page.evaluate(async () => {
+    try {
+      const res = await fetch('https://frontend-api-v3.pump.fun/auth/my-profile', { credentials: 'include' });
+      return res.ok;
+    } catch { return false; }
+  }).catch(() => false);
 }
 
 async function fetchAlerts(page: import('playwright').Page): Promise<AlertsProbeResult> {
@@ -57,20 +69,53 @@ async function session(firstRun: boolean): Promise<void> {
       '--disable-gpu',
       '--disable-software-rasterizer',
       '--disable-gpu-compositing',
+      // The window lives on another virtual desktop / behind a closed lid: keep Chrome from throttling
+      // or "occluding" the page, or the live NATS feed would go quiet.
+      '--disable-background-timer-throttling',
+      '--disable-renderer-backgrounding',
+      '--disable-backgrounding-occluded-windows',
     ],
     ignoreDefaultArgs: ['--enable-automation'],
   });
+
+  // pump.fun pauses its live feed when the page thinks it is hidden, and its NATS client lives in a Web
+  // Worker: keep a handle on that worker (stream.ts talks to it) and make the page always look visible.
+  // (browser-side code as a string: this project's tsconfig has no DOM lib)
+  await context.addInitScript({ content: `
+    try {
+      Object.defineProperty(document, 'hidden', { get: () => false });
+      Object.defineProperty(document, 'visibilityState', { get: () => 'visible' });
+      document.addEventListener('visibilitychange', (e) => e.stopImmediatePropagation(), true);
+    } catch (e) { /* best effort */ }
+    (() => {
+      const Orig = window.Worker;
+      window.__workers = [];
+      window.Worker = new Proxy(Orig, { construct(target, args) { const w = new target(...args); window.__workers.push(w); return w; } });
+    })();
+  ` });
 
   let hbInterval: NodeJS.Timeout | undefined;
   let probeInterval: NodeJS.Timeout | undefined;
   let pollInterval: NodeJS.Timeout | undefined;
   let verifiedSyncInterval: NodeJS.Timeout | undefined;
+  let followUpTimer: NodeJS.Timeout | undefined;
+  let stream: AlertStream | undefined;
 
   try {
     const page = context.pages()[0] ?? await context.newPage();
 
     let endSession!: (reason: string) => void;
     const sessionEnded = new Promise<string>((resolve) => { endSession = resolve; });
+
+    // Listen for pump.fun's live feed from the very start: its NATS websocket opens at page load,
+    // before the login check below finishes. Presence registration waits for the login (stream.begin()).
+    let ring: (ev: StreamEvent) => void = () => { /* wired once the poller exists */ };
+    stream = startAlertStream(page, (ev) => ring(ev), (m) => console.log(`${ts()} ${m}`));
+
+    try {
+      const cdp = await context.newCDPSession(page);
+      await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: true });   // page stops its live feed when it thinks it is unfocused
+    } catch (err) { console.warn(`${ts()} [main] focus emulation failed:`, String(err).split('\n')[0]); }
 
     console.log(`${ts()} [main] navigating to`, PUMP_URL);
     await page.goto(PUMP_URL, { waitUntil: 'domcontentloaded' });
@@ -82,8 +127,7 @@ async function session(firstRun: boolean): Promise<void> {
       let loggedIn = false;
       const deadline = Date.now() + 300_000;
       while (Date.now() < deadline) {
-        const probe = await fetchAlerts(page).catch(() => ({ ok: false } as AlertsProbeResult));
-        if (probe.ok) { loggedIn = true; break; }
+        if (await isLoggedIn(page)) { loggedIn = true; break; }
         await new Promise((r) => setTimeout(r, 5_000));
       }
       if (!loggedIn) {
@@ -92,6 +136,7 @@ async function session(firstRun: boolean): Promise<void> {
       }
       console.log(`${ts()} [main] ✅ logged in, session persisted to ${PROFILE_DIR}`);
     }
+    stream.begin();
 
     let recovering = false;
     const recover = async (reason: string) => {
@@ -114,17 +159,19 @@ async function session(firstRun: boolean): Promise<void> {
     page.on('close', () => endSession('page closed'));
     context.on('close', () => endSession('browser closed'));
 
-    // Overlapping fetches are the point, not an optimisation. Each returns the same page,
-    // so there is no work to steal — but with a ~2.2s round trip, ONE in flight caps how
-    // often we can even SEE the feed at once every 2.2s, whatever POLL_INTERVAL_MS says.
-    // Running several shortens the gap between successive views; measured 1157ms -> 527ms
-    // and median end-to-end latency 4.72s -> 0.47s. Processing is also fired and forgotten
-    // so a slow POST never stalls the loop, and items are claimed by externalId so the
-    // overlap can never double-handle one.
+    // One fetch at a time. pump.fun tells us when there is news (the live stream "rings" a doorbell,
+    // see stream.ts and ring() below) and a slow timer is the safety net. Processing is fired and
+    // forgotten so a slow POST never stalls polling, and items are claimed by externalId so no item is
+    // ever handled twice, however a fetch was triggered.
     let inFlight = 0;
+    let pollAgain = false;
+    let lastPollAt = 0;
+    let lastMaxAgeS = 0;
     let lastTickLog = 0;
     let tickCount = 0;
     let backoffUntil = 0;
+    let failStreak = 0;
+    let tradesSeen = 0;
     const claimed = new Set<string>();
 
     const claim = (id: string): boolean => {
@@ -139,32 +186,38 @@ async function session(firstRun: boolean): Promise<void> {
       return true;
     };
 
-    pollInterval = setInterval(() => {
-      if (recovering || inFlight >= MAX_CONCURRENT_FETCHES || Date.now() < backoffUntil) return;
+    const pollOnce = async (reason: string): Promise<void> => {
+      if (recovering || Date.now() < backoffUntil) return;
+      if (inFlight > 0 || Date.now() - lastPollAt < MIN_POLL_GAP_MS) { pollAgain = true; return; }   // the 1s tick picks it up
       inFlight++;
       tickCount++;
-      void (async () => {
+      lastPollAt = Date.now();
+      pollAgain = false;
+      await (async () => {
         try {
           const t0 = Date.now();
           const probe = await fetchAlerts(page);
           const fetchMs = Date.now() - t0;
-          if (Date.now() - lastTickLog > 10_000) {
+          lastMaxAgeS = probe.data?.maxAgeSeconds ?? lastMaxAgeS;
+          if (Date.now() - lastTickLog > 10_000 || reason.startsWith('ring')) {
             lastTickLog = Date.now();
-            console.log(`${ts()} [poll] fetch=${fetchMs}ms ticks/10s=${tickCount}`);
-            logTiming('poll', `fetchMs=${fetchMs}`, `ticks10s=${tickCount}`, `inFlight=${inFlight}`);
+            console.log(`${ts()} [poll] fetch=${fetchMs}ms reason=${reason} polls=${tickCount} trades=${tradesSeen} | ${stream?.describe()}`);
+            logTiming('poll', reason, `fetchMs=${fetchMs}`, `polls=${tickCount}`, `streamHealthy=${stream?.healthy()}`);
             tickCount = 0;
           }
           if (!probe.ok) {
             // At 1/s a failing endpoint would be hammered 60x/min. Back off instead —
             // longer for 429 (we are being told to slow down) than for a transient error
             // or an expired session, which the health check recovers separately.
-            const wait = probe.status === 429 ? RATE_LIMIT_BACKOFF_MS : FETCH_FAIL_BACKOFF_MS;
+            failStreak++;
+            const wait = Math.min(300_000, (probe.status === 429 ? RATE_LIMIT_BACKOFF_MS : FETCH_FAIL_BACKOFF_MS) * 2 ** Math.min(failStreak - 1, 6));
             backoffUntil = Date.now() + wait;
             console.warn(`${ts()} [poll] alerts fetch failed (status=${probe.status ?? 'n/a'}) — backing off ${wait / 1000}s`);
             logTiming('fail', `status=${probe.status ?? 'n/a'}`, `fetchMs=${fetchMs}`, `backoffMs=${wait}`);
             return;
           }
 
+          failStreak = 0;
           for (const item of probe.data?.items ?? []) {
             const transformed = transformItem(item);
             if (!transformed) continue; // update/quote — not ingested (see HANDOFF.md)
@@ -189,12 +242,41 @@ async function session(firstRun: boolean): Promise<void> {
             })();
           }
         } catch (err) {
+          // A throwing fetch ("Failed to fetch", e.g. a Cloudflare challenge) used to retry every tick,
+          // hammering the API at full rate. Back off exponentially instead (5s, 10s, ... max 5 min).
+          failStreak++;
+          backoffUntil = Date.now() + Math.min(300_000, FETCH_FAIL_BACKOFF_MS * 2 ** Math.min(failStreak - 1, 6));
           console.error(`${ts()} [poll] error:`, err);
         } finally {
           inFlight--;
         }
       })();
-    }, POLL_INTERVAL_MS);
+    };
+
+    // The doorbell. For callouts / replies / reposts the live event only says "a new row exists" (pump.fun's
+    // own page then re-fetches the feed), so do exactly that: one fetch now, and one more once the server's
+    // memoized first page (maxAgeSeconds) can have changed.
+    ring = (ev: StreamEvent) => {
+      if (ev.kind === 'trade') {
+        // Self-contained (the site inserts them straight from the event). Record only: no alert type for
+        // pump trades exists in the backend yet, so nothing is posted — see tradeLog.ts.
+        const rec = tradeFromEvent(ev.raw, ev.receivedAtMs);
+        if (rec) { logPumpTrade(rec); tradesSeen++; }
+        return;
+      }
+      const lagMs = ev.createdAt ? ev.receivedAtMs - Date.parse(ev.createdAt) : NaN;
+      logTiming('ring', ev.kind, ev.id, `serverToRingMs=${Number.isFinite(lagMs) ? lagMs : ''}`);
+      void pollOnce(`ring:${ev.kind}`);
+      if (followUpTimer) clearTimeout(followUpTimer);
+      followUpTimer = setTimeout(() => { void pollOnce('ring-followup'); }, Math.max(1_200, lastMaxAgeS * 1_000 + 300));
+    };
+
+    // Safety net: slow while the live stream is healthy, otherwise as quick as the site's own contract
+    // allows (never faster than maxAgeSeconds). Also drains a poll that had to wait for the minimum gap.
+    pollInterval = setInterval(() => {
+      const every = stream?.healthy() ? STREAM_FALLBACK_POLL_MS : Math.max(DEGRADED_POLL_MS, lastMaxAgeS * 1_000);
+      if (pollAgain || Date.now() - lastPollAt >= every) void pollOnce(stream?.healthy() ? 'fallback' : 'degraded');
+    }, 1_000);
 
     let probeFailures = 0;
     let probing = false;
@@ -240,7 +322,7 @@ async function session(firstRun: boolean): Promise<void> {
     // setTimeout(runVerifiedSyncSafely, 15_000);
     // verifiedSyncInterval = setInterval(runVerifiedSyncSafely, VERIFIED_SYNC_INTERVAL_MS);
 
-    console.log(`${ts()} [main] Sidecar running — polling pump.fun alerts every ${POLL_INTERVAL_MS}ms, verified-trader sync disabled`);
+    console.log(`${ts()} [main] Sidecar running — live pump.fun stream + ${STREAM_FALLBACK_POLL_MS / 1000}s fallback poll (${DEGRADED_POLL_MS / 1000}s while the stream is down), verified-trader sync disabled`);
     logTiming('start');
 
     const reason = await sessionEnded;
@@ -249,6 +331,8 @@ async function session(firstRun: boolean): Promise<void> {
     if (hbInterval) clearInterval(hbInterval);
     if (probeInterval) clearInterval(probeInterval);
     if (pollInterval) clearInterval(pollInterval);
+    if (followUpTimer) clearTimeout(followUpTimer);
+    stream?.stop();
     if (verifiedSyncInterval) clearInterval(verifiedSyncInterval);
     await context.close().catch(() => {});
   }

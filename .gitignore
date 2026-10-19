@@ -25,3 +25,6 @@ deploy/Caddyfile*
 
 # Per-trader scores and stats are product data; generated locally, not published
 telegram-bot/TelegramBot/Intel/trader-intel.json
+
+# pump sidecar runtime logs (latency trail, followed traders' trades)
+pump-ws-sidecar/logs/
