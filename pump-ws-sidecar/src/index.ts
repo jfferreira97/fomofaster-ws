@@ -1,24 +1,30 @@
 import { chromium } from 'playwright';
-import { postPumpEvent, postStructuredPump, heartbeat } from './client';
+import { postPumpEvent, postStructuredPump, postPumpTrade, heartbeat } from './client';
 import { transformItem, type PumpFeedItem } from './transform';
 import { runVerifiedSync } from './verifiedSync';
 import { logTiming } from './timingLog';
 import { startAlertStream, type AlertStream, type StreamEvent } from './stream';
-import { logPumpTrade, tradeFromEvent } from './tradeLog';
+import { logPumpTrade, tradeFromEvent, tradeFromItem, type PumpTradeRecord } from './tradeLog';
+import { writeFileSync } from 'fs';
+import { join } from 'path';
 
 const ts = () => { const d = new Date(); return `[${new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().replace('T', ' ').slice(0, 19)}]`; };
 
 const HEADLESS = process.env.HEADLESS === 'true';
 const PROFILE_DIR = './chromium-profile';
 const PUMP_URL = 'https://pump.fun/';
-const ALERTS_API = 'https://frontend-api-v3.pump.fun/following-positions/alerts?pageSize=20&kinds=callout,repost,reply&minTradeAmountUsd=10';
+const ALERTS_API = 'https://frontend-api-v3.pump.fun/following-positions/alerts?pageSize=50&kinds=callout,repost,reply,trade&minTradeAmountUsd=10';
+// A trade older than this is recorded but never alerted (restart / outage backlog must not replay as alerts).
+const MAX_TRADE_ALERT_AGE_MS = 90_000;
+// Same floor the feed query uses (minTradeAmountUsd=10), so the live stream alerts on exactly what polling did.
+const MIN_TRADE_ALERT_USD = 10;
 const HEARTBEAT_INTERVAL_MS = 30_000;
 // pump.fun's own contract for GET /following-positions/alerts: the first page is memoized for
 // `maxAgeSeconds` ("Never poll faster than this"), and live news comes over NATS (see stream.ts).
 // Hammering it at 2 req/s got this IP a Cloudflare challenge, so polling is now a safety net:
 // slow while the live stream is healthy, a little quicker (never faster than maxAge) while it is not.
 const STREAM_FALLBACK_POLL_MS = Number(process.env.STREAM_FALLBACK_POLL_MS) || 30_000;
-const DEGRADED_POLL_MS = Number(process.env.POLL_INTERVAL_MS) || 3_000;
+const DEGRADED_POLL_MS = Number(process.env.POLL_INTERVAL_MS) || 2_000;   // the server memoizes the first page for 2s: no point asking faster
 const MIN_POLL_GAP_MS = 400;          // never two fetches closer than this, whatever rings the doorbell
 const RATE_LIMIT_BACKOFF_MS = 30_000;
 const FETCH_FAIL_BACKOFF_MS = 5_000;
@@ -45,13 +51,13 @@ async function isLoggedIn(page: import('playwright').Page): Promise<boolean> {
   }).catch(() => false);
 }
 
-async function fetchAlerts(page: import('playwright').Page): Promise<AlertsProbeResult> {
+async function fetchAlerts(page: import('playwright').Page, apiUrl: string = ALERTS_API): Promise<AlertsProbeResult> {
   const result = await page.evaluate(async (url) => {
     const res = await fetch(url, { credentials: 'include' });
     if (!res.ok) return { ok: false, status: res.status };
     const data = await res.json();
     return { ok: true, data };
-  }, ALERTS_API);
+  }, apiUrl);
   return result as AlertsProbeResult;
 }
 
@@ -90,7 +96,39 @@ async function session(firstRun: boolean): Promise<void> {
     (() => {
       const Orig = window.Worker;
       window.__workers = [];
-      window.Worker = new Proxy(Orig, { construct(target, args) { const w = new target(...args); window.__workers.push(w); return w; } });
+      window.__wlog = [];
+      const note = (o) => { try { if (window.__wlog.length < 400) window.__wlog.push(o); } catch (e) {} };
+      // What the page and its NATS worker say to each other, as TYPES only (instance / status / reason): never
+      // credentials, tokens or payloads. Drained by stream.ts so a silent stream has a reason in the log.
+      const mask = (s) => (typeof s === 'string' ? s.split('.').map((p, i) => (i === 0 ? p : p.length > 8 ? p.slice(0, 3) + '~' : p)).join('.') : undefined);
+      window.Worker = new Proxy(Orig, { construct(target, args) {
+        const w = new target(...args);
+        window.__workers.push(w);
+        try {
+          const post = w.postMessage.bind(w);
+          w.__rawPost = post;   // stream.ts posts through this one so its own messages are not mistaken for the page's
+          w.postMessage = (m, ...rest) => {
+            try {
+              if (m && typeof m === 'object') {
+                if (m.type === 'subscribe' && typeof m.channel === 'string' && m.channel.indexOf('alertsFeed.user.') === 0) window.__pageAlertsSub = true;
+                const o = { dir: 'out', type: m.type, instance: m.instance };
+                if (m.type === 'configs' && m.configs) o.configInstances = Object.keys(m.configs).join(',');
+                if (m.type === 'auth') o.hasAuth = !!m.auth;
+                if (m.type === 'subscribe' || m.type === 'unsubscribe') o.channel = mask(m.channel);
+                note(o);
+              }
+            } catch (e) {}
+            return post(m, ...rest);
+          };
+          w.addEventListener('message', (ev) => {
+            try {
+              const d = ev.data;
+              if (d && typeof d === 'object' && d.type && !(d.channel && d.data !== undefined)) note({ dir: 'in', type: d.type, instance: d.instance, status: d.status || d.state, reason: d.reason, code: d.code });
+            } catch (e) {}
+          });
+        } catch (e) {}
+        return w;
+      } });
     })();
   ` });
 
@@ -219,6 +257,7 @@ async function session(firstRun: boolean): Promise<void> {
 
           failStreak = 0;
           for (const item of probe.data?.items ?? []) {
+            if (item.kind === 'trade') { handleTrade(item, t0 + fetchMs); continue; }
             const transformed = transformItem(item);
             if (!transformed) continue; // update/quote — not ingested (see HANDOFF.md)
             const id = transformed.externalId;
@@ -258,10 +297,14 @@ async function session(firstRun: boolean): Promise<void> {
     // memoized first page (maxAgeSeconds) can have changed.
     ring = (ev: StreamEvent) => {
       if (ev.kind === 'trade') {
-        // Self-contained (the site inserts them straight from the event). Record only: no alert type for
-        // pump trades exists in the backend yet, so nothing is posted — see tradeLog.ts.
+        // Self-contained: the site itself inserts a trade straight from the event, so no fetch is needed and
+        // the alert can leave within a few hundred ms of the trade.
         const rec = tradeFromEvent(ev.raw, ev.receivedAtMs);
-        if (rec) { logPumpTrade(rec); tradesSeen++; }
+        if (rec) {
+          const e = ev.raw as { coin?: { mint?: string; chainId?: number; symbol?: string; imageUri?: string }; author?: unknown; trade?: unknown; createdAt?: string };
+          // same shape as the feed rows the backend already stores (coinMint, chainId, symbol, coinImage at the top)
+          acceptTrade(rec, { kind: 'trade', author: e.author, coinMint: e.coin?.mint, chainId: e.coin?.chainId, symbol: e.coin?.symbol, coinImage: e.coin?.imageUri, createdAt: e.createdAt, trade: e.trade });
+        }
         return;
       }
       const lagMs = ev.createdAt ? ev.receivedAtMs - Date.parse(ev.createdAt) : NaN;
@@ -269,6 +312,48 @@ async function session(firstRun: boolean): Promise<void> {
       void pollOnce(`ring:${ev.kind}`);
       if (followUpTimer) clearTimeout(followUpTimer);
       followUpTimer = setTimeout(() => { void pollOnce('ring-followup'); }, Math.max(1_200, lastMaxAgeS * 1_000 + 300));
+    };
+
+    // Followed traders' buys/sells ride the same feed ("kinds" includes trade): every one is recorded to
+    // ./logs, and one that just happened is handed to the backend, which applies the rollout switch
+    // (PumpTradeAlerts) and the users' settings. Older ones (first fetch after a restart, an outage) are
+    // recorded only, so a restart can never replay history as alerts.
+    const seenTrades = new Set<string>();
+    let tradeSampleSaved = false;
+    const handleTrade = (item: PumpFeedItem, fetchedAt: number): void => {
+      const rec = tradeFromItem(item, fetchedAt);
+      if (rec) acceptTrade(rec, item);
+    };
+    // One trade, whichever way it arrived (live stream event or feed poll): the first to bring a tx wins.
+    const acceptTrade = (rec: PumpTradeRecord, raw: unknown): void => {
+      const item = raw;
+      const key = rec.tx ?? rec.eventId;
+      if (!key || seenTrades.has(key)) return;
+      seenTrades.add(key);
+      if (seenTrades.size > 5_000) seenTrades.delete(seenTrades.values().next().value as string);
+      if (!tradeSampleSaved) {
+        tradeSampleSaved = true;   // the real row shape, in case the parser above guessed wrong
+        try { writeFileSync(join(__dirname, '..', 'logs', 'trade-lane-sample.json'), JSON.stringify({ at: new Date().toISOString(), item }, null, 1)); } catch { /* best effort */ }
+      }
+      logPumpTrade(rec);
+      tradesSeen++;
+      const fresh = rec.lagMs !== null && rec.lagMs <= MAX_TRADE_ALERT_AGE_MS;
+      if (!fresh || !rec.tx || !rec.trader || !rec.mint || rec.chainId === null || !rec.symbol || rec.isBuy === null || !(rec.amountUsd !== null && rec.amountUsd >= MIN_TRADE_ALERT_USD)) return;
+      const tx = rec.tx;
+      void (async () => {
+        try {
+          const p0 = Date.now();
+          const accepted = await postPumpEvent({ ...(item as Record<string, unknown>), externalId: tx });
+          if (!accepted) return;   // already handled (duplicate)
+          await postPumpTrade({
+            externalId: tx, actorHandle: rec.trader!, actorUserId: rec.traderUserId, coinMint: rec.mint!, chainId: rec.chainId!,
+            symbol: rec.symbol!, marketCap: rec.marketCapUsd, isBuy: rec.isBuy!, amountUsd: rec.amountUsd!, createdAt: rec.createdAt ?? rec.seenAt,
+          });
+          logTiming('trade', tx, rec.symbol, rec.createdAt, `via=${rec.source}`, `seenLagMs=${rec.lagMs}`, `handoffMs=${Date.now() - p0}`);
+        } catch (err) {
+          console.error(`${ts()} [poll] trade hand-off error for tx=${tx}:`, err);
+        }
+      })();
     };
 
     // Safety net: slow while the live stream is healthy, otherwise as quick as the site's own contract

@@ -51,6 +51,34 @@ export async function postStructuredPump(req: StructuredPumpNotificationRequest)
   }
 }
 
+// A buy/sell by a followed pump.fun trader (pump's counterpart to FOMO's swap_buy / swap_sell).
+export interface StructuredPumpTradeRequest {
+  externalId: string;   // the trade's tx signature
+  actorHandle: string;
+  actorUserId?: string | null;
+  coinMint: string;
+  chainId: number;
+  symbol: string;
+  marketCap?: number | null;
+  isBuy: boolean;
+  amountUsd: number;
+  createdAt: string;
+}
+
+export async function postPumpTrade(req: StructuredPumpTradeRequest): Promise<void> {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/notifications/pump-trade`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req),
+    });
+    const body = await res.json() as { accepted: boolean; reason?: string; mode?: string };
+    console.log(`${ts()} [client] ${body.accepted ? '✅ accepted' : 'skipped'} pump ${req.isBuy ? 'buy' : 'sell'} ${req.symbol} @${req.actorHandle} $${req.amountUsd}${body.mode ? ` [${body.mode}]` : ''}${body.reason ? ` (${body.reason})` : ''}`);
+  } catch (err) {
+    console.error(`${ts()} [client] ❌ POST /api/notifications/pump-trade failed for tx=${req.externalId}:`, err);
+  }
+}
+
 export async function heartbeat(): Promise<void> {
   try {
     await fetch(`${BACKEND_URL}/api/sidecar/heartbeat?source=pump-ws-sidecar`, { method: 'POST' });
