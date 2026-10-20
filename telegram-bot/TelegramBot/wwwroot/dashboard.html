@@ -599,6 +599,29 @@
         .mon-strip i { flex:1; max-width:11px; border-radius:2px; background:#3ecf8e; min-height:7px; opacity:.9; }
         .mon-strip i.bad { background:#ef5350; height:100% !important; }
         .mon-strip i.none { background:#243447; height:7px; }
+        /* ---- Queue tab ---- */
+        .q-chips { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+        .q-chip { background:#17212b; border:1px solid #243447; border-radius:10px; padding:10px 16px; }
+        .q-chip .v { font-size:22px; font-weight:700; }
+        .q-chip .l { font-size:11.5px; color:#8a96a0; text-transform:uppercase; letter-spacing:.4px; }
+        .q-chip.hot .v { color:#f0b429; }
+        .q-row { background:#17212b; border:1px solid #243447; border-radius:12px; padding:12px 16px; margin-bottom:8px; }
+        .q-row.sending { border-color:#7a5d1a; }
+        .q-row.paiddone { border-color:#2b5278; }
+        .q-row.done { opacity:.8; }
+        .q-top { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:14.5px; }
+        .q-top .what { font-weight:600; }
+        .q-top .age { margin-left:auto; color:#8a96a0; font-size:12.5px; }
+        .q-chipst { font-size:11.5px; font-weight:600; padding:2px 9px; border-radius:20px; background:#243447; color:#c3ccd5; }
+        .q-chipst.sending { background:#33290f; color:#f0b429; }
+        .q-chipst.paiddone { background:#16314d; color:#6cb2f2; }
+        .q-chipst.done { background:#14301f; color:#3ecf8e; }
+        .q-text { color:#8a96a0; font-size:12.5px; margin:4px 0 8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .q-bars { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+        .q-bar-l { display:flex; justify-content:space-between; font-size:12px; color:#8a96a0; margin-bottom:3px; }
+        .q-bar { height:8px; border-radius:4px; background:#0e1621; overflow:hidden; }
+        .q-bar i { display:block; height:100%; background:#3ecf8e; }
+        .q-bar.free i { background:#6cb2f2; }
         .mon-h2 { font-size:14px; font-weight:600; color:#c3ccd5; margin:22px 0 8px; text-transform:uppercase; letter-spacing:.5px; }
         .mon-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
         .mon-stat { background:#17212b; border:1px solid #243447; border-radius:10px; padding:12px 16px; }
@@ -622,6 +645,7 @@
         <!-- Tabs -->
         <div class="tabs">
             <div class="tab active" onclick="switchTab('notifications')">Notifications</div>
+            <div class="tab" onclick="switchTab('queue')">Queue</div>
             <div class="tab" onclick="switchTab('monitoring')">Monitoring<span class="mon-dot idle" id="monDot" title="App health"></span></div>
             <div class="tab" onclick="switchTab('users')">Users</div>
             <div class="tab" onclick="switchTab('categories')">Categories</div>
@@ -635,6 +659,21 @@
         <div id="notifications-tab" class="tab-content active">
             <div class="chat-area" id="chatArea">
                 <div class="loading" id="loading">Loading notifications...</div>
+            </div>
+        </div>
+
+        <!-- Queue Tab -->
+        <div id="queue-tab" class="tab-content">
+            <div class="chat-area" style="overflow-y: auto;">
+                <div class="settings-container">
+                    <div class="settings-section">
+                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+                            <div class="settings-section-title" style="margin-bottom:0;">What is being sent right now</div>
+                            <span id="qUpdated" style="color:#8a96a0;font-size:12px;"></span>
+                        </div>
+                        <div id="qBody"><div class="loading">Loading queue…</div></div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -1215,6 +1254,45 @@
         setInterval(monLight, 30000);
         monLight();
 
+        // ---------- Queue: each alert as it fans out, paying users first, free users behind ----------
+        function qFmt(s) { return s < 10 ? s.toFixed(1) + ' s' : Math.round(s) + ' s'; }
+        function renderQueue(d) {
+            let h = '<div class="q-chips">' +
+                '<div class="q-chip' + (d.sending ? ' hot' : '') + '"><div class="v">' + d.sending + '</div><div class="l">alerts sending</div></div>' +
+                '<div class="q-chip' + (d.pendingPaid ? ' hot' : '') + '"><div class="v">' + d.pendingPaid + '</div><div class="l">paying waiting</div></div>' +
+                '<div class="q-chip' + (d.pendingFree ? ' hot' : '') + '"><div class="v">' + d.pendingFree + '</div><div class="l">free waiting</div></div>' +
+                '</div>';
+            if (!d.alerts.length) h += '<div style="color:#8a96a0;font-size:13px;">Nothing sent since the backend started.</div>';
+            h += d.alerts.slice(0, 30).map(a => {
+                const total = a.paid.total + a.free.total, doneN = a.paid.sent + a.paid.failed + a.free.sent + a.free.failed;
+                const finished = a.doneSec !== null || total === 0;
+                const paidDone = a.paid.total === 0 || a.paid.doneSec !== null;
+                const state = finished ? 'done' : paidDone ? 'paiddone' : 'sending';
+                const label = finished ? ('sent to all in ' + qFmt(a.doneSec ?? 0) + (a.paid.failed + a.free.failed ? ' · ' + (a.paid.failed + a.free.failed) + ' failed' : ''))
+                    : paidDone ? 'paying done · free pending' : 'sending';
+                const pct = (n, t) => t ? Math.round(100 * n / t) : 100;
+                const side = a.type === 'Buy' ? '🟢 Buy' : a.type === 'Sell' ? '🔴 Sell' : a.type;
+                const what = (a.platform === 'Pump' ? '💊 ' : '👀 ') + monEsc(side) + (a.trader ? ' · ' + monEsc(a.trader) : '') + (a.ticker ? ' · $' + monEsc(a.ticker) : '') + (a.usd ? ' · $' + Math.round(a.usd).toLocaleString() : '');
+                const age = finished ? new Date(a.at).toLocaleTimeString() : qFmt(a.ageSec) + ' ago';
+                return '<div class="q-row ' + state + '"><div class="q-top"><span class="what">' + what + '</span><span class="q-chipst ' + state + '">' + label + '</span><span class="age">' + age + '</span></div>' +
+                    (a.text ? '<div class="q-text">' + monEsc(a.text.replace(/\s+/g, ' ')) + '</div>' : '') +
+                    '<div class="q-bars"><div><div class="q-bar-l"><span>Paying ' + (a.paid.sent + a.paid.failed) + ' / ' + a.paid.total + '</span><span>' + (a.paid.doneSec !== null ? 'done in ' + qFmt(a.paid.doneSec) : '') + '</span></div><div class="q-bar"><i style="width:' + pct(a.paid.sent + a.paid.failed, a.paid.total) + '%"></i></div></div>' +
+                    '<div><div class="q-bar-l"><span>Free ' + (a.free.sent + a.free.failed) + ' / ' + a.free.total + '</span><span>' + (a.doneSec !== null && a.free.total ? 'done in ' + qFmt(a.doneSec) : '') + '</span></div><div class="q-bar free"><i style="width:' + pct(a.free.sent + a.free.failed, a.free.total) + '%"></i></div></div></div></div>';
+            }).join('');
+            document.getElementById('qBody').innerHTML = h;
+            document.getElementById('qUpdated').textContent = 'live · refreshes every second while this tab is open';
+        }
+        async function loadQueue() {
+            try {
+                const res = await fetch(API_BASE + '/api/dashboard/queue');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                renderQueue(await res.json());
+            } catch (e) {
+                document.getElementById('qBody').innerHTML = '<div class="mon-banner down"><span class="mon-state-dot down"></span><span>Cannot reach the backend: ' + monEsc(e.message) + '</span></div>';
+            }
+        }
+        setInterval(() => { const t = document.getElementById('queue-tab'); if (t && t.classList.contains('active') && !document.hidden) loadQueue(); }, 1000);
+
         // Tab switching
         function switchTab(tabName) {
             // Update tab buttons
@@ -1226,7 +1304,9 @@
             document.getElementById(tabName + '-tab').classList.add('active');
 
             // Load data based on tab
-            if (tabName === 'monitoring') {
+            if (tabName === 'queue') {
+                loadQueue();
+            } else if (tabName === 'monitoring') {
                 loadMonitor();
             } else if (tabName === 'users') {
                 loadUsers();

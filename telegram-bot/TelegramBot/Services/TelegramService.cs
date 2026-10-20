@@ -440,22 +440,29 @@ public class TelegramService : ITelegramService
         // on these tokens a follower's edge is gone within a couple of minutes. A few sends in
         // flight at once (started in the priority order above), under a process-wide rate
         // limit that keeps concurrent alerts together below Telegram's bulk cap.
+        var paidTotal = outbox.Count(o => HasFullAccess(o.User));
+        var live = _monitor.BeginLive(platform.ToString(), notificationType.ToString(), traderHandle, ticker, notification.Message,
+            usdAmount, paidTotal, outbox.Count - paidTotal, publishedMs);
         using var gate = new SemaphoreSlim(MaxParallelSends);
         var results = await Task.WhenAll(outbox.Select(async item =>
         {
             await gate.WaitAsync();
+            var paid = HasFullAccess(item.User);
             try
             {
-                var messageId = await SendWithRateLimitAsync(item.Client, item.User.ChatId, item.Text, priority: HasFullAccess(item.User));
+                var messageId = await SendWithRateLimitAsync(item.Client, item.User.ChatId, item.Text, priority: paid);
+                live.Finish(paid, true);
                 return (item.User, MessageId: (int?)messageId, SentAt: DateTime.UtcNow, Blocked: false);
             }
             catch (Telegram.Bot.Exceptions.ApiRequestException apiEx) when (apiEx.Message.Contains("bot was blocked by the user") || apiEx.Message.Contains("user is deactivated") || apiEx.Message.Contains("chat not found"))
             {
+                live.Finish(paid, false);
                 return (item.User, MessageId: (int?)null, SentAt: DateTime.UtcNow, Blocked: true);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to send message to user {ChatId}", item.User.ChatId);
+                live.Finish(paid, false);
                 return (item.User, MessageId: (int?)null, SentAt: DateTime.UtcNow, Blocked: false);
             }
             finally

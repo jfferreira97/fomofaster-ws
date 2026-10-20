@@ -20,6 +20,47 @@ public record AlertTrace(string? Via, long? SourceCreatedMs, long? SidecarRecvMs
 
 public record ProbeRecord(DateTime At, int Status, int Ms, string? Error);
 
+// One alert while it is being sent (and for a while after): how many of its paying / free recipients Telegram has
+// accepted so far. This is what the dashboard's Queue tab draws. Updated from the fan-out's parallel sends, hence the lock.
+public class LiveAlert
+{
+    private readonly object _gate = new();
+    public long Seq { get; init; }
+    public DateTime StartedAt { get; init; }
+    public string Platform { get; init; } = "";
+    public string Type { get; init; } = "";
+    public string? Trader { get; init; }
+    public string? Ticker { get; init; }
+    public string? Text { get; init; }
+    public double? UsdAmount { get; init; }
+    public int PaidTotal { get; init; }
+    public int FreeTotal { get; init; }
+    public long PublishedMs { get; init; }
+    public int PaidSent { get; private set; }
+    public int FreeSent { get; private set; }
+    public int PaidFailed { get; private set; }
+    public int FreeFailed { get; private set; }
+    public DateTime? PaidDoneAt { get; private set; }
+    public DateTime? DoneAt { get; private set; }
+
+    public void Finish(bool paid, bool ok)
+    {
+        lock (_gate)
+        {
+            if (paid) { if (ok) PaidSent++; else PaidFailed++; } else { if (ok) FreeSent++; else FreeFailed++; }
+            var now = DateTime.UtcNow;
+            if (PaidDoneAt == null && PaidSent + PaidFailed >= PaidTotal) PaidDoneAt = now;
+            if (DoneAt == null && PaidSent + PaidFailed + FreeSent + FreeFailed >= PaidTotal + FreeTotal) DoneAt = now;
+        }
+    }
+
+    // A consistent copy for the dashboard.
+    public LiveAlert Snapshot()
+    {
+        lock (_gate) return (LiveAlert)MemberwiseClone();
+    }
+}
+
 // In-memory state behind the dashboard's Monitoring tab: what the sidecars last said, how recent alerts went out
 // and how the website probes did. It resets with the process; nothing here is persisted or needed to run alerts.
 public class MonitorStore
@@ -60,6 +101,32 @@ public class MonitorStore
     {
         var since = DateTime.UtcNow - window;
         lock (_lock) return _alerts.Where(a => a.At >= since).ToList();
+    }
+
+    // ---- live fan-outs (the dashboard's Queue tab) ----
+    private readonly LinkedList<LiveAlert> _live = new();
+    private long _liveSeq;
+    private const int MaxLive = 60;
+
+    public LiveAlert BeginLive(string platform, string type, string? trader, string? ticker, string? text, double? usdAmount,
+        int paidTotal, int freeTotal, long publishedMs)
+    {
+        var a = new LiveAlert
+        {
+            Seq = Interlocked.Increment(ref _liveSeq), StartedAt = DateTime.UtcNow, Platform = platform, Type = type, Trader = trader,
+            Ticker = ticker, Text = text, UsdAmount = usdAmount, PaidTotal = paidTotal, FreeTotal = freeTotal, PublishedMs = publishedMs,
+        };
+        lock (_lock)
+        {
+            _live.AddFirst(a);
+            while (_live.Count > MaxLive) _live.RemoveLast();
+        }
+        return a;
+    }
+
+    public List<LiveAlert> Live()
+    {
+        lock (_lock) return _live.Select(a => a.Snapshot()).ToList();
     }
 
     public void RecordProbe(string name, ProbeRecord p)

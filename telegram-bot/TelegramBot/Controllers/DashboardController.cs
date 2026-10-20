@@ -43,6 +43,36 @@ public class DashboardController : ControllerBase
 
     private static object Tile(string label, string value) => new { l = label, v = value };
 
+    // ---- Queue tab: alerts being sent right now, and the ones that just went out. In memory, cheap, polled every second. ----
+    [HttpGet("queue")]
+    public IActionResult GetQueue()
+    {
+        var live = _monitor.Live();
+        var now = DateTime.UtcNow;
+        double Sec(DateTime a, DateTime b) => Math.Round((b - a).TotalSeconds, 2);
+        return Ok(new
+        {
+            pendingPaid = live.Sum(a => a.PaidTotal - a.PaidSent - a.PaidFailed),
+            pendingFree = live.Sum(a => a.FreeTotal - a.FreeSent - a.FreeFailed),
+            sending = live.Count(a => a.DoneAt == null && a.PaidTotal + a.FreeTotal > 0),
+            alerts = live.Select(a => new
+            {
+                seq = a.Seq,
+                at = a.StartedAt,
+                ageSec = Sec(a.StartedAt, now),
+                platform = a.Platform,
+                type = a.Type,
+                trader = a.Trader,
+                ticker = a.Ticker,
+                text = a.Text is { Length: > 160 } t ? t[..160] + "…" : a.Text,
+                usd = a.UsdAmount,
+                paid = new { total = a.PaidTotal, sent = a.PaidSent, failed = a.PaidFailed, doneSec = a.PaidDoneAt is { } d ? (double?)Sec(a.StartedAt, d) : null },
+                free = new { total = a.FreeTotal, sent = a.FreeSent, failed = a.FreeFailed },
+                doneSec = a.DoneAt is { } e ? (double?)Sec(a.StartedAt, e) : null,
+            }),
+        });
+    }
+
     [HttpGet("monitor")]
     public async Task<IActionResult> GetMonitor()
     {
