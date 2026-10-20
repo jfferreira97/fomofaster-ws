@@ -16,6 +16,10 @@ public class TelegramBotPollingService : BackgroundService
     private readonly TelegramBotClient? _botClient;
     private readonly TelegramBotClient? _adminBotClient;
     private readonly TelegramSettings _settings;
+
+    // "Updates ...: our X account" with the link from configuration, or nothing when no link is configured.
+    private string XLine(string lead) => string.IsNullOrWhiteSpace(_settings.XUrl) ? "" : $"\n\n{lead} [our X account]({_settings.XUrl.Trim()})";
+
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<TelegramBotPollingService> _logger;
     private readonly IHubContext<DashboardHub> _hubContext;
@@ -410,7 +414,7 @@ You start on a profile built for signal over noise: *{starterLabels}*. Tap *Open
 
 ⭐ *Subscribers get a playbook on every trader*: how to play them, hit rate, time to peak, typical entry and their last calls. So you know who to follow, why, and how.
 
-🎁 Your free trial is on, with full alerts, contracts and links. After it: {startPrice} SOL for 30 days, no auto-renew.";
+🎁 Your free trial is on, with full alerts, contracts and links. After it: {startPrice} SOL for 30 days, no auto-renew.{XLine("Updates and new features first on")}";
                 }
                 else if (trialGranted)
                 {
@@ -464,10 +468,11 @@ Tap *Open Manage Page* below to adjust who you follow.";
 
 Reply to any alert:
 unfollow - stop alerts from that trader
-setmin 50k - only alert on their trades above $50K (setmin off to clear)
+setmin 50k - only alert on their trades above $50K (setmin off to clear){XLine("Updates and new features:")}
 
 GROUPCHAT is not affiliated with FOMO or Pump.fun.",
-                    parseMode: ParseMode.Markdown
+                    parseMode: ParseMode.Markdown,
+                    disableWebPagePreview: true
                 );
                 break;
 
