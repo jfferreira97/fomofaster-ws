@@ -85,7 +85,9 @@ export function startAlertStream(
     page.evaluate(`(() => { const a = window.__wlog || []; window.__wlog = []; return JSON.stringify(a); })()`)
       .then((s) => {
         const arr = JSON.parse(String(s)) as Array<Record<string, unknown>>;
-        for (const o of arr) log(`[worker] ${Object.entries(o).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => `${k}=${v}`).join(' ')}`);
+        // Every batch of events is an "in messages" plus an "out ack" frame: ~8 lines a second of nothing. Only the
+        // rest (subscribe, status, errors, reconnects) is worth a line.
+        for (const o of arr.filter((x) => x.type !== 'ack' && x.type !== 'messages')) log(`[worker] ${Object.entries(o).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => `${k}=${v}`).join(' ')}`);
       })
       .catch(() => { /* page navigating */ });
   }, 5_000);
@@ -109,9 +111,11 @@ export function startAlertStream(
     seenSubjects.clear();
   }, 30_000);
 
+  const seenWsHosts = new Set<string>();
   let openSockets = 0;
   page.on('websocket', (ws) => {
-    try { const u = new URL(ws.url()); log(`[stream] websocket ${u.host}${u.pathname}`); } catch { /* not a url */ }
+    // The page re-opens its Solana RPC socket about once a second; once per host is enough to know it exists.
+    try { const u = new URL(ws.url()); if (!seenWsHosts.has(u.host)) { seenWsHosts.add(u.host); log(`[stream] websocket ${u.host}${u.pathname}`); } } catch { /* not a url */ }
     if (!NATS_WS.test(ws.url())) return;
     openSockets++;
     natsSocketSeen = true;
