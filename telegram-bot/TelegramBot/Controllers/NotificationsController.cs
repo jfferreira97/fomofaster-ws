@@ -220,6 +220,8 @@ public class NotificationsController : ControllerBase
                 return Ok(new { accepted = false, reason = "duplicate" });
 
             var chain = ChainInfo.FromNetworkId(req.ChainId);
+            // Every live trade tells the trending alerts where this token is right now.
+            if (req.MarketCap is > 0) _confluenceService.NoteMarketCap(req.CoinMint, (decimal)req.MarketCap.Value);
             var sideWord = req.IsBuy ? "bought" : "sold";
             var emoji = req.IsBuy ? "🟢" : "🔴";
             var mc = req.MarketCap.HasValue ? $" at ${FormatMarketCap(req.MarketCap.Value)} MC" : "";
@@ -245,6 +247,19 @@ public class NotificationsController : ControllerBase
             }
             else
             {
+                // Pump buys count towards TRENDING next to FOMO buys and Pump callouts; sells only turn a counted trader's
+                // bubble red, exactly as on FOMO (non-blocking).
+                _confluenceService.Enqueue(new ConfluenceTradeEvent(
+                    Type: req.IsBuy ? "swap_buy" : "swap_sell",
+                    Platform: Platform.Pump,
+                    Trader: req.ActorHandle,
+                    Ticker: req.Symbol,
+                    TokenAddress: req.CoinMint,
+                    NetworkId: req.ChainId,
+                    UsdAmount: (decimal)req.AmountUsd,
+                    MarketCap: req.MarketCap.HasValue ? (decimal)req.MarketCap.Value : null,
+                    OccurredAt: DateTime.UtcNow));
+
                 // Deliberately no AddOrUpdateTraderAsync here: a trade must never create a trader (that would
                 // auto-follow it for everyone with auto-follow on). Unknown traders simply have no followers.
                 await _telegramService.SendNotificationToAllUsersAsync(

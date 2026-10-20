@@ -48,6 +48,7 @@ public class ConfluenceService : BackgroundService
         public DateTime ExpiresAt;
         public int ExtensionStage;
         public decimal? LastMarketCap;
+        public DateTime LastMarketCapAt;
 
         // Keyed by "{Platform}|{Handle}" — a FOMO trader and a Pump trader sharing a
         // handle string are different people and must count as two distinct entries.
@@ -91,6 +92,55 @@ public class ConfluenceService : BackgroundService
         _appConfig = appConfig;
         _serviceProvider = serviceProvider;
         _logger = logger;
+    }
+
+    // The freshest market cap seen per token from the live Pump trade stream (price x supply, checked against DexScreener).
+    // It only feeds the number shown in the TRENDING header: a window can be half an hour old, and the market cap on the
+    // last FOMO buy in it is that buyer's entry, not where the token is now.
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (decimal Mc, DateTime At)> _latestMc = new();
+    private static readonly TimeSpan FreshMc = TimeSpan.FromSeconds(120);
+
+    /// <summary>Non-blocking; called for every live Pump trade.</summary>
+    public void NoteMarketCap(string tokenAddress, decimal marketCap)
+    {
+        if (marketCap <= 0 || string.IsNullOrEmpty(tokenAddress)) return;
+        _latestMc[tokenAddress] = (marketCap, DateTime.UtcNow);
+        if (_latestMc.Count > 5_000)
+            foreach (var k in _latestMc.Where(kv => DateTime.UtcNow - kv.Value.At > TimeSpan.FromHours(1)).Select(kv => kv.Key).ToList())
+                _latestMc.TryRemove(k, out _);
+    }
+
+    // What the token is worth right now: the live trade stream if it spoke in the last two minutes, else the last FOMO
+    // event's cap if that is that recent, else one DexScreener lookup (2 s cap), else whatever the window last saw.
+    private async Task<decimal?> CurrentMarketCapAsync(TokenWindow window, CancellationToken ct)
+    {
+        if (_latestMc.TryGetValue(window.TokenAddress, out var s) && DateTime.UtcNow - s.At <= FreshMc) return s.Mc;
+        if (window.LastMarketCap.HasValue && DateTime.UtcNow - window.LastMarketCapAt <= FreshMc) return window.LastMarketCap;
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(2));
+            var http = _serviceProvider.GetRequiredService<IHttpClientFactory>().CreateClient();
+            using var res = await http.GetAsync($"https://api.dexscreener.com/latest/dex/tokens/{Uri.EscapeDataString(window.TokenAddress)}", cts.Token);
+            if (res.IsSuccessStatusCode)
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(await res.Content.ReadAsStringAsync(cts.Token));
+                if (doc.RootElement.TryGetProperty("pairs", out var pairs) && pairs.ValueKind == System.Text.Json.JsonValueKind.Array)
+                {
+                    decimal best = 0; double bestLiq = -1;
+                    foreach (var p in pairs.EnumerateArray())
+                    {
+                        var liq = p.TryGetProperty("liquidity", out var l) && l.TryGetProperty("usd", out var lu) && lu.ValueKind == System.Text.Json.JsonValueKind.Number ? lu.GetDouble() : 0;
+                        var mc = p.TryGetProperty("marketCap", out var m) && m.ValueKind == System.Text.Json.JsonValueKind.Number ? m.GetDecimal()
+                               : p.TryGetProperty("fdv", out var f) && f.ValueKind == System.Text.Json.JsonValueKind.Number ? f.GetDecimal() : 0;
+                        if (mc > 0 && liq > bestLiq) { best = mc; bestLiq = liq; }
+                    }
+                    if (best > 0) return best;
+                }
+            }
+        }
+        catch (Exception ex) { _logger.LogDebug("Live market cap lookup failed for {Token}: {Msg}", window.TokenAddress, ex.Message); }
+        return window.LastMarketCap;
     }
 
     /// <summary>Non-blocking; safe to call from the notification hot path.</summary>
@@ -179,7 +229,7 @@ public class ConfluenceService : BackgroundService
 
         if (!string.IsNullOrEmpty(evt.Ticker)) window.Ticker = evt.Ticker;
         window.NetworkId ??= evt.NetworkId;
-        if (evt.MarketCap.HasValue) window.LastMarketCap = evt.MarketCap;
+        if (evt.MarketCap.HasValue) { window.LastMarketCap = evt.MarketCap; window.LastMarketCapAt = now; }
 
         if (!window.Traders.TryGetValue(traderKey, out var position))
         {
@@ -197,6 +247,18 @@ public class ConfluenceService : BackgroundService
                 var candidate = now.AddMinutes(stepMinutes);
                 if (candidate > window.ExpiresAt) window.ExpiresAt = candidate;
             }
+        }
+
+        // The same Pump trader can both call a coin out and buy it. They count once; a real buy is the better record
+        // (a callout only carries a position snapshot), so it replaces the callout, and a later callout never undoes a buy.
+        if (position.IsCallout && !isCallout)
+        {
+            position.IsCallout = false;
+            position.TotalUsd = 0; position.BuyCount = 0; position.WeightedMcSum = 0; position.McWeight = 0; position.Sold = false;
+        }
+        else if (!position.IsCallout && isCallout)
+        {
+            return;
         }
 
         if (isCallout)
@@ -249,8 +311,9 @@ public class ConfluenceService : BackgroundService
         var positions = window.Traders.Values.ToList();
 
         var ticker = string.IsNullOrEmpty(window.Ticker) ? "Token" : window.Ticker;
-        var mcPart = window.LastMarketCap.HasValue
-            ? $" - ${FormatMarketCap(window.LastMarketCap.Value)} MC"
+        var nowMc = await CurrentMarketCapAsync(window, ct);
+        var mcPart = nowMc.HasValue
+            ? $" - ${FormatMarketCap(nowMc.Value)} MC"
             : "";
         var header = $"🔥 {ticker} is TRENDING ({count} traders){mcPart}";
 
@@ -303,7 +366,7 @@ public class ConfluenceService : BackgroundService
             chain: chain,
             traderHandle: null,
             ticker: window.Ticker,
-            marketCap: window.LastMarketCap.HasValue ? (double)window.LastMarketCap.Value : null,
+            marketCap: nowMc.HasValue ? (double)nowMc.Value : null,
             notificationType: NotificationType.CUSTOM_Trending);
     }
 
