@@ -63,6 +63,9 @@ export interface StructuredPumpTradeRequest {
   isBuy: boolean;
   amountUsd: number;
   createdAt: string;
+  // stage stamps for the dashboard's Monitoring tab
+  recvAtMs?: number;          // when this process received it (unix ms)
+  via?: 'stream' | 'rest';    // live stream or the slower poll
 }
 
 export async function postPumpTrade(req: StructuredPumpTradeRequest): Promise<void> {

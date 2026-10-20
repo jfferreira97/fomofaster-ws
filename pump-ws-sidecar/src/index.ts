@@ -210,6 +210,9 @@ async function session(firstRun: boolean): Promise<void> {
     let backoffUntil = 0;
     let failStreak = 0;
     let tradesSeen = 0;
+    let tradeEventsFull = 0;     // live trade events that carried everything
+    let tradeEventsStub = 0;     // live trade events that were only a doorbell (coin without details yet)
+    let stubFollowUntil = 0;     // while now < this, the feed is polled quickly because a stub just rang
     const claimed = new Set<string>();
 
     const claim = (id: string): boolean => {
@@ -239,7 +242,7 @@ async function session(firstRun: boolean): Promise<void> {
           lastMaxAgeS = probe.data?.maxAgeSeconds ?? lastMaxAgeS;
           if (Date.now() - lastTickLog > 10_000 || reason.startsWith('ring')) {
             lastTickLog = Date.now();
-            console.log(`${ts()} [poll] fetch=${fetchMs}ms reason=${reason} polls=${tickCount} trades=${tradesSeen} | ${stream?.describe()}`);
+            console.log(`${ts()} [poll] fetch=${fetchMs}ms reason=${reason} polls=${tickCount} trades=${tradesSeen} stream-trades full=${tradeEventsFull} stub=${tradeEventsStub} | ${stream?.describe()}`);
             logTiming('poll', reason, `fetchMs=${fetchMs}`, `polls=${tickCount}`, `streamHealthy=${stream?.healthy()}`);
             tickCount = 0;
           }
@@ -301,9 +304,17 @@ async function session(firstRun: boolean): Promise<void> {
         // the alert can leave within a few hundred ms of the trade.
         const rec = tradeFromEvent(ev.raw, ev.receivedAtMs);
         if (rec) {
+          tradeEventsFull++;
           const e = ev.raw as { coin?: { mint?: string; chainId?: number; symbol?: string; imageUri?: string }; author?: unknown; trade?: unknown; createdAt?: string };
           // same shape as the feed rows the backend already stores (coinMint, chainId, symbol, coinImage at the top)
           acceptTrade(rec, { kind: 'trade', author: e.author, coinMint: e.coin?.mint, chainId: e.coin?.chainId, symbol: e.coin?.symbol, coinImage: e.coin?.imageUri, createdAt: e.createdAt, trade: e.trade });
+        } else if ((ev.raw as { stub?: unknown } | null)?.stub) {
+          // A "stub" trade event is only a doorbell (the coin has no details yet, so the event carries none): pump.fun's
+          // own page reacts by re-fetching the feed. Do the same now, and keep asking every ~1.5 s for 10 s, because the
+          // feed row shows up a few seconds later. Before this, such trades waited for the 10 s safety poll plus that lag.
+          tradeEventsStub++;
+          stubFollowUntil = Date.now() + 10_000;
+          void pollOnce('ring:stub');
         }
         return;
       }
@@ -348,6 +359,7 @@ async function session(firstRun: boolean): Promise<void> {
           await postPumpTrade({
             externalId: tx, actorHandle: rec.trader!, actorUserId: rec.traderUserId, coinMint: rec.mint!, chainId: rec.chainId!,
             symbol: rec.symbol!, marketCap: rec.marketCapUsd, isBuy: rec.isBuy!, amountUsd: rec.amountUsd!, createdAt: rec.createdAt ?? rec.seenAt,
+            recvAtMs: Date.parse(rec.seenAt), via: rec.source,
           });
           logTiming('trade', tx, rec.symbol, rec.createdAt, `via=${rec.source}`, `seenLagMs=${rec.lagMs}`, `handoffMs=${Date.now() - p0}`);
         } catch (err) {
@@ -359,7 +371,8 @@ async function session(firstRun: boolean): Promise<void> {
     // Safety net: slow while the live stream is healthy, otherwise as quick as the site's own contract
     // allows (never faster than maxAgeSeconds). Also drains a poll that had to wait for the minimum gap.
     pollInterval = setInterval(() => {
-      const every = stream?.healthy() ? STREAM_FALLBACK_POLL_MS : Math.max(DEGRADED_POLL_MS, lastMaxAgeS * 1_000);
+      const every = Date.now() < stubFollowUntil ? 1_500
+        : stream?.healthy() ? STREAM_FALLBACK_POLL_MS : Math.max(DEGRADED_POLL_MS, lastMaxAgeS * 1_000);
       if (pollAgain || Date.now() - lastPollAt >= every) void pollOnce(stream?.healthy() ? 'fallback' : 'degraded');
     }, 1_000);
 
