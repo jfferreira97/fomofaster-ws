@@ -101,6 +101,7 @@ public class NotificationsController : ControllerBase
     [HttpPost("structured")]
     public async Task<IActionResult> ReceiveStructuredNotification([FromBody] StructuredNotificationRequest req)
     {
+        var arrivedMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         try
         {
             _logger.LogInformation("WS STRUCTURED NOTIFICATION: {Side} {Ticker} by @{Trader} (wsId={WsId} tradeId={TradeId})",
@@ -172,7 +173,8 @@ public class NotificationsController : ControllerBase
                 fomoWsTradeId: req.WsId,
                 usdAmount: req.UsdAmount,
                 tokenImage: RawString(wsEvent?.RawJson, "tokenImageUrl"),
-                traderImage: req.ProfilePictureLink ?? RawString(wsEvent?.RawJson, "profilePictureLink")
+                traderImage: req.ProfilePictureLink ?? RawString(wsEvent?.RawJson, "profilePictureLink"),
+                trace: new AlertTrace(null, null, null, arrivedMs)
             );
 
             await _dbContext.WsEvents
@@ -206,6 +208,7 @@ public class NotificationsController : ControllerBase
     [HttpPost("pump-trade")]
     public async Task<IActionResult> ReceiveStructuredPumpTrade([FromBody] StructuredPumpTradeRequest req)
     {
+        var arrivedMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();   // stage stamp: this request reached the backend
         try
         {
             var mode = (await _appConfig.GetAsync("PumpTradeAlerts"))?.Trim().ToLowerInvariant() ?? "owner";
@@ -255,7 +258,8 @@ public class NotificationsController : ControllerBase
                     platform: Platform.Pump,
                     usdAmount: req.AmountUsd,
                     tokenImage: RawString(pumpEvent?.RawJson, "coinImage"),
-                    traderImage: RawString(pumpEvent?.RawJson, "author", "profileImage")
+                    traderImage: RawString(pumpEvent?.RawJson, "author", "profileImage"),
+                    trace: new AlertTrace(req.Via, new DateTimeOffset(DateTime.SpecifyKind(req.CreatedAt, DateTimeKind.Utc)).ToUnixTimeMilliseconds(), req.RecvAtMs, arrivedMs)
                 );
             }
 
@@ -275,6 +279,7 @@ public class NotificationsController : ControllerBase
     [HttpPost("pump-structured")]
     public async Task<IActionResult> ReceiveStructuredPumpNotification([FromBody] StructuredPumpNotificationRequest req)
     {
+        var arrivedMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         try
         {
             _logger.LogInformation("PUMP STRUCTURED NOTIFICATION: {Kind} {Symbol} by @{Actor} (externalId={ExternalId})",
@@ -325,7 +330,8 @@ public class NotificationsController : ControllerBase
                 platform: Platform.Pump,
                 usdAmount: req.PositionCostBasisUsd,
                 tokenImage: RawString(pumpEvent?.RawJson, "coinImage"),
-                traderImage: RawString(pumpEvent?.RawJson, "author", "profileImage")
+                traderImage: RawString(pumpEvent?.RawJson, "author", "profileImage"),
+                trace: new AlertTrace("callout", new DateTimeOffset(DateTime.SpecifyKind(req.CreatedAt, DateTimeKind.Utc)).ToUnixTimeMilliseconds(), null, arrivedMs)
             );
 
             // Non-blocking hand-off to confluence detection (TRENDING alerts) — callouts

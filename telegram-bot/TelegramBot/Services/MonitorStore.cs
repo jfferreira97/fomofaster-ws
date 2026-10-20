@@ -2,7 +2,21 @@ using System.Collections.Concurrent;
 
 namespace TelegramBot.Services;
 
-public record AlertRecord(DateTime At, string Platform, string Type, string? Trader, string? Ticker, int Recipients, int Failed, int FanOutMs);
+// One fan-out, with a millisecond stamp for every stage (all taken on THIS machine's clock, so the gaps between them
+// are exact whatever the clock's offset from real time is). Only SourceCreatedMs comes from pump.fun / FOMO.
+public record AlertRecord(
+    DateTime At, string Platform, string Type, string? Trader, string? Ticker, int Recipients, int Failed, int FanOutMs,
+    string? Via = null,               // "stream" | "rest" (pump trades) — how the sidecar learned about it
+    long? SourceCreatedMs = null,     // when the source says it happened (whole seconds, source clock)
+    long? SidecarRecvMs = null,       // sidecar received it
+    long ArrivedMs = 0,               // backend received the sidecar's request
+    long PublishedMs = 0,             // the web feed got it
+    long? FirstAckMs = null,          // first Telegram message accepted by Telegram
+    long? PaidLastAckMs = null,       // last message to a paying / trial / RN4L user accepted
+    long? LastAckMs = null);          // last message to anybody accepted
+
+// What a sidecar knew about an alert before the backend saw it (passed through so the stages line up).
+public record AlertTrace(string? Via, long? SourceCreatedMs, long? SidecarRecvMs, long ArrivedMs);
 
 public record ProbeRecord(DateTime At, int Status, int Ms, string? Error);
 
@@ -11,6 +25,11 @@ public record ProbeRecord(DateTime At, int Status, int Ms, string? Error);
 public class MonitorStore
 {
     public DateTime StartedAt { get; } = DateTime.UtcNow;
+
+    // How far this PC's clock is from real time, measured by NTP (positive = this PC is BEHIND). Used only to put
+    // the source's timestamps on the same clock for the speed numbers; alerts themselves never depend on it.
+    public double ClockOffsetMs { get; set; }
+    public DateTime? ClockCheckedAt { get; set; }
 
     private readonly ConcurrentDictionary<string, (DateTime Last, long Count)> _beats = new();
     private readonly object _lock = new();

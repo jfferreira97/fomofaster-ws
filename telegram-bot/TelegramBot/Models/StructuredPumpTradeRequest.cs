@@ -20,4 +20,9 @@ public class StructuredPumpTradeRequest
 
     // When the trade happened on-chain, per pump.fun.
     public DateTime CreatedAt { get; set; }
+
+    // For the Monitoring tab's stage timing: when the sidecar received it (unix ms on this machine's clock),
+    // and through which path ("stream" = pump.fun's live feed, "rest" = the slower poll).
+    public long? RecvAtMs { get; set; }
+    public string? Via { get; set; }
 }

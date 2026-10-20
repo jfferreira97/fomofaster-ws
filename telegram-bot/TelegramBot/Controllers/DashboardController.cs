@@ -116,6 +116,48 @@ public class DashboardController : ControllerBase
             info = new Dictionary<string, string> { ["Alerts since start"] = _monitor.Alerts(TimeSpan.FromHours(24)).Count.ToString() },
         });
 
+        // ---- Alert speed, stage by stage. Every gap between two backend/sidecar stamps is exact (same PC clock);
+        // only "from the source" uses the source's own clock, so it is shifted by the NTP offset and is good to ±0.5 s
+        // (pump.fun and FOMO give whole seconds).
+        var off = _monitor.ClockOffsetMs;   // positive = this PC is behind real time
+        var a30 = _monitor.Alerts(TimeSpan.FromMinutes(30));
+        object Stage(string label, string note, IEnumerable<double> values)
+        {
+            var l = values.Where(x => x >= -1000 && x < 900_000).Select(x => Math.Max(0, x)).ToList();
+            return new { label, note, n = l.Count, p50 = Pctl(l.ToList(), 0.5), p90 = Pctl(l.ToList(), 0.9), max = l.Count == 0 ? (double?)null : l.Max() };
+        }
+        var trades = a30.Where(a => a.Platform == "Pump" && (a.Via == "stream" || a.Via == "rest") && a.SidecarRecvMs.HasValue && a.SourceCreatedMs.HasValue).ToList();
+        var stages = new List<object>
+        {
+            Stage("1a · pump.fun → our sidecar, live stream", "pump.fun's own publish delay is in here; same data the website gets", trades.Where(a => a.Via == "stream").Select(a => (double)(a.SidecarRecvMs!.Value + off - a.SourceCreatedMs!.Value))),
+            Stage("1b · pump.fun → our sidecar, slower poll", "trades the live stream did not deliver", trades.Where(a => a.Via == "rest").Select(a => (double)(a.SidecarRecvMs!.Value + off - a.SourceCreatedMs!.Value))),
+            Stage("2 · sidecar → backend", "one local HTTP call", trades.Where(a => a.ArrivedMs > 0).Select(a => (double)(a.ArrivedMs - a.SidecarRecvMs!.Value))),
+            Stage("3 · backend → web feed", "who gets it + database lookups, then the website /feed is fed", a30.Where(a => a.ArrivedMs > 0 && a.PublishedMs > 0).Select(a => (double)(a.PublishedMs - a.ArrivedMs))),
+            Stage("4 · web feed → FIRST Telegram message", "Telegram accepted the first alert", a30.Where(a => a.PublishedMs > 0 && a.FirstAckMs.HasValue).Select(a => (double)(a.FirstAckMs!.Value - a.PublishedMs))),
+            Stage("5 · web feed → last PAYING user", "paying and trial users go first", a30.Where(a => a.PublishedMs > 0 && a.PaidLastAckMs.HasValue).Select(a => (double)(a.PaidLastAckMs!.Value - a.PublishedMs))),
+            Stage("6 · web feed → everybody", "the free tail, behind the 25 messages/s Telegram limit", a30.Where(a => a.PublishedMs > 0 && a.LastAckMs.HasValue).Select(a => (double)(a.LastAckMs!.Value - a.PublishedMs))),
+            Stage("TOTAL · pump.fun → web feed", "clock-corrected, ±0.5 s", trades.Where(a => a.PublishedMs > 0).Select(a => (double)(a.PublishedMs + off - a.SourceCreatedMs!.Value))),
+            Stage("TOTAL · pump.fun → first Telegram message", "clock-corrected, ±0.5 s: this is how fast an alert reaches a user", trades.Where(a => a.FirstAckMs.HasValue).Select(a => (double)(a.FirstAckMs!.Value + off - a.SourceCreatedMs!.Value))),
+            Stage("TOTAL · pump.fun → last paying user", "clock-corrected, ±0.5 s", trades.Where(a => a.PaidLastAckMs.HasValue).Select(a => (double)(a.PaidLastAckMs!.Value + off - a.SourceCreatedMs!.Value))),
+        };
+        var viaStream = a30.Count(a => a.Platform == "Pump" && a.Via == "stream");
+        var viaRest = a30.Count(a => a.Platform == "Pump" && a.Via == "rest");
+
+        // Is pump.fun's live stream actually delivering? (It sat silent for hours once, and degraded again later.)
+        var a10 = _monitor.Alerts(TimeSpan.FromMinutes(10)).Where(a => a.Platform == "Pump" && (a.Via == "stream" || a.Via == "rest")).ToList();
+        var s10 = a10.Count(a => a.Via == "stream"); var r10 = a10.Count - s10;
+        var lastStream = a10.Where(a => a.Via == "stream").Select(a => (DateTime?)a.At).DefaultIfEmpty(null).Max();
+        var streamState = a10.Count < 5 ? "idle" : s10 == 0 ? "down" : s10 * 100 / a10.Count < 60 ? "degraded" : "ok";
+        var streamSummary = a10.Count < 5 ? "too few trades in the last 10 minutes to judge"
+            : s10 == 0 ? $"the live stream delivered nothing in 10 min; {r10} trades only came through the slower poll"
+            : $"live stream delivered {s10 * 100 / a10.Count}% of the last {a10.Count} trades; {r10} came through the slower poll";
+        components.Add(new
+        {
+            name = "stream", label = "⚡ Pump live stream (what makes alerts fast)", state = streamState, summary = streamSummary,
+            tiles = new List<object> { Tile("Via stream (10 min)", s10.ToString()), Tile("Via slow poll (10 min)", r10.ToString()), Tile("Last stream trade", lastStream == null ? "—" : Ago(now - lastStream.Value)), Tile("Share in 30 min", viaStream + viaRest == 0 ? "—" : $"{100 * viaStream / (viaStream + viaRest)}%") },
+            recent = Array.Empty<object>(), info = new Dictionary<string, string>(),
+        });
+
         // Website: the real public path, and the local Caddy
         object Site(string name, string label, string probe, string what)
         {
@@ -155,13 +197,16 @@ public class DashboardController : ControllerBase
         double freeGb = 0; try { freeGb = new DriveInfo(Path.GetPathRoot(Environment.CurrentDirectory)!).AvailableFreeSpace / 1073741824.0; } catch { }
         var proc = System.Diagnostics.Process.GetCurrentProcess();
         var memMb = proc.WorkingSet64 / 1048576.0;
-        var sysState = freeGb < 3 ? "down" : freeGb < 10 || memMb > 2500 ? "degraded" : "ok";
+        var clockKnown = _monitor.ClockCheckedAt.HasValue;
+        var clockText = !clockKnown ? "not measured yet" : $"{Math.Abs(off) / 1000.0:0.0} s {(off >= 0 ? "behind" : "ahead")}";
+        var sysState = freeGb < 3 ? "down" : freeGb < 10 || memMb > 2500 || (clockKnown && Math.Abs(off) > 1000) ? "degraded" : "ok";
         components.Add(new
         {
             name = "system", label = "🖥️ This machine and the database", state = sysState,
-            summary = $"backend up {(upSec < 3600 ? (upSec / 60).ToString("0") + " min" : (upSec / 3600).ToString("0.#") + " h")} · {freeGb:0} GB free on disk",
+            summary = $"backend up {(upSec < 3600 ? (upSec / 60).ToString("0") + " min" : (upSec / 3600).ToString("0.#") + " h")} · {freeGb:0} GB free on disk · clock {clockText}" + (clockKnown && Math.Abs(off) > 1000 ? " (Windows time service is stopped: turn on Set time automatically and press Sync now)" : ""),
             tiles = new List<object>
             {
+                Tile("PC clock vs real time", clockText),
                 Tile("Backend uptime", upSec < 3600 ? $"{upSec / 60:0} min" : $"{upSec / 3600:0.#} h"),
                 Tile("Backend memory", $"{memMb:0} MB"),
                 Tile("Database", $"{dbMb:0} MB"),
@@ -185,6 +230,7 @@ public class DashboardController : ControllerBase
             alertsLastHour = byType.OrderByDescending(x => x.n),
             users = new { active = users.Count, rn4l, paid, trial, free, pumpTxOn = users.Count(u => u.NotifyPumpBuySell), pumpCalloutsOn = users.Count(u => u.NotifyPumpCallouts), fomoTxOn = users.Count(u => u.NotifyFomoBuySell) },
             rollout = new { pumpTradeAlerts = (await _appConfig.GetAsync("PumpTradeAlerts")) ?? "owner" },
+            pipeline = new { windowMin = 30, alerts = a30.Count, pumpTrades = trades.Count, viaStream, viaRest, clockOffsetMs = off, clockCheckedAt = _monitor.ClockCheckedAt, stages },
             generatedAt = now,
         });
     }

@@ -1170,6 +1170,21 @@
                     '<div class="mon-sum">' + monEsc(c.summary) + '</div><div class="mon-tiles">' + tiles + '</div>' + strip + info + '</div>';
             }).join('') + '</div>';
 
+            // How fast alerts really go out, stage by stage (stamps taken at every step; see the notes under each row).
+            const pp = d.pipeline;
+            if (pp) {
+                const f = v => v == null ? '—' : v < 1000 ? Math.round(v) + ' ms' : (v / 1000).toFixed(1) + ' s';
+                const off = pp.clockOffsetMs, offTxt = pp.clockCheckedAt ? (Math.abs(off) / 1000).toFixed(1) + ' s ' + (off >= 0 ? 'behind' : 'ahead of') + ' real time' : 'not measured yet';
+                h += '<div class="mon-h2">How fast alerts go out · last ' + pp.windowMin + ' min · ' + pp.pumpTrades + ' pump trades · live stream ' + pp.viaStream + ' / slow poll ' + pp.viaRest + '</div>';
+                h += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13.5px;">' +
+                    '<tr style="color:#8a96a0;text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.4px;"><th style="padding:6px 10px;">Step</th><th style="padding:6px 10px;text-align:right;">Alerts</th><th style="padding:6px 10px;text-align:right;">Typical</th><th style="padding:6px 10px;text-align:right;">Slowest 10%</th><th style="padding:6px 10px;text-align:right;">Worst</th></tr>' +
+                    pp.stages.map(s => {
+                        const tot = s.label.startsWith('TOTAL');
+                        return '<tr style="border-top:1px solid #243447;' + (tot ? 'background:#14301f55;font-weight:600;' : '') + '"><td style="padding:8px 10px;">' + monEsc(s.label) + '<div style="color:#8a96a0;font-size:11.5px;font-weight:400;">' + monEsc(s.note) + '</div></td>' +
+                            '<td style="padding:8px 10px;text-align:right;color:#8a96a0;">' + s.n + '</td><td style="padding:8px 10px;text-align:right;">' + f(s.p50) + '</td><td style="padding:8px 10px;text-align:right;">' + f(s.p90) + '</td><td style="padding:8px 10px;text-align:right;color:#8a96a0;">' + f(s.max) + '</td></tr>';
+                    }).join('') + '</table></div>' +
+                    '<div style="color:#8a96a0;font-size:12px;margin-top:8px;">Steps 2 to 6 are timed on this PC with one clock, so they are exact. The TOTAL rows start from the time pump.fun says the trade happened (whole seconds, so ±0.5 s), moved onto real time using the PC clock offset, which is ' + monEsc(offTxt) + '. The live stream is the same feed pump.fun\'s own website receives.</div>';
+            }
             const u = d.users, ty = d.alertsLastHour || [];
             h += '<div class="mon-h2">Alerts in the last hour (all, from the database)</div><div class="mon-stats">' +
                 (ty.length ? ty.map(x => '<div class="mon-stat"><div class="v">' + x.n + '</div><div class="l">' + (x.platform === 'Pump' ? '💊 Pump ' : '👀 FOMO ') + monEsc(x.type) + '</div></div>').join('') : '<div style="color:#8a96a0;font-size:13px;">none</div>') + '</div>';

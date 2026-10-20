@@ -142,7 +142,7 @@ public class TelegramService : ITelegramService
         }
     }
 
-    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, string? contractAddress = null, Chain? chain = null, string? traderHandle = null, string? ticker = null, double? marketCap = null, NotificationType notificationType = NotificationType.Unknown, string? fomoWsTradeId = null, Platform platform = Platform.Fomo, double? usdAmount = null, string? tokenImage = null, string? traderImage = null)
+    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, string? contractAddress = null, Chain? chain = null, string? traderHandle = null, string? ticker = null, double? marketCap = null, NotificationType notificationType = NotificationType.Unknown, string? fomoWsTradeId = null, Platform platform = Platform.Fomo, double? usdAmount = null, string? tokenImage = null, string? traderImage = null, AlertTrace? trace = null)
     {
         if (_botClient == null)
         {
@@ -400,6 +400,7 @@ public class TelegramService : ITelegramService
         };
         // The web feed gets it now, ahead of the DB write and the Telegram fan-out.
         _feed.Publish(notificationRecord, users.Select(u => u.ChatId), usdAmount, tokenImage, traderImage);
+        var publishedMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();   // stage stamp: the web feed has it
 
         dbContext.Notifications.Add(notificationRecord);
         await dbContext.SaveChangesAsync();
@@ -513,7 +514,15 @@ public class TelegramService : ITelegramService
             marketCapAtNotification = notificationRecord.MarketCapAtNotification
         });
 
-        _monitor.RecordAlert(new AlertRecord(DateTime.UtcNow, platform.ToString(), notificationType.ToString(), traderHandle, ticker, successCount, failCount, (int)fanOutClock.ElapsedMilliseconds));
+        // Stage stamps for the Monitoring tab: when Telegram accepted the first message, the last paying user's, and the last.
+        static long Ms(DateTime d) => new DateTimeOffset(DateTime.SpecifyKind(d, DateTimeKind.Utc)).ToUnixTimeMilliseconds();
+        var acks = results.Where(r => r.MessageId.HasValue).ToList();
+        long? firstAck = acks.Count > 0 ? Ms(acks.Min(r => r.SentAt)) : null;
+        long? lastAck = acks.Count > 0 ? Ms(acks.Max(r => r.SentAt)) : null;
+        var paidAcks = acks.Where(r => HasFullAccess(r.User)).ToList();
+        long? paidLastAck = paidAcks.Count > 0 ? Ms(paidAcks.Max(r => r.SentAt)) : null;
+        _monitor.RecordAlert(new AlertRecord(DateTime.UtcNow, platform.ToString(), notificationType.ToString(), traderHandle, ticker, successCount, failCount,
+            (int)fanOutClock.ElapsedMilliseconds, trace?.Via, trace?.SourceCreatedMs, trace?.SidecarRecvMs, trace?.ArrivedMs ?? 0, publishedMs, firstAck, paidLastAck, lastAck));
 
         _logger.LogInformation("✅ Notification sent to {Success}/{Total} users ({Failed} failed)",
             successCount, users.Count, failCount);

@@ -81,6 +81,7 @@ builder.Services.AddHostedService(provider => provider.GetRequiredService<Active
 builder.Services.AddHttpClient(); // For Helius API calls and DexScreener API calls
 builder.Services.AddSingleton<MonitorStore>(); // dashboard Monitoring tab: sidecar heartbeats, alert fan-out, site probes
 builder.Services.AddHostedService<SiteProbeService>();
+builder.Services.AddHostedService<ClockService>(); // NTP offset of this PC's clock, so speed numbers are on real time
 
 // Configure settings from appsettings.json or environment variables
 builder.Services.Configure<TelegramSettings>(
