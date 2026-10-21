@@ -111,8 +111,16 @@ public class TelegramService : ITelegramService
 
     // Sends one alert, retrying once if Telegram says to slow down — before, a 429 just meant
     // that user silently missed the alert.
+    // Chats Telegram has put under flood control, and until when. Skipped instantly, without a request or a send slot.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<long, DateTime> FloodUntil = new();
+
     private async Task<int> SendWithRateLimitAsync(TelegramBotClient client, long chatId, string text, bool priority = false)
     {
+        if (FloodUntil.TryGetValue(chatId, out var until))
+        {
+            if (until > DateTime.UtcNow) throw new ChatFloodControlException(chatId, (int)(until - DateTime.UtcNow).TotalSeconds);
+            FloodUntil.TryRemove(chatId, out _);
+        }
         for (var attempt = 0; ; attempt++)
         {
             await SendLimiter.AcquireAsync(priority);
@@ -126,11 +134,20 @@ public class TelegramService : ITelegramService
                 );
                 return sent.MessageId;
             }
-            catch (Telegram.Bot.Exceptions.ApiRequestException ex) when (ex.ErrorCode == 429 && attempt == 0)
+            catch (Telegram.Bot.Exceptions.ApiRequestException ex) when (ex.ErrorCode == 429)
             {
                 var wait = ex.Parameters?.RetryAfter ?? 1;
+                if (wait > 10 || attempt > 0)
+                {
+                    // Telegram has put this chat under flood control, often for hours. Keep away until then: every
+                    // attempt held one of the alert's send slots for 30 s (the paying users at the front of the queue
+                    // looked stuck behind the free ones) and sending anyway can only make the penalty longer.
+                    FloodUntil[chatId] = DateTime.UtcNow.AddSeconds(Math.Max(wait, 5));
+                    _logger.LogWarning("Telegram flood control on chat {ChatId} for {Seconds}s: not sending to it until then", chatId, wait);
+                    throw new ChatFloodControlException(chatId, wait);
+                }
                 _logger.LogWarning("Telegram rate limited a send to {ChatId}, retrying in {Seconds}s", chatId, wait);
-                await Task.Delay(TimeSpan.FromSeconds(Math.Min(wait, 30)));
+                await Task.Delay(TimeSpan.FromSeconds(wait));
             }
             catch (Telegram.Bot.Exceptions.ApiRequestException ex) when (ex.ErrorCode == 400 && ex.Message.Contains("parse entities", StringComparison.OrdinalIgnoreCase))
             {
@@ -459,6 +476,11 @@ public class TelegramService : ITelegramService
                 live.Finish(paid, false);
                 return (item.User, MessageId: (int?)null, SentAt: DateTime.UtcNow, Blocked: true);
             }
+            catch (ChatFloodControlException)
+            {
+                live.Finish(paid, false);   // already logged once when the flood control started; nothing was sent
+                return (item.User, MessageId: (int?)null, SentAt: DateTime.UtcNow, Blocked: false);
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to send message to user {ChatId}", item.User.ChatId);
@@ -670,4 +692,10 @@ public class TelegramService : ITelegramService
 
         return text;
     }
+}
+
+// Thrown instead of sending when Telegram has a chat under flood control (it answered "retry after" for a long time).
+internal sealed class ChatFloodControlException : Exception
+{
+    public ChatFloodControlException(long chatId, int seconds) : base($"chat {chatId} is under Telegram flood control for {seconds}s") { }
 }
