@@ -461,6 +461,7 @@ public class TelegramService : ITelegramService
         var live = _monitor.BeginLive(platform.ToString(), notificationType.ToString(), traderHandle, ticker, notification.Message,
             usdAmount, paidTotal, outbox.Count - paidTotal, publishedMs);
         using var gate = new SemaphoreSlim(MaxParallelSends);
+        var floodSkipped = new System.Collections.Concurrent.ConcurrentBag<long>();   // chats Telegram has under flood control: skipped, not failed
         var results = await Task.WhenAll(outbox.Select(async item =>
         {
             await gate.WaitAsync();
@@ -479,6 +480,7 @@ public class TelegramService : ITelegramService
             catch (ChatFloodControlException)
             {
                 live.Finish(paid, false);   // already logged once when the flood control started; nothing was sent
+                floodSkipped.Add(item.User.ChatId);
                 return (item.User, MessageId: (int?)null, SentAt: DateTime.UtcNow, Blocked: false);
             }
             catch (Exception ex)
@@ -494,6 +496,7 @@ public class TelegramService : ITelegramService
         }));
 
         // DbContext isn't thread-safe, so the bookkeeping happens here, after every send is done.
+        var skippedCount = 0;
         foreach (var r in results)
         {
             if (r.MessageId is int messageId)
@@ -509,6 +512,10 @@ public class TelegramService : ITelegramService
                     EditedAt = null
                 });
                 successCount++;
+            }
+            else if (floodSkipped.Contains(r.User.ChatId))
+            {
+                skippedCount++;   // Telegram's own penalty on that chat, not a problem of ours: it must not turn the health light red
             }
             else
             {
