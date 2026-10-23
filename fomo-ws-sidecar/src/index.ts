@@ -16,6 +16,9 @@ const HEARTBEAT_INTERVAL_MS = 30_000;
 const PROBE_INTERVAL_MS = 15_000;
 const PROBE_TIMEOUT_MS = 10_000;
 const PROBE_FAILURES_BEFORE_RELOAD = 3;
+// A page left open for days keeps growing. Reloading it hands the memory back (browser, cookies and login stay). This sidecar has no
+// fallback poll, so the few seconds of a reload can miss a trade or two: once a day, at a random moment, is the balance.
+const PAGE_REFRESH_MS = (Number(process.env.PAGE_REFRESH_HOURS) || 24) * 60 * 60_000;
 
 // One browser session; returns when a full relaunch is needed (main() handles that)
 async function session(firstRun: boolean): Promise<void> {
@@ -38,6 +41,7 @@ async function session(firstRun: boolean): Promise<void> {
 
   let hbInterval: NodeJS.Timeout | undefined;
   let probeInterval: NodeJS.Timeout | undefined;
+  let refreshTimer: NodeJS.Timeout | undefined;
 
   try {
     const page = context.pages()[0] ?? await context.newPage();
@@ -140,6 +144,20 @@ async function session(firstRun: boolean): Promise<void> {
       })();
     }, PROBE_INTERVAL_MS);
 
+    const heapMb = () => page.evaluate('Math.round(performance.memory.usedJSHeapSize / 1048576)').catch(() => '?');
+    // Never on an exact clock: each refresh comes 80-120% of the interval after the last one, like a person pressing F5 now and then.
+    const scheduleRefresh = () => {
+      refreshTimer = setTimeout(async () => {
+        if (!recovering) {
+          const before = await heapMb();
+          await recover('scheduled refresh');
+          console.log(`${ts()} [main] page refreshed on schedule, JS heap ${before} MB -> ${await heapMb()} MB`);
+        }
+        scheduleRefresh();
+      }, PAGE_REFRESH_MS * (0.8 + Math.random() * 0.4));
+    };
+    scheduleRefresh();
+
     console.log(`${ts()} [main] Sidecar running — intercepting WS trade events`);
 
     const reason = await sessionEnded;
@@ -147,6 +165,7 @@ async function session(firstRun: boolean): Promise<void> {
   } finally {
     if (hbInterval) clearInterval(hbInterval);
     if (probeInterval) clearInterval(probeInterval);
+    if (refreshTimer) clearTimeout(refreshTimer);
     await context.close().catch(() => {});
   }
 }

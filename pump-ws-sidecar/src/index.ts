@@ -33,6 +33,9 @@ const CLAIM_MEMORY = 500;
 const PROBE_INTERVAL_MS = 15_000;
 const PROBE_TIMEOUT_MS = 10_000;
 const PROBE_FAILURES_BEFORE_RELOAD = 3;
+// A page left open for days keeps growing (the live feed keeps filling its memory). Reloading it now and then hands that memory back;
+// the browser, its cookies and the Cloudflare clearance stay as they are, and the slow poll covers the few seconds without the stream.
+const PAGE_REFRESH_MS = (Number(process.env.PAGE_REFRESH_HOURS) || 6) * 60 * 60_000;
 const VERIFIED_SYNC_INTERVAL_MS = Number(process.env.VERIFIED_SYNC_INTERVAL_MS) || 6 * 60 * 60_000; // 6h default
 
 interface AlertsProbeResult {
@@ -137,6 +140,7 @@ async function session(firstRun: boolean): Promise<void> {
   let pollInterval: NodeJS.Timeout | undefined;
   let verifiedSyncInterval: NodeJS.Timeout | undefined;
   let followUpTimer: NodeJS.Timeout | undefined;
+  let refreshTimer: NodeJS.Timeout | undefined;
   let stream: AlertStream | undefined;
 
   try {
@@ -406,6 +410,20 @@ async function session(firstRun: boolean): Promise<void> {
 
     hbInterval = setInterval(() => { heartbeat().catch(() => {}); }, HEARTBEAT_INTERVAL_MS);
 
+    const heapMb = () => page.evaluate('Math.round(performance.memory.usedJSHeapSize / 1048576)').catch(() => '?');
+    // Never on an exact clock: each refresh comes 80-120% of the interval after the last one, like a person pressing F5 now and then.
+    const scheduleRefresh = () => {
+      refreshTimer = setTimeout(async () => {
+        if (!recovering) {
+          const before = await heapMb();
+          await recover('scheduled refresh');
+          console.log(`${ts()} [main] page refreshed on schedule, JS heap ${before} MB -> ${await heapMb()} MB`);
+        }
+        scheduleRefresh();
+      }, PAGE_REFRESH_MS * (0.8 + Math.random() * 0.4));
+    };
+    scheduleRefresh();
+
     let syncingVerified = false;
     const runVerifiedSyncSafely = () => {
       if (recovering || syncingVerified) return;
@@ -427,6 +445,7 @@ async function session(firstRun: boolean): Promise<void> {
     console.warn(`${ts()} [main] session ended: ${reason}`);
   } finally {
     if (hbInterval) clearInterval(hbInterval);
+    if (refreshTimer) clearTimeout(refreshTimer);
     if (probeInterval) clearInterval(probeInterval);
     if (pollInterval) clearInterval(pollInterval);
     if (followUpTimer) clearTimeout(followUpTimer);
