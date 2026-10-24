@@ -57,6 +57,8 @@ builder.Services.AddSingleton<ITelegramService, TelegramService>();
 builder.Services.AddSingleton<AppConfigService>();
 builder.Services.AddSingleton<WebSessionService>();
 builder.Services.AddScoped<DataNoticeFilter>();
+builder.Services.AddSingleton<UserActivityService>(); // history of what each logged-in person does on the website (feed, manage), by chat id
+builder.Services.AddScoped<UserActivityFilter>();
 builder.Services.AddSingleton<TraderIntelService>(); // per-trader intel for /manage: live rating + offline public-profile data
 builder.Services.AddSingleton<CandleClient>();
 builder.Services.AddSingleton<PumpProfileClient>();
@@ -106,6 +108,7 @@ using (var scope = app.Services.CreateScope())
     dbContext.Database.Migrate();
     dbContext.Database.ExecuteSqlRaw("PRAGMA journal_mode=WAL;");
     await scope.ServiceProvider.GetRequiredService<WebAnalyticsService>().EnsureSchemaAsync(); // WebEvents + BotStarts (raw SQL, outside EF migrations)
+    await scope.ServiceProvider.GetRequiredService<UserActivityService>().EnsureSchemaAsync(); // UserActivity (raw SQL, same way)
 
     // Category follows are materialized as UserTrader rows; catches up anything missing
     // (first run: backfills every existing category follow).
@@ -176,7 +179,7 @@ app.MapGet("/dashboard", async context =>
 // Self-service alert manager. ?t=<token> from the bot's /manage command is redeemed here
 // for the session cookie, then redirected to the bare /manage to drop it from the URL.
 // Not one-shot: Telegram prefetches links for previews and would burn a single-use token.
-app.MapGet("/manage", async (HttpContext context, WebSessionService sessionService) =>
+app.MapGet("/manage", async (HttpContext context, WebSessionService sessionService, UserActivityService activity) =>
 {
     var linkToken = context.Request.Query["t"].ToString();
     if (!string.IsNullOrEmpty(linkToken))
@@ -185,6 +188,7 @@ app.MapGet("/manage", async (HttpContext context, WebSessionService sessionServi
         if (chatId != null)
         {
             var sessionToken = await sessionService.CreateTokenAsync(chatId.Value);
+            activity.Log(chatId.Value, "login");
             context.Response.Cookies.Append(WebSessionService.CookieName, sessionToken, new CookieOptions
             {
                 HttpOnly = true,

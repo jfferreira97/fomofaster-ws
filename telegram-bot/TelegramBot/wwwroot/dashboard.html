@@ -648,6 +648,7 @@
             <div class="tab" onclick="switchTab('queue')">Queue</div>
             <div class="tab" onclick="switchTab('monitoring')">Monitoring<span class="mon-dot idle" id="monDot" title="App health"></span></div>
             <div class="tab" onclick="switchTab('users')">Users</div>
+            <div class="tab" onclick="switchTab('activity')">Site activity</div>
             <div class="tab" onclick="switchTab('categories')">Categories</div>
             <div class="tab" onclick="switchTab('payments')">Payments</div>
             <div class="tab" onclick="switchTab('website')">Website</div>
@@ -743,6 +744,24 @@
         </div>
 
         <!-- Categories Tab: every trader by category; drag a card (or use its menu) to move it by hand -->
+        <!-- Site activity Tab: who uses the feed and the manage page, and what they do there -->
+        <div id="activity-tab" class="tab-content">
+            <div class="chat-area" style="overflow-y: auto;">
+                <div class="settings-container">
+                    <div class="settings-section">
+                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+                            <div class="settings-section-title" style="margin-bottom:0;">Who uses the website (logged-in people)</div>
+                            <select id="actDays" onchange="loadActivity()" style="background:#101820;color:#e6edf3;border:1px solid #202a35;border-radius:6px;padding:4px 8px;">
+                                <option value="1">last 24 hours</option><option value="7" selected>last 7 days</option><option value="30">last 30 days</option><option value="90">last 90 days</option>
+                            </select>
+                            <span id="actUpdated" style="color:#8a96a0;font-size:12px;"></span>
+                        </div>
+                        <div id="actBody"><div class="loading">Loading…</div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div id="categories-tab" class="tab-content">
             <div class="cb-toolbar">
                 <select id="cbPlatform" onchange="renderCategoryBoard()">
@@ -1254,6 +1273,52 @@
         setInterval(monLight, 30000);
         monLight();
 
+        // ---------- Site activity: who is on the feed, who uses the manage page, what each person did ----------
+        function actName(w) { return w.username ? '@' + monEsc(w.username) : monEsc(w.firstName || ('chat ' + w.chatId)); }
+        function actPlan(p) { const c = { lifetime: '#2ea043', paid: '#2ea043', trial: '#d29922', 'no access': '#8a96a0' }[p] || '#8a96a0'; return '<span style="color:' + c + ';font-weight:600">' + monEsc(p) + '</span>'; }
+        function actDur(sec) { if (!sec) return '-'; if (sec < 90) return sec + ' s'; if (sec < 5400) return Math.round(sec / 60) + ' min'; return (sec / 3600).toFixed(1) + ' h'; }
+        function actAgo(at) { const sec = Math.max(0, (Date.now() - new Date(at.replace(' ', 'T') + 'Z').getTime()) / 1000); return sec < 90 ? Math.round(sec) + ' s ago' : sec < 5400 ? Math.round(sec / 60) + ' min ago' : sec < 172800 ? (sec / 3600).toFixed(1) + ' h ago' : Math.round(sec / 86400) + ' d ago'; }
+        function actKind(r) {
+            const k = r.kind, nm = r.trader ? ' ' + monEsc(r.trader) : '';
+            if (k === 'feed_open') return 'opened the feed' + (r.detail ? ' (' + monEsc(r.detail) + ')' : '');
+            if (k === 'feed_close') return 'left the feed after ' + actDur(r.durationSec);
+            if (k === 'manage_open') return 'opened the manage page';
+            if (k === 'login') return 'logged in';
+            if (k === 'feed_alive') return 'still on the feed';
+            if (k === 'view_trader') return 'looked at trader' + nm;
+            if (k.startsWith('click:')) return 'clicked ' + monEsc(k.slice(6));
+            if (k.startsWith('nav:')) return 'went to ' + monEsc(k.slice(4));
+            const d = r.detail ? ' <span style="color:#8a96a0">' + monEsc(r.detail.replace(/[{}"]/g, '').slice(0, 160)) + '</span>' : '';
+            return '<b>' + monEsc(k.replace(/_/g, ' ')) + '</b>' + nm + d;
+        }
+        async function loadActivity() {
+            try {
+                const days = document.getElementById('actDays').value;
+                const res = await fetch(API_BASE + '/api/dashboard/activity?days=' + days);
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const d = await res.json();
+                let h = '<div style="margin-bottom:12px"><b>On the feed now:</b> ' + (d.onFeedNow.length ? d.onFeedNow.map(x => actName(x.who) + ' (' + actPlan(x.who.plan) + ', ' + actDur(x.sinceSec) + ')').join(' · ') : '<span style="color:#8a96a0">nobody</span>') + '</div>';
+                if (!d.users.length) h += '<div style="color:#8a96a0;font-size:13px;">Nothing recorded yet. People show up here from the moment they use the feed or the manage page (it records from the start of this feature, not before).</div>';
+                else h += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13.5px;"><thead><tr><th style="text-align:left">Person</th><th style="text-align:left">Plan</th><th style="text-align:left">Last seen</th><th style="text-align:right">Feed visits</th><th style="text-align:right">Time on feed</th><th style="text-align:right">Manage visits</th><th style="text-align:right">Changes</th><th style="text-align:left">Last change</th></tr></thead><tbody>' +
+                    d.users.map(u => '<tr style="cursor:pointer;border-top:1px solid #202a35" onclick="loadUserActivity(' + u.who.chatId + ')"><td>' + actName(u.who) + '</td><td>' + actPlan(u.who.plan) + '</td><td>' + actAgo(u.lastSeen) + '</td><td style="text-align:right">' + u.feedOpens + '</td><td style="text-align:right">' + actDur(u.feedSeconds) + '</td><td style="text-align:right">' + u.manageOpens + '</td><td style="text-align:right">' + u.actions + '</td><td>' + (u.lastAction ? actKind({ kind: u.lastAction.kind, detail: u.lastAction.detail }) + ' <span style="color:#8a96a0">' + actAgo(u.lastAction.at) + '</span>' : '<span style="color:#8a96a0">-</span>') + '</td></tr>').join('') + '</tbody></table></div><div id="actDetail" style="margin-top:16px"></div>';
+                document.getElementById('actBody').innerHTML = h;
+                document.getElementById('actUpdated').textContent = 'click a person to see everything they did';
+            } catch (e) {
+                document.getElementById('actBody').innerHTML = '<div style="color:#f85149">Could not load the activity: ' + monEsc(e.message) + '</div>';
+            }
+        }
+        async function loadUserActivity(chatId) {
+            const box = document.getElementById('actDetail'); box.innerHTML = '<div class="loading">Loading…</div>';
+            try {
+                const res = await fetch(API_BASE + '/api/dashboard/activity/' + chatId + '?limit=300');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const d = await res.json();
+                box.innerHTML = '<div class="settings-section-title">' + (d.who ? actName(d.who) + ' (' + actPlan(d.who.plan) + ')' : 'chat ' + chatId) + ' · last ' + d.rows.length + ' things</div>' +
+                    '<div style="font-size:13px;line-height:1.8">' + d.rows.map(r => '<div><span style="color:#8a96a0;display:inline-block;width:150px">' + monEsc(r.at) + ' UTC</span>' + actKind(r) + '</div>').join('') + '</div>';
+                box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } catch (e) { box.innerHTML = '<div style="color:#f85149">' + monEsc(e.message) + '</div>'; }
+        }
+
         // ---------- Queue: each alert as it fans out, paying users first, free users behind ----------
         function qFmt(s) { return s < 10 ? s.toFixed(1) + ' s' : Math.round(s) + ' s'; }
         function renderQueue(d) {
@@ -1304,7 +1369,9 @@
             document.getElementById(tabName + '-tab').classList.add('active');
 
             // Load data based on tab
-            if (tabName === 'queue') {
+            if (tabName === 'activity') {
+                loadActivity();
+            } else if (tabName === 'queue') {
                 loadQueue();
             } else if (tabName === 'monitoring') {
                 loadMonitor();

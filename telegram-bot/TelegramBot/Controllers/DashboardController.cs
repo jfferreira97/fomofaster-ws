@@ -15,14 +15,20 @@ public class DashboardController : ControllerBase
     private readonly ITelegramService _telegramService;
     private readonly AppConfigService _appConfig;
     private readonly MonitorStore _monitor;
+    private readonly UserActivityService _activity;
+    private readonly FeedService _feed;
 
     public DashboardController(
         AppDbContext dbContext,
         ILogger<DashboardController> logger,
         ITelegramService telegramService,
         AppConfigService appConfig,
-        MonitorStore monitor)
+        MonitorStore monitor,
+        UserActivityService activity,
+        FeedService feed)
     {
+        _activity = activity;
+        _feed = feed;
         _dbContext = dbContext;
         _logger = logger;
         _telegramService = telegramService;
@@ -42,6 +48,61 @@ public class DashboardController : ControllerBase
     }
 
     private static object Tile(string label, string value) => new { l = label, v = value };
+
+    // ---- Site activity tab: who uses the feed and the manage page, by name, what plan they are on, and what they did. ----
+    private static string PlanOf(Models.User u)
+    {
+        var now = DateTime.UtcNow;
+        return u.IsRN4L ? "lifetime" : u.IsRegisteredNurse && u.RNExpiresAt > now ? "paid" : u.TrialExpiresAt > now ? "trial" : "no access";
+    }
+
+    [HttpGet("activity")]
+    public async Task<IActionResult> GetActivity([FromQuery] int days = 7)
+    {
+        days = Math.Clamp(days, 1, 90);
+        var summary = await _activity.SummaryAsync(days);
+        var lastAction = await _activity.LastActionsAsync(days);
+        var live = _feed.LiveUsers();
+        var ids = summary.Select(s => s.ChatId).Concat(live.Select(l => l.ChatId)).Distinct().ToList();
+        var users = await _dbContext.Users.Where(u => ids.Contains(u.ChatId)).ToDictionaryAsync(u => u.ChatId);
+        var now = DateTime.UtcNow;
+        object Who(long id) => users.TryGetValue(id, out var u)
+            ? new { chatId = id, username = u.Username, firstName = u.FirstName, plan = PlanOf(u), active = u.IsActive }
+            : new { chatId = id, username = (string?)null, firstName = (string?)null, plan = "unknown", active = false };
+        return Ok(new
+        {
+            days,
+            onFeedNow = live.GroupBy(l => l.ChatId).Select(g => new { who = Who(g.Key), sinceSec = (int)(now - g.Min(x => x.Since)).TotalSeconds }),
+            users = summary.Select(s => new
+            {
+                who = Who(s.ChatId), s.LastSeen, s.FeedOpens, s.FeedSeconds, s.ManageOpens, s.Actions, s.Clicks,
+                lastAction = lastAction.TryGetValue(s.ChatId, out var a) ? new { a.At, a.Kind, a.Detail } : null
+            })
+        });
+    }
+
+    [HttpGet("activity/{chatId:long}")]
+    public async Task<IActionResult> GetUserActivity(long chatId, [FromQuery] int limit = 200)
+    {
+        var rows = await _activity.RecentAsync(chatId, limit);
+        // Actions name a trader by id: show the name, which is what a person wants to read.
+        var idRx = new System.Text.RegularExpressions.Regex(@"""traderId"":(\d+)");
+        var traderIds = rows.Select(r => r.Detail == null ? null : idRx.Match(r.Detail)).Where(m => m is { Success: true })
+            .Select(m => int.Parse(m!.Groups[1].Value)).Distinct().ToList();
+        var traders = await _dbContext.Traders.Where(t => traderIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id);
+        string? Name(string? detail)
+        {
+            if (detail == null) return null;
+            var m = idRx.Match(detail);
+            return m.Success && traders.TryGetValue(int.Parse(m.Groups[1].Value), out var t) ? $"{t.Handle} ({t.Platform})" : null;
+        }
+        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.ChatId == chatId);
+        return Ok(new
+        {
+            who = user == null ? null : new { chatId, username = user.Username, firstName = user.FirstName, plan = PlanOf(user) },
+            rows = rows.Select(r => new { r.At, r.Kind, r.Detail, r.DurationSec, trader = Name(r.Detail) })
+        });
+    }
 
     // ---- Queue tab: alerts being sent right now, and the ones that just went out. In memory, cheap, polled every second. ----
     [HttpGet("queue")]

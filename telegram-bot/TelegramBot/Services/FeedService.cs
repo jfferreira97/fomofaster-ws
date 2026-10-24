@@ -58,6 +58,7 @@ public class FeedService
     private sealed class Client
     {
         public long? ChatId;
+        public readonly DateTime Since = DateTime.UtcNow;
         public readonly SemaphoreSlim Signal = new(0);
     }
 
@@ -192,6 +193,10 @@ public class FeedService
         }
         _logger.LogInformation("Feed seeded with {Count} alert(s)", notes.Count);
     }
+
+    // Who is on the feed right now (logged-in people only), and since when.
+    public List<(long ChatId, DateTime Since)> LiveUsers() =>
+        _clients.Values.Where(c => c.ChatId is not null).Select(c => (c.ChatId!.Value, c.Since)).ToList();
 
     // Streams to the response until the client leaves. chatId null = anonymous demo.
     public async Task StreamAsync(HttpResponse res, long? chatId, long lastEventId, CancellationToken ct)

@@ -20,11 +20,15 @@ public class WebAnalyticsController : ControllerBase
 
     private readonly WebAnalyticsService _analytics;
     private readonly ILogger<WebAnalyticsController> _logger;
+    private readonly WebSessionService _sessions;
+    private readonly UserActivityService _activity;
 
-    public WebAnalyticsController(WebAnalyticsService analytics, ILogger<WebAnalyticsController> logger)
+    public WebAnalyticsController(WebAnalyticsService analytics, ILogger<WebAnalyticsController> logger, WebSessionService sessions, UserActivityService activity)
     {
         _analytics = analytics;
         _logger = logger;
+        _sessions = sessions;
+        _activity = activity;
     }
 
     private static string Browser(string ua)
@@ -113,6 +117,13 @@ public class WebAnalyticsController : ControllerBase
             if (!_analytics.Allow(_analytics.VisitorHash(ip, ""))) return NoContent();   // rate limit by address only, so rotating the User-Agent does not help
 
             await _analytics.RecordEventAsync(new WebHit(type, path, label, refHost, utm, device, Browser(ua), Os(ua), lang, visitor, visit, ip, isBot, clientInternal));
+
+            // A logged-in person's clicks on the feed and links also go to their own history (the beacon above stays anonymous).
+            if (!isBot && (type == "feed" || type == "nav"))
+            {
+                var who = await _sessions.ValidateTokenAsync(Request.Cookies[WebSessionService.CookieName]);
+                if (who != null) _activity.Log(who.Value, label == "alive10" ? "feed_alive" : (type == "nav" ? "nav:" : "click:") + label);
+            }
             return NoContent();
         }
         catch (JsonException) { return BadRequest(); }

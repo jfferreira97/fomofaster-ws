@@ -16,6 +16,7 @@ namespace TelegramBot.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [ServiceFilter(typeof(DataNoticeFilter))]
+[ServiceFilter(typeof(UserActivityFilter))]
 public class ManageController : ControllerBase
 {
     private readonly WebSessionService _sessionService;
