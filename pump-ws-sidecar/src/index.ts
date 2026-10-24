@@ -20,6 +20,16 @@ const MAX_TRADE_ALERT_AGE_MS = 90_000;
 const MIN_TRADE_ALERT_USD = 10;
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+// The page does not need a single picture, video or font (it is only listened to), and the coin images of its live feed filled a tab to
+// ~2 GB within an hour. They are refused before they download. Network sockets (the live NATS feed) are not touched. PUMP_LEAN_PAGE=0 turns it off.
+const LEAN_PAGE = process.env.PUMP_LEAN_PAGE !== '0';
+const lean = async (p: import('playwright').Page): Promise<void> => {
+  if (!LEAN_PAGE) return;
+  await p.route('**/*', (route) => {
+    const t = route.request().resourceType();
+    if (t === 'image' || t === 'media' || t === 'font') void route.abort(); else void route.continue();
+  });
+};
 // pump.fun's own contract for GET /following-positions/alerts: the first page is memoized for
 // `maxAgeSeconds` ("Never poll faster than this"), and live news comes over NATS (see stream.ts).
 // Hammering it at 2 req/s got this IP a Cloudflare challenge, so polling is now a safety net:
@@ -39,7 +49,7 @@ const PROBE_FAILURES_BEFORE_RELOAD = 3;
 // when the new one is really receiving does the old one close (its process, and the memory in it, goes away). Every event is deduplicated
 // by id downstream (seenTrades / claimed / the backend), so both pages delivering the same event is harmless. The browser, its cookies
 // and the Cloudflare clearance stay as they are.
-const PAGE_REFRESH_MS = (Number(process.env.PAGE_REFRESH_HOURS) || 6) * 60 * 60_000;
+const PAGE_REFRESH_MS = (Number(process.env.PAGE_REFRESH_HOURS) || 8) * 60 * 60_000;
 const VERIFIED_SYNC_INTERVAL_MS = Number(process.env.VERIFIED_SYNC_INTERVAL_MS) || 6 * 60 * 60_000; // 6h default
 
 interface AlertsProbeResult {
@@ -170,6 +180,7 @@ async function session(firstRun: boolean): Promise<void> {
       } catch (err) { console.warn(`${ts()} [main] focus emulation failed:`, String(err).split('\n')[0]); }
     };
     await emulateFocus(page);
+    await lean(page);
 
     console.log(`${ts()} [main] navigating to`, PUMP_URL);
     await page.goto(PUMP_URL, { waitUntil: 'domcontentloaded' });
@@ -438,6 +449,7 @@ async function session(firstRun: boolean): Promise<void> {
         overlap = { oldPage: old, old: new Set(), neu: new Set() };
         fresh = await context.newPage();
         await emulateFocus(fresh);
+        await lean(fresh);
         watch(fresh);
         const freshPage = fresh;
         freshStream = startAlertStream(fresh, (ev) => { seenBy(freshPage, ev.id); ring(ev); }, (m) => console.log(`${ts()} [new] ${m}`));
