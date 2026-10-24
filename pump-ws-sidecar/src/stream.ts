@@ -36,6 +36,8 @@ export interface AlertStream {
   /** Start registering presence (call once the session is logged in; listening starts at creation). */
   begin(): void;
   healthy(): boolean;
+  /** Listening for real: presence is alive, the subject is subscribed and the NATS socket is delivering frames right now. */
+  ready(): boolean;
   describe(): string;
   stop(): void;
 }
@@ -246,6 +248,10 @@ export function startAlertStream(
       !!subject && subscribedSubject === subject && natsSocketSeen &&
       Date.now() - lastPresenceOkAt < 2.5 * Math.max(15, hbSeconds) * 1000 &&
       Date.now() - lastEventAt < 120_000,
+    ready: () =>
+      !!subject && subscribedSubject === subject && natsSocketSeen &&
+      Date.now() - lastPresenceOkAt < 2.5 * Math.max(15, hbSeconds) * 1000 &&
+      Date.now() - lastFrameAt < 30_000,
     describe: () =>
       `subject=${subject ? 'yes' : 'no'} subscribed=${subscribedSubject === subject && !!subject} nats=${natsSocketSeen} ` +
       `frames=${frames} events=${events} lastFrameAgo=${lastFrameAt ? Math.round((Date.now() - lastFrameAt) / 1000) + 's' : 'never'}`,

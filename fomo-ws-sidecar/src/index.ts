@@ -1,5 +1,7 @@
 import { chromium } from 'playwright';
 import { attachWsInterceptor } from './ws-intercept';
+import { existsSync, unlinkSync } from 'fs';
+import { join } from 'path';
 import { postStructured, heartbeat } from './client';
 
 const ts = () => { const d = new Date(); return `[${new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().replace('T', ' ').slice(0, 19)}] [${ACCOUNT_NAME}]`; };
@@ -16,9 +18,12 @@ const HEARTBEAT_INTERVAL_MS = 30_000;
 const PROBE_INTERVAL_MS = 15_000;
 const PROBE_TIMEOUT_MS = 10_000;
 const PROBE_FAILURES_BEFORE_RELOAD = 3;
-// A page left open for days keeps growing. Reloading it hands the memory back (browser, cookies and login stay). This sidecar has no
-// fallback poll, so the few seconds of a reload can miss a trade or two: once a day, at a random moment, is the balance.
-const PAGE_REFRESH_MS = (Number(process.env.PAGE_REFRESH_HOURS) || 24) * 60 * 60_000;
+// A page left open for days keeps growing, and reloading it in place does not give the memory back. So the page is ROTATED: a second page
+// opens and starts receiving the trades while the first keeps working, and only when the new one is really receiving does the old one close
+// (its process, and the memory in it, goes away). This sidecar has no fallback poll, which is exactly why the old page is never closed first.
+// A trade received by both pages is posted once (transformFrame's dedup by trade id).
+const PAGE_REFRESH_MS = (Number(process.env.PAGE_REFRESH_HOURS) || 12) * 60 * 60_000;
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 // One browser session; returns when a full relaunch is needed (main() handles that)
 async function session(firstRun: boolean): Promise<void> {
@@ -42,9 +47,14 @@ async function session(firstRun: boolean): Promise<void> {
   let hbInterval: NodeJS.Timeout | undefined;
   let probeInterval: NodeJS.Timeout | undefined;
   let refreshTimer: NodeJS.Timeout | undefined;
+  let triggerInterval: NodeJS.Timeout | undefined;
 
   try {
-    const page = context.pages()[0] ?? await context.newPage();
+    let page = context.pages()[0] ?? await context.newPage();
+    // Trades seen by each page while two pages overlap during a rotation (null the rest of the time): the evidence that nothing is lost.
+    let overlap: { oldPage: import('playwright').Page; old: Set<string>; neu: Set<string> } | null = null;
+    const seenBy = (p: import('playwright').Page, id: string) => { const o = overlap; if (o) (p === o.oldPage ? o.old : o.neu).add(id); };
+    const firstPage = page;
 
     let recovering = false;
     let openTaps = 0;
@@ -54,6 +64,7 @@ async function session(firstRun: boolean): Promise<void> {
 
     // Log-only: the page reconnects its own WS, we never reload speculatively
     attachWsInterceptor(page, postStructured, {
+      onSeen: (id) => seenBy(firstPage, id),
       onTapOpen: () => {
         openTaps++;
         console.log(`${ts()} [main] tap WS open (${openTaps} active)`);
@@ -74,16 +85,15 @@ async function session(firstRun: boolean): Promise<void> {
     if (firstRun) {
       // On first run the session won't exist — give the user time to log in manually.
       // After that the chromium-profile persists the session and this resolves instantly.
-      const loggedIn = await page.locator('text=/following|alerts|feed/i')
-        .first()
-        .waitFor({ timeout: 300_000 })
-        .then(() => true)
-        .catch(() => false);
-
-      if (!loggedIn) {
-        console.error(`${ts()} [main] ❌ Login timed out after 5 minutes, exiting.`);
-        process.exit(1);
+      // The trade WebSocket opening is proof enough that the session works: waiting only for some text on the page once ran out
+      // on a page that was fine, and exiting here took the whole sidecar (and every FOMO alert) down. It never exits any more.
+      const deadline = Date.now() + 300_000;
+      let loggedIn = false;
+      while (Date.now() < deadline && !loggedIn) {
+        loggedIn = openTaps > 0 || await page.locator('text=/following|alerts|feed/i').first().isVisible().catch(() => false);
+        if (!loggedIn) await sleep(2_000);
       }
+      if (!loggedIn) console.warn(`${ts()} [main] ⚠️ login not confirmed after 5 minutes, carrying on anyway`);
     }
 
     // Reload the tab in place (fresh renderer); escalate to full relaunch if even that fails
@@ -102,8 +112,12 @@ async function session(firstRun: boolean): Promise<void> {
       }
     };
 
-    page.on('crash', () => { void recover('page crashed (crash event)'); });
-    page.on('close', () => endSession('page closed'));
+    // Only the CURRENT page matters: the old one is closed on purpose during a rotation, and a page that never became current is ignored.
+    const watch = (p: import('playwright').Page) => {
+      p.on('crash', () => { if (p === page) void recover('page crashed (crash event)'); });
+      p.on('close', () => { if (p === page) endSession('page closed'); });
+    };
+    watch(page);
     context.on('close', () => endSession('browser closed'));
 
     hbInterval = setInterval(() => { heartbeat().catch(() => {}); }, HEARTBEAT_INTERVAL_MS);
@@ -144,19 +158,70 @@ async function session(firstRun: boolean): Promise<void> {
       })();
     }, PROBE_INTERVAL_MS);
 
-    const heapMb = () => page.evaluate('Math.round(performance.memory.usedJSHeapSize / 1048576)').catch(() => '?');
-    // Never on an exact clock: each refresh comes 80-120% of the interval after the last one, like a person pressing F5 now and then.
-    const scheduleRefresh = () => {
-      refreshTimer = setTimeout(async () => {
-        if (!recovering) {
-          const before = await heapMb();
-          await recover('scheduled refresh');
-          console.log(`${ts()} [main] page refreshed on schedule, JS heap ${before} MB -> ${await heapMb()} MB`);
+    let rotating = false;
+    const rotatePage = async (why: string): Promise<boolean> => {
+      if (rotating || recovering) return false;
+      rotating = true;
+      const old = page;
+      let fresh: import('playwright').Page | undefined;
+      try {
+        console.log(`${ts()} [rotate] start (${why}): a second page opens while the first keeps working`);
+        overlap = { oldPage: old, old: new Set(), neu: new Set() };
+        fresh = await context.newPage();
+        const freshPage = fresh;
+        let freshTaps = 0;
+        watch(fresh);
+        attachWsInterceptor(fresh, postStructured, {
+          onSeen: (id) => seenBy(freshPage, id),
+          onTapOpen: () => { freshTaps++; openTaps++; console.log(`${ts()} [rotate] new page: tap WS open`); },
+          onTapClose: () => { freshTaps = Math.max(0, freshTaps - 1); openTaps = Math.max(0, openTaps - 1); console.warn(`${ts()} [rotate] new page: tap WS closed`); },
+        });
+        await fresh.goto(FOMO_URL, { waitUntil: 'domcontentloaded' });
+        // The new page must really be receiving trades before the old one is touched: some trades on it, and it keeps up with the old page.
+        const startedAt = Date.now();
+        while (Date.now() - startedAt < 120_000) {
+          const o = overlap;
+          const elapsed = Date.now() - startedAt;
+          if (freshTaps > 0 && o.neu.size >= 3 && elapsed >= 20_000) break;
+          if (freshTaps > 0 && o.neu.size >= 1 && elapsed >= 45_000) break;
+          await sleep(1_000);
         }
-        scheduleRefresh();
-      }, PAGE_REFRESH_MS * (0.8 + Math.random() * 0.4));
+        const o = overlap;
+        if (freshTaps === 0 || o.neu.size === 0) throw new Error(`the new page was not receiving trades after ${Math.round((Date.now() - startedAt) / 1000)} s, the old page stays`);
+        console.log(`${ts()} [rotate] new page is receiving (${o.neu.size} trades so far), both pages overlap a little longer`);
+        await sleep(10_000);                       // both listen at once: nothing can fall between them
+        if (freshTaps === 0) throw new Error('the new page lost its connection during the overlap, the old page stays');
+        const onlyOld = [...o.old].filter((id) => !o.neu.has(id)).length, onlyNew = [...o.neu].filter((id) => !o.old.has(id)).length;
+        page = fresh;                              // from here on, the new page is the one that counts
+        await old.close().catch(() => { /* already gone */ });
+        console.log(`${ts()} [rotate] done: old page closed. During the overlap the old page saw ${o.old.size} trades, the new ${o.neu.size}, only-old ${onlyOld}, only-new ${onlyNew}`);
+        return true;
+      } catch (err) {
+        console.warn(`${ts()} [rotate] given up, nothing lost: ${String(err).slice(0, 200)}`);
+        if (fresh && page !== fresh) await fresh.close().catch(() => { /* already gone */ });
+        return false;
+      } finally {
+        overlap = null;
+        rotating = false;
+      }
     };
-    scheduleRefresh();
+
+    // Never on an exact clock: each rotation comes 80-120% of the interval after the last one. A failed one is retried in 10 minutes.
+    const scheduleRotation = (ms: number) => {
+      refreshTimer = setTimeout(async () => {
+        const ok = await rotatePage('scheduled');
+        scheduleRotation(ok ? PAGE_REFRESH_MS * (0.8 + Math.random() * 0.4) : 10 * 60_000);
+      }, ms);
+    };
+    scheduleRotation(PAGE_REFRESH_MS * (0.8 + Math.random() * 0.4));
+
+    // Manual trigger for tests and emergencies: create the file logs/rotate-now and the next check (5 s) rotates once.
+    const triggerFile = join(__dirname, '..', 'logs', 'rotate-now');
+    triggerInterval = setInterval(() => {
+      if (!existsSync(triggerFile)) return;
+      try { unlinkSync(triggerFile); } catch { /* gone already */ }
+      void rotatePage('requested by file');
+    }, 5_000);
 
     console.log(`${ts()} [main] Sidecar running — intercepting WS trade events`);
 
@@ -166,6 +231,7 @@ async function session(firstRun: boolean): Promise<void> {
     if (hbInterval) clearInterval(hbInterval);
     if (probeInterval) clearInterval(probeInterval);
     if (refreshTimer) clearTimeout(refreshTimer);
+    if (triggerInterval) clearInterval(triggerInterval);
     await context.close().catch(() => {});
   }
 }

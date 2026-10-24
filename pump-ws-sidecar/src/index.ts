@@ -5,7 +5,7 @@ import { runVerifiedSync } from './verifiedSync';
 import { logTiming } from './timingLog';
 import { startAlertStream, type AlertStream, type StreamEvent } from './stream';
 import { logPumpTrade, tradeFromEvent, tradeFromItem, type PumpTradeRecord } from './tradeLog';
-import { writeFileSync } from 'fs';
+import { existsSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
 
 const ts = () => { const d = new Date(); return `[${new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().replace('T', ' ').slice(0, 19)}]`; };
@@ -19,6 +19,7 @@ const MAX_TRADE_ALERT_AGE_MS = 90_000;
 // Same floor the feed query uses (minTradeAmountUsd=10), so the live stream alerts on exactly what polling did.
 const MIN_TRADE_ALERT_USD = 10;
 const HEARTBEAT_INTERVAL_MS = 30_000;
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 // pump.fun's own contract for GET /following-positions/alerts: the first page is memoized for
 // `maxAgeSeconds` ("Never poll faster than this"), and live news comes over NATS (see stream.ts).
 // Hammering it at 2 req/s got this IP a Cloudflare challenge, so polling is now a safety net:
@@ -33,8 +34,11 @@ const CLAIM_MEMORY = 500;
 const PROBE_INTERVAL_MS = 15_000;
 const PROBE_TIMEOUT_MS = 10_000;
 const PROBE_FAILURES_BEFORE_RELOAD = 3;
-// A page left open for days keeps growing (the live feed keeps filling its memory). Reloading it now and then hands that memory back;
-// the browser, its cookies and the Cloudflare clearance stay as they are, and the slow poll covers the few seconds without the stream.
+// A page left open for days keeps growing (its renderer process reached 2 GB in 9 hours). Reloading it in place does not give that memory
+// back, so the page is ROTATED instead: a second page opens and starts receiving the live stream while the first keeps working, and only
+// when the new one is really receiving does the old one close (its process, and the memory in it, goes away). Every event is deduplicated
+// by id downstream (seenTrades / claimed / the backend), so both pages delivering the same event is harmless. The browser, its cookies
+// and the Cloudflare clearance stay as they are.
 const PAGE_REFRESH_MS = (Number(process.env.PAGE_REFRESH_HOURS) || 6) * 60 * 60_000;
 const VERIFIED_SYNC_INTERVAL_MS = Number(process.env.VERIFIED_SYNC_INTERVAL_MS) || 6 * 60 * 60_000; // 6h default
 
@@ -141,10 +145,14 @@ async function session(firstRun: boolean): Promise<void> {
   let verifiedSyncInterval: NodeJS.Timeout | undefined;
   let followUpTimer: NodeJS.Timeout | undefined;
   let refreshTimer: NodeJS.Timeout | undefined;
+  let triggerInterval: NodeJS.Timeout | undefined;
   let stream: AlertStream | undefined;
 
   try {
-    const page = context.pages()[0] ?? await context.newPage();
+    let page = context.pages()[0] ?? await context.newPage();
+    // Events seen by each page while two pages overlap during a rotation (null the rest of the time): the evidence that nothing is lost.
+    let overlap: { oldPage: import('playwright').Page; old: Set<string>; neu: Set<string> } | null = null;
+    const seenBy = (p: import('playwright').Page, id: string) => { const o = overlap; if (o) (p === o.oldPage ? o.old : o.neu).add(id); };
 
     let endSession!: (reason: string) => void;
     const sessionEnded = new Promise<string>((resolve) => { endSession = resolve; });
@@ -152,12 +160,16 @@ async function session(firstRun: boolean): Promise<void> {
     // Listen for pump.fun's live feed from the very start: its NATS websocket opens at page load,
     // before the login check below finishes. Presence registration waits for the login (stream.begin()).
     let ring: (ev: StreamEvent) => void = () => { /* wired once the poller exists */ };
-    stream = startAlertStream(page, (ev) => ring(ev), (m) => console.log(`${ts()} ${m}`));
+    const firstPage = page;
+    stream = startAlertStream(page, (ev) => { seenBy(firstPage, ev.id); ring(ev); }, (m) => console.log(`${ts()} ${m}`));
 
-    try {
-      const cdp = await context.newCDPSession(page);
-      await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: true });   // page stops its live feed when it thinks it is unfocused
-    } catch (err) { console.warn(`${ts()} [main] focus emulation failed:`, String(err).split('\n')[0]); }
+    const emulateFocus = async (p: import('playwright').Page) => {
+      try {
+        const cdp = await context.newCDPSession(p);
+        await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: true });   // page stops its live feed when it thinks it is unfocused
+      } catch (err) { console.warn(`${ts()} [main] focus emulation failed:`, String(err).split('\n')[0]); }
+    };
+    await emulateFocus(page);
 
     console.log(`${ts()} [main] navigating to`, PUMP_URL);
     await page.goto(PUMP_URL, { waitUntil: 'domcontentloaded' });
@@ -197,8 +209,12 @@ async function session(firstRun: boolean): Promise<void> {
       }
     };
 
-    page.on('crash', () => { void recover('page crashed (crash event)'); });
-    page.on('close', () => endSession('page closed'));
+    // Only the CURRENT page matters: the old one is closed on purpose during a rotation, and a page that never became current is ignored.
+    const watch = (p: import('playwright').Page) => {
+      p.on('crash', () => { if (p === page) void recover('page crashed (crash event)'); });
+      p.on('close', () => { if (p === page) endSession('page closed'); });
+    };
+    watch(page);
     context.on('close', () => endSession('browser closed'));
 
     // One fetch at a time. pump.fun tells us when there is news (the live stream "rings" a doorbell,
@@ -410,19 +426,73 @@ async function session(firstRun: boolean): Promise<void> {
 
     hbInterval = setInterval(() => { heartbeat().catch(() => {}); }, HEARTBEAT_INTERVAL_MS);
 
-    const heapMb = () => page.evaluate('Math.round(performance.memory.usedJSHeapSize / 1048576)').catch(() => '?');
-    // Never on an exact clock: each refresh comes 80-120% of the interval after the last one, like a person pressing F5 now and then.
-    const scheduleRefresh = () => {
-      refreshTimer = setTimeout(async () => {
-        if (!recovering) {
-          const before = await heapMb();
-          await recover('scheduled refresh');
-          console.log(`${ts()} [main] page refreshed on schedule, JS heap ${before} MB -> ${await heapMb()} MB`);
-        }
-        scheduleRefresh();
-      }, PAGE_REFRESH_MS * (0.8 + Math.random() * 0.4));
+    let rotating = false;
+    const rotatePage = async (why: string): Promise<boolean> => {
+      if (rotating || recovering) return false;
+      rotating = true;
+      const old = page, oldStream = stream;
+      let fresh: import('playwright').Page | undefined;
+      let freshStream: AlertStream | undefined;
+      try {
+        console.log(`${ts()} [rotate] start (${why}): a second page opens while the first keeps working`);
+        overlap = { oldPage: old, old: new Set(), neu: new Set() };
+        fresh = await context.newPage();
+        await emulateFocus(fresh);
+        watch(fresh);
+        const freshPage = fresh;
+        freshStream = startAlertStream(fresh, (ev) => { seenBy(freshPage, ev.id); ring(ev); }, (m) => console.log(`${ts()} [new] ${m}`));
+        await fresh.goto(PUMP_URL, { waitUntil: 'domcontentloaded' });
+        freshStream.begin();
+        const readyBy = Date.now() + 90_000;
+        while (Date.now() < readyBy && !freshStream.ready()) await sleep(1_000);
+        if (!freshStream.ready()) throw new Error('the new page was not receiving the live stream after 90 s, the old page stays');
+        console.log(`${ts()} [rotate] new page is connected, now it has to prove it hears the same events as the old one`);
+        // Connected is not enough: a second page can be subscribed and still hear nothing (seen in testing). From here on both pages are
+        // compared event by event, and the old page is only closed once the new one has heard (nearly) everything the old one heard.
+        overlap.old.clear(); overlap.neu.clear();
+        const proveBy = Date.now() + 120_000, proveFrom = Date.now();
+        const caughtUp = () => {
+          const c = overlap!, missed = [...c.old].filter((id) => !c.neu.has(id)).length;
+          return c.neu.size >= 1 && Date.now() - proveFrom >= 20_000 && missed <= Math.max(1, Math.floor(c.old.size * 0.25));
+        };
+        while (Date.now() < proveBy && !caughtUp()) await sleep(2_000);
+        if (!freshStream.ready()) throw new Error('the new page stopped receiving during the overlap, the old page stays');
+        if (!caughtUp()) throw new Error(`the new page did not hear what the old one heard (old ${overlap.old.size}, new ${overlap.neu.size} events), the old page stays`);
+        await sleep(5_000);                        // a few more seconds of both at once
+        const o = overlap, onlyOld = [...o.old].filter((id) => !o.neu.has(id)).length, onlyNew = [...o.neu].filter((id) => !o.old.has(id)).length;
+        page = fresh; stream = freshStream;        // from here on, the new page is the one that counts
+        oldStream?.stop();
+        await old.close().catch(() => { /* already gone */ });
+        console.log(`${ts()} [rotate] done: old page closed. During the overlap the old page saw ${o.old.size} events, the new ${o.neu.size}, only-old ${onlyOld}, only-new ${onlyNew}`);
+        logTiming('rotate', why, `old=${o.old.size}`, `new=${o.neu.size}`, `onlyOld=${onlyOld}`, `onlyNew=${onlyNew}`);
+        return true;
+      } catch (err) {
+        console.warn(`${ts()} [rotate] given up, nothing lost: ${String(err).slice(0, 200)}`);
+        freshStream?.stop();
+        if (fresh && page !== fresh) await fresh.close().catch(() => { /* already gone */ });
+        return false;
+      } finally {
+        overlap = null;
+        rotating = false;
+      }
     };
-    scheduleRefresh();
+
+    // Never on an exact clock: each rotation comes 80-120% of the interval after the last one. A failed one is retried in 10 minutes.
+    const scheduleRotation = (ms: number) => {
+      refreshTimer = setTimeout(async () => {
+        const ok = await rotatePage('scheduled');
+        scheduleRotation(ok ? PAGE_REFRESH_MS * (0.8 + Math.random() * 0.4) : 10 * 60_000);
+      }, ms);
+    };
+    scheduleRotation(PAGE_REFRESH_MS * (0.8 + Math.random() * 0.4));
+
+    // Manual trigger for tests and emergencies: create the file logs/rotate-now and the next check (5 s) rotates once.
+    const triggerFile = join(__dirname, '..', 'logs', 'rotate-now');
+    triggerInterval = setInterval(() => {
+      if (!existsSync(triggerFile)) return;
+      try { unlinkSync(triggerFile); } catch { /* gone already */ }
+      void rotatePage('requested by file');
+    }, 5_000);
 
     let syncingVerified = false;
     const runVerifiedSyncSafely = () => {
@@ -446,6 +516,7 @@ async function session(firstRun: boolean): Promise<void> {
   } finally {
     if (hbInterval) clearInterval(hbInterval);
     if (refreshTimer) clearTimeout(refreshTimer);
+    if (triggerInterval) clearInterval(triggerInterval);
     if (probeInterval) clearInterval(probeInterval);
     if (pollInterval) clearInterval(pollInterval);
     if (followUpTimer) clearTimeout(followUpTimer);

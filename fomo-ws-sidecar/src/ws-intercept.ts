@@ -9,6 +9,8 @@ export interface WsTapHooks {
   onTapOpen?: () => void;
   /** A fomo.family WebSocket closed. */
   onTapClose?: () => void;
+  /** A trade frame reached this page (called before the dedup, so two pages receiving the same trade both report it). */
+  onSeen?: (tradeId: string) => void;
 }
 
 export function attachWsInterceptor(
@@ -36,6 +38,7 @@ export function attachWsInterceptor(
 
       const payload = msg.payload as Record<string, unknown> | undefined;
       if (!payload) return;
+      hooks.onSeen?.(String(payload.tradeId ?? payload.id ?? ''));
 
       // Archive only once we know this frame is a real, non-duplicate trade — transformFrame's
       // own dedup (markSeen) rejects WS-reconnect replays of trades already handled, and
