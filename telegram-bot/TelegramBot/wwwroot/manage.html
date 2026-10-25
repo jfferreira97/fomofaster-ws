@@ -106,7 +106,7 @@
     .login-btn:hover { filter: brightness(1.08); }
 
     /* ---------- Console layout ---------- */
-    .console { display: grid; grid-template-columns: 310px 1fr; gap: 14px; align-items: start; }
+    .console { display: grid; grid-template-columns: 340px 1fr; gap: 16px; align-items: start; }
     @media (max-width: 900px) { .console { grid-template-columns: 1fr; } }
 
     /* Desktop: the console owns exactly one viewport, and each column scrolls inside
@@ -234,7 +234,8 @@
     .chip-grid { display: grid; gap: 4px; }
     .chip-grid.cols-2 { grid-template-columns: 1fr 1fr; }
     .chip-grid.cols-3 { grid-template-columns: 1.25fr 1fr 0.8fr; }
-    .chip-grid.cols-4 { grid-template-columns: 1.05fr 0.95fr 0.95fr 0.9fr; }
+    .chip-grid.cols-4 { grid-template-columns: minmax(104px, 1.3fr) minmax(62px, .95fr) minmax(52px, .8fr) 54px; }
+    #chainGrid .chip { white-space: nowrap; font-size: 12.5px; padding: 6px 5px; }
     .field-row select { background: var(--panel-2, #111821); color: var(--text); border: 1px solid var(--line, #202a35); border-radius: 8px; padding: 6px 8px; font-size: 13px; }
     .chip-head { margin-bottom: 5px; }
     .chip-head span {
@@ -245,7 +246,8 @@
     /* These sit near the panel's right edge, so anchor their tips to the right or the
        panel's overflow:hidden clips them. */
     .chip-head span:not(:first-child) .tip { left: auto; right: 0; max-width: 210px; }
-    .chip-grid + .chip-grid { margin-top: 6px; }
+    .chip-grid + .chip-grid { margin-top: 8px; }
+    #chainGrid [data-action="toggle"] { white-space: nowrap; }
 
     .chip {
         background: var(--surface-2);
@@ -645,6 +647,40 @@
     .cat-strip.has-filter .cat-chip:not(.filtered):hover { opacity: 1; }
     .filter-row .fbub.on { border-color: var(--text); background: var(--text); color: #0b0f14; }
     .trader-table .peak-time { color: var(--text-faint); font-size: 11px; }
+
+    /* ---- Desktop at 80% (like ctrl and minus twice): everything was too big and crowded. Only where the browser knows `zoom`, so older
+       Firefox simply shows the page at 100%. The app height is divided by the same factor so the page still fills the window. ---- */
+    @supports (zoom: 1) {
+        @media (min-width: 901px) {
+            html { zoom: 0.8; }
+            #appScreen { height: calc(100vh / 0.8); }
+            .wrap { max-width: 2100px; }
+        }
+    }
+    @media (min-width: 901px) {
+        /* The earlier rule that lifts the traders table height cap lost to the generic one further up (same weight, later wins), which left
+           an empty band under the table. This one is more specific. */
+        .console > .panel .trader-scroll { flex: 1; min-height: 0; max-height: none; }
+        /* At 80% the small text got too small: give it back some size. */
+        .chip { font-size: 13.5px; }
+        .chip-head span { font-size: 11px; white-space: nowrap; letter-spacing: .03em; }
+        .field-row .field-hint { font-size: 12px; }
+        .pnl-cell small { font-size: 11px; }
+        .trader-table .peak-time { font-size: 12px; }
+        .cat-chip .n, .cat-chip .sc { font-size: 12px; }
+        .fbub { font-size: 12.5px; }
+    }
+    @media (max-width: 900px) {
+        .trader-scroll { max-height: none !important; }
+        .topbar .logout-btn, .topbar .whoami, .topbar .brand-name { white-space: nowrap; }
+        #appScreen .chip { min-height: 38px; font-size: 13px; }
+        #pagePrev, #pageNext, .pager button { white-space: nowrap; }
+    }
+    @media (max-width: 480px) {
+        .topbar .whoami { display: none; }
+        #chainGrid .chip { font-size: 11.5px; padding: 6px 2px; }
+        .chip-grid.cols-4 { grid-template-columns: minmax(96px, 1.3fr) minmax(56px, .9fr) minmax(48px, .8fr) 52px; }
+    }
 </style>
 </head>
 <body>
@@ -721,7 +757,7 @@
                             <div class="field-row">
                                 <div>
                                     <div class="field-label tip-anchor">
-                                        Min token age
+                                        Ignore tokens newer than
                                         <i class="tip-icon inline" tabindex="0" role="button" aria-label="What is the minimum token age?" aria-describedby="tip-age">i</i>
                                         <span class="tip up" role="tooltip" id="tip-age">
                                             Skips alerts on tokens <b>younger than this</b>, so launch-day tokens (often bundled or sniped) stay out of your feed.
@@ -729,9 +765,9 @@
                                             You can set a different minimum per chain below; that one wins for its chain.
                                         </span>
                                     </div>
-                                    <div class="field-hint">Off = alert on every token</div>
+                                    <div class="field-hint" id="minAgeEcho">Type it: 18h, 2d, 90m. Empty = alert on any age</div>
                                 </div>
-                                <select id="minAgeInput"></select>
+                                <input type="text" id="minAgeInput" placeholder="e.g. 18h" autocomplete="off" maxlength="12" style="width:92px">
                             </div>
                         </div>
                     </div>
@@ -751,11 +787,11 @@
                                 <i class="tip-icon inline" tabindex="0" role="button" aria-label="What is the minimum market cap?" aria-describedby="tip-mcap">i</i>
                                 <span class="tip" role="tooltip" id="tip-mcap">Tap to set a market-cap floor for that chain — you'll only be alerted on tokens at or above it. Blank means no minimum.</span>
                             </span>
-                            <span class="tip-anchor">Min age
-                                <i class="tip-icon inline" tabindex="0" role="button" aria-label="What is the minimum token age for a chain?" aria-describedby="tip-chainage">i</i>
-                                <span class="tip" role="tooltip" id="tip-chainage">Tap to set how old a token must be on this chain before you are alerted. "Same" follows your general Min token age above.</span>
+                            <span class="tip-anchor">Age
+                                <i class="tip-icon inline" tabindex="0" role="button" aria-label="What is the token age setting for a chain?" aria-describedby="tip-chainage">i</i>
+                                <span class="tip" role="tooltip" id="tip-chainage">Tap and type how old a token must be on this chain before you are alerted: 18h, 2d, 90m. Empty = use the general setting above (shown in grey). 0 = no minimum on this chain.</span>
                             </span>
-                            <span class="tip-anchor">Trending
+                            <span class="tip-anchor">Trend
                                 <i class="tip-icon inline" tabindex="0" role="button" aria-label="What does the trending toggle do?" aria-describedby="tip-trend">i</i>
                                 <span class="tip" role="tooltip" id="tip-trend">Tap to mute just 🔥 Trending alerts for that chain. Its normal alerts keep coming.</span>
                             </span>
@@ -951,7 +987,7 @@ function showApp(me) {
 
     currentSettings = me.settings;
     document.getElementById('repeatWindowInput').value = currentSettings.repeatWindowMinutes;
-    document.getElementById('minAgeInput').value = String(currentSettings.minTokenAgeMinutes || 0);
+    showMinAge();
     renderSettings();
 
     loadTraders();
@@ -1049,48 +1085,77 @@ document.getElementById('repeatWindowInput').addEventListener('change', async (e
 
 /* ---------- Token age ---------- */
 
-const AGE_STEPS = [[0, 'Off'], [10, '10 min'], [30, '30 min'], [60, '1 hour'], [180, '3 hours'], [360, '6 hours'], [720, '12 hours'], [1440, '1 day'], [4320, '3 days'], [10080, '7 days'], [43200, '30 days']];
+// "18h", "2d", "90m", "1.5d", or a bare number (hours). Empty = null. Returns undefined when it cannot be read.
+function parseAge(text) {
+    const t = String(text || '').trim().toLowerCase();
+    if (t === '') return null;
+    if (t === 'none' || t === 'off' || t === 'no') return 0;
+    const m = t.match(/^(\d+(?:[.,]\d+)?)\s*(m|min|mins|minutes?|h|hr|hrs|hours?|d|days?)?$/);
+    if (!m) return undefined;
+    const n = parseFloat(m[1].replace(',', '.'));
+    const u = m[2] || 'h';
+    const minutes = u[0] === 'd' ? n * 1440 : u[0] === 'h' ? n * 60 : n;
+    return Math.min(129600, Math.round(minutes));
+}
+// 90 -> "90 min", 1080 -> "18 h", 2880 -> "2 d", 1500 -> "25 h"
 function ageLabel(min) {
-    const hit = AGE_STEPS.find(([m]) => m === min);
-    if (hit) return hit[1];
-    return min >= 1440 ? trimNum(min / 1440) + ' d' : min >= 60 ? trimNum(min / 60) + ' h' : min + ' min';
+    if (!min) return 'None';
+    if (min % 1440 === 0) return (min / 1440) + ' d';
+    if (min % 60 === 0) return (min / 60) + ' h';
+    return min < 1440 ? min + ' min' : trimNum(min / 60) + ' h';
+}
+function ageWords(min) {
+    if (!min) return 'no minimum: you are alerted on tokens of any age';
+    const d = Math.floor(min / 1440), h = Math.floor((min % 1440) / 60), m = min % 60;
+    return 'skips tokens younger than ' + [d ? d + ' day' + (d > 1 ? 's' : '') : '', h ? h + ' hour' + (h > 1 ? 's' : '') : '', m ? m + ' min' : ''].filter(Boolean).join(' ');
+}
+function showMinAge() {
+    const min = currentSettings.minTokenAgeMinutes || 0;
+    document.getElementById('minAgeInput').value = min ? ageLabel(min).replace(' ', '') .replace('min', 'm') : '';
+    document.getElementById('minAgeEcho').textContent = min ? '= ' + ageWords(min) : 'Type it: 18h, 2d, 90m. Empty = alert on any age';
 }
 
-(function fillAgeSelect() {
-    const sel = document.getElementById('minAgeInput');
-    sel.innerHTML = AGE_STEPS.map(([m, l]) => '<option value="' + m + '">' + l + '</option>').join('');
-    sel.addEventListener('change', async (e) => {
-        currentSettings.minTokenAgeMinutes = parseInt(e.target.value, 10) || 0;
-        const res = await fetch(API + '/api/manage/settings', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(currentSettings)
-        });
-        showToast(res.ok ? 'Saved' : 'Failed to save');
+document.getElementById('minAgeInput').addEventListener('change', async (e) => {
+    const parsed = parseAge(e.target.value);
+    if (parsed === undefined) { showToast('Type it like 18h, 2d or 90m'); showMinAge(); return; }
+    currentSettings.minTokenAgeMinutes = parsed || 0;
+    showMinAge();
+    const res = await fetch(API + '/api/manage/settings', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(currentSettings)
     });
-})();
+    showToast(res.ok ? 'Saved' : 'Failed to save');
+    renderChains();   // the grey inherited values in the chain list follow the general one
+});
 
 function editChainAge(btn, chain) {
     const current = currentChains.find(c => c.chain === chain);
-    const sel = document.createElement('select');
-    sel.className = 'chip';
-    sel.innerHTML = '<option value="">Same</option>' + AGE_STEPS.map(([m, l]) => '<option value="' + m + '">' + l + '</option>').join('');
-    sel.value = current.minTokenAgeMinutes == null ? '' : String(current.minTokenAgeMinutes);
-    btn.replaceWith(sel);
-    sel.focus();
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'chip';
+    input.placeholder = '18h, 2d';
+    input.maxLength = 12;
+    input.title = 'Type 18h, 2d or 90m. Empty = use the general setting. 0 = no minimum on this chain.';
+    input.value = current.minTokenAgeMinutes == null ? '' : (current.minTokenAgeMinutes === 0 ? '0' : ageLabel(current.minTokenAgeMinutes).replace(' ', '').replace('min', 'm'));
+    btn.replaceWith(input);
+    input.focus();
+    input.select();
 
     let committed = false;
     const commit = async () => {
         if (committed) return;
         committed = true;
-        current.minTokenAgeMinutes = sel.value === '' ? null : Number(sel.value);
+        const parsed = parseAge(input.value);
+        if (parsed === undefined) { showToast('Type it like 18h, 2d or 90m'); renderChains(); return; }
+        current.minTokenAgeMinutes = parsed;
         renderChains();
         const res = await fetch(API + '/api/manage/chains/minage', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ chain, minTokenAgeMinutes: current.minTokenAgeMinutes })
         });
-        showToast(res.ok ? 'Min token age saved' : 'Failed to save');
+        showToast(res.ok ? 'Token age saved' : 'Failed to save');
     };
-    sel.addEventListener('change', () => sel.blur());
-    sel.addEventListener('blur', commit);
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', ev => { if (ev.key === 'Enter') input.blur(); if (ev.key === 'Escape') { committed = true; renderChains(); } });
 }
 
 /* ---------- Chains ---------- */
@@ -1120,7 +1185,7 @@ function renderChains() {
         <div class="chip-grid cols-4">
             <button class="chip ${!c.isDisabled ? 'on' : ''}" data-chain="${c.chain}" data-action="toggle">${c.isDisabled ? '🔴' : '🟢'} ${c.chain}</button>
             <button class="chip" data-chain="${c.chain}" data-action="mcap">Min: ${formatMcap(c.minMarketCap)}</button>
-            <button class="chip" data-chain="${c.chain}" data-action="age">${c.minTokenAgeMinutes == null ? 'Same' : ageLabel(c.minTokenAgeMinutes)}</button>
+            <button class="chip" data-chain="${c.chain}" data-action="age" ${c.minTokenAgeMinutes == null ? 'title="Uses your general setting" style="color:var(--text-dim)"' : ''}>${c.minTokenAgeMinutes == null ? (currentSettings && currentSettings.minTokenAgeMinutes > 0 ? ageLabel(currentSettings.minTokenAgeMinutes) : 'Default') : ageLabel(c.minTokenAgeMinutes)}</button>
             <button class="chip ${!c.trendingDisabled ? 'on' : ''}" data-chain="${c.chain}" data-action="trend">🔥 ${c.trendingDisabled ? '🔴' : '🟢'}</button>
         </div>
     `).join('');

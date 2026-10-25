@@ -124,7 +124,7 @@ public class ManageController : ControllerBase
         user.NotifyTrending = request.NotifyTrending;
         user.RepeatWindowMinutes = request.RepeatWindowMinutes;
         // Nullable on purpose, like NotifyPumpBuySell: a page cached from before this setting posts nothing, which must leave it alone.
-        if (request.MinTokenAgeMinutes.HasValue) user.MinTokenAgeMinutes = Math.Clamp(request.MinTokenAgeMinutes.Value, 0, 43_200);
+        if (request.MinTokenAgeMinutes.HasValue) user.MinTokenAgeMinutes = Math.Clamp(request.MinTokenAgeMinutes.Value, 0, 129_600);
 
         await _dbContext.SaveChangesAsync();
         await _activeUsers.RefreshNowAsync();   // the alert pipeline reads a copy of the users: make it see this change now, not in up to 2 minutes
@@ -418,7 +418,7 @@ public class ManageController : ControllerBase
         if (!IsValidChain(request.Chain))
             return BadRequest(new { status = "error", message = "Unknown chain" });
 
-        await _chainSettingsService.SetMinTokenAgeAsync(user.Id, request.Chain, request.MinTokenAgeMinutes is int m ? Math.Clamp(m, 0, 43_200) : null);
+        await _chainSettingsService.SetMinTokenAgeAsync(user.Id, request.Chain, request.MinTokenAgeMinutes is int m ? Math.Clamp(m, 0, 129_600) : null);
         return Ok(new { status = "success" });
     }
 
