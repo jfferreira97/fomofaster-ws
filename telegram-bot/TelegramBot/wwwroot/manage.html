@@ -234,6 +234,8 @@
     .chip-grid { display: grid; gap: 4px; }
     .chip-grid.cols-2 { grid-template-columns: 1fr 1fr; }
     .chip-grid.cols-3 { grid-template-columns: 1.25fr 1fr 0.8fr; }
+    .chip-grid.cols-4 { grid-template-columns: 1.15fr 0.95fr 0.95fr 0.7fr; }
+    .field-row select { background: var(--panel-2, #111821); color: var(--text); border: 1px solid var(--line, #202a35); border-radius: 8px; padding: 6px 8px; font-size: 13px; }
     .chip-head { margin-bottom: 5px; }
     .chip-head span {
         font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em;
@@ -716,6 +718,21 @@
                                 </div>
                                 <input type="number" min="0" id="repeatWindowInput">
                             </div>
+                            <div class="field-row">
+                                <div>
+                                    <div class="field-label tip-anchor">
+                                        Min token age
+                                        <i class="tip-icon inline" tabindex="0" role="button" aria-label="What is the minimum token age?" aria-describedby="tip-age">i</i>
+                                        <span class="tip up" role="tooltip" id="tip-age">
+                                            Skips alerts on tokens <b>younger than this</b>, so launch-day tokens (often bundled or sniped) stay out of your feed.
+                                            A token that is too new to be listed anywhere yet counts as brand new.<br><br>
+                                            You can set a different minimum per chain below; that one wins for its chain.
+                                        </span>
+                                    </div>
+                                    <div class="field-hint">Off = alert on every token</div>
+                                </div>
+                                <select id="minAgeInput"></select>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -725,7 +742,7 @@
                         <div class="panel-title">⛓ Chain Settings</div>
                     </div>
                     <div class="panel-body">
-                        <div class="chip-grid cols-3 chip-head">
+                        <div class="chip-grid cols-4 chip-head">
                             <span class="tip-anchor">Chain
                                 <i class="tip-icon inline" tabindex="0" role="button" aria-label="What does the chain button do?" aria-describedby="tip-chain">i</i>
                                 <span class="tip" role="tooltip" id="tip-chain">Tap to turn that chain on or off entirely. Off means no alerts from it at all.</span>
@@ -733,6 +750,10 @@
                             <span class="tip-anchor">Min MCap
                                 <i class="tip-icon inline" tabindex="0" role="button" aria-label="What is the minimum market cap?" aria-describedby="tip-mcap">i</i>
                                 <span class="tip" role="tooltip" id="tip-mcap">Tap to set a market-cap floor for that chain — you'll only be alerted on tokens at or above it. Blank means no minimum.</span>
+                            </span>
+                            <span class="tip-anchor">Min age
+                                <i class="tip-icon inline" tabindex="0" role="button" aria-label="What is the minimum token age for a chain?" aria-describedby="tip-chainage">i</i>
+                                <span class="tip" role="tooltip" id="tip-chainage">Tap to set how old a token must be on this chain before you are alerted. "Same" follows your general Min token age above.</span>
                             </span>
                             <span class="tip-anchor">Trending
                                 <i class="tip-icon inline" tabindex="0" role="button" aria-label="What does the trending toggle do?" aria-describedby="tip-trend">i</i>
@@ -930,6 +951,7 @@ function showApp(me) {
 
     currentSettings = me.settings;
     document.getElementById('repeatWindowInput').value = currentSettings.repeatWindowMinutes;
+    document.getElementById('minAgeInput').value = String(currentSettings.minTokenAgeMinutes || 0);
     renderSettings();
 
     loadTraders();
@@ -1025,6 +1047,52 @@ document.getElementById('repeatWindowInput').addEventListener('change', async (e
     showToast(res.ok ? 'Saved' : 'Failed to save');
 });
 
+/* ---------- Token age ---------- */
+
+const AGE_STEPS = [[0, 'Off'], [10, '10 min'], [30, '30 min'], [60, '1 hour'], [180, '3 hours'], [360, '6 hours'], [720, '12 hours'], [1440, '1 day'], [4320, '3 days'], [10080, '7 days'], [43200, '30 days']];
+function ageLabel(min) {
+    const hit = AGE_STEPS.find(([m]) => m === min);
+    if (hit) return hit[1];
+    return min >= 1440 ? trimNum(min / 1440) + ' d' : min >= 60 ? trimNum(min / 60) + ' h' : min + ' min';
+}
+
+(function fillAgeSelect() {
+    const sel = document.getElementById('minAgeInput');
+    sel.innerHTML = AGE_STEPS.map(([m, l]) => '<option value="' + m + '">' + l + '</option>').join('');
+    sel.addEventListener('change', async (e) => {
+        currentSettings.minTokenAgeMinutes = parseInt(e.target.value, 10) || 0;
+        const res = await fetch(API + '/api/manage/settings', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(currentSettings)
+        });
+        showToast(res.ok ? 'Saved' : 'Failed to save');
+    });
+})();
+
+function editChainAge(btn, chain) {
+    const current = currentChains.find(c => c.chain === chain);
+    const sel = document.createElement('select');
+    sel.className = 'chip';
+    sel.innerHTML = '<option value="">Same</option>' + AGE_STEPS.map(([m, l]) => '<option value="' + m + '">' + l + '</option>').join('');
+    sel.value = current.minTokenAgeMinutes == null ? '' : String(current.minTokenAgeMinutes);
+    btn.replaceWith(sel);
+    sel.focus();
+
+    let committed = false;
+    const commit = async () => {
+        if (committed) return;
+        committed = true;
+        current.minTokenAgeMinutes = sel.value === '' ? null : Number(sel.value);
+        renderChains();
+        const res = await fetch(API + '/api/manage/chains/minage', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chain, minTokenAgeMinutes: current.minTokenAgeMinutes })
+        });
+        showToast(res.ok ? 'Min token age saved' : 'Failed to save');
+    };
+    sel.addEventListener('change', () => sel.blur());
+    sel.addEventListener('blur', commit);
+}
+
 /* ---------- Chains ---------- */
 
 function formatMcap(v) {
@@ -1049,9 +1117,10 @@ async function loadChains() {
 function renderChains() {
     const grid = document.getElementById('chainGrid');
     grid.innerHTML = currentChains.map(c => `
-        <div class="chip-grid cols-3">
+        <div class="chip-grid cols-4">
             <button class="chip ${!c.isDisabled ? 'on' : ''}" data-chain="${c.chain}" data-action="toggle">${c.isDisabled ? '🔴' : '🟢'} ${c.chain}</button>
             <button class="chip" data-chain="${c.chain}" data-action="mcap">Min: ${formatMcap(c.minMarketCap)}</button>
+            <button class="chip" data-chain="${c.chain}" data-action="age">${c.minTokenAgeMinutes == null ? 'Same' : ageLabel(c.minTokenAgeMinutes)}</button>
             <button class="chip ${!c.trendingDisabled ? 'on' : ''}" data-chain="${c.chain}" data-action="trend">🔥 ${c.trendingDisabled ? '🔴' : '🟢'}</button>
         </div>
     `).join('');
@@ -1066,6 +1135,7 @@ function onChainButtonClick(e) {
     if (action === 'toggle') return toggleChainDisabled(chain);
     if (action === 'trend') return toggleChainTrending(chain);
     if (action === 'mcap') return editChainMcap(btn, chain);
+    if (action === 'age') return editChainAge(btn, chain);
 }
 
 async function toggleChainDisabled(chain) {

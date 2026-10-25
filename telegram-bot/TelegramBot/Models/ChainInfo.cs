@@ -47,6 +47,8 @@ public static class ChainInfo
     public static Chain? FromAlias(string alias) =>
         ByAlias.TryGetValue(alias.Trim(), out var chain) ? chain : null;
 
+    public static string DexScreenerSlug(Chain chain) => Map[chain].DexScreenerSlug;
+
     public static string DexScreenerUrl(Chain chain, string contractAddress) =>
         $"https://dexscreener.com/{Map[chain].DexScreenerSlug}/{contractAddress}";
 

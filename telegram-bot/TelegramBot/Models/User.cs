@@ -42,6 +42,10 @@ public class User
     public bool IsRN4L { get; set; }
     public DateTime? RNExpiresAt { get; set; }
 
+    // Minimum age of a token, in minutes, for an alert to reach this user (0 = no minimum). A per-chain value in UserChainSetting
+    // overrides it for that chain. A token DexScreener has no pair for yet counts as brand new.
+    public int MinTokenAgeMinutes { get; set; }
+
     // Set the moment this chat sends anything to the NEW bot (the GROUPCHAT relaunch,
     // migrating off the old bot token). Same ChatId either way — Telegram private-chat
     // ids are per-user, not per-bot — so this is purely a routing flag: false = still

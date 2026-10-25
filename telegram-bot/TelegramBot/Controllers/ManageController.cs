@@ -26,6 +26,7 @@ public class ManageController : ControllerBase
     private readonly AppDbContext _dbContext;
     private readonly TelegramSettings _telegramSettings;
     private readonly TraderIntelService _intel;
+    private readonly ActiveUserCache _activeUsers;
 
     // Budget is per SUBMISSION, not per handle — see SuggestTrader.
     private const int SubmissionRateLimit = 24;
@@ -39,8 +40,10 @@ public class ManageController : ControllerBase
         IChainSettingsService chainSettingsService,
         AppDbContext dbContext,
         IOptions<TelegramSettings> telegramSettings,
-        TraderIntelService intel)
+        TraderIntelService intel,
+        ActiveUserCache activeUsers)
     {
+        _activeUsers = activeUsers;
         _sessionService = sessionService;
         _userService = userService;
         _traderService = traderService;
@@ -95,7 +98,8 @@ public class ManageController : ControllerBase
                 notifyPumpCallouts = user.NotifyPumpCallouts,
                 notifyPumpBuySell = user.NotifyPumpBuySell,
                 notifyTrending = user.NotifyTrending,
-                repeatWindowMinutes = user.RepeatWindowMinutes
+                repeatWindowMinutes = user.RepeatWindowMinutes,
+                minTokenAgeMinutes = user.MinTokenAgeMinutes
             }
         });
     }
@@ -119,8 +123,11 @@ public class ManageController : ControllerBase
         if (request.NotifyPumpBuySell.HasValue) user.NotifyPumpBuySell = request.NotifyPumpBuySell.Value;
         user.NotifyTrending = request.NotifyTrending;
         user.RepeatWindowMinutes = request.RepeatWindowMinutes;
+        // Nullable on purpose, like NotifyPumpBuySell: a page cached from before this setting posts nothing, which must leave it alone.
+        if (request.MinTokenAgeMinutes.HasValue) user.MinTokenAgeMinutes = Math.Clamp(request.MinTokenAgeMinutes.Value, 0, 43_200);
 
         await _dbContext.SaveChangesAsync();
+        await _activeUsers.RefreshNowAsync();   // the alert pipeline reads a copy of the users: make it see this change now, not in up to 2 minutes
         return Ok(new { status = "success" });
     }
 
@@ -362,7 +369,8 @@ public class ManageController : ControllerBase
                 chain = c.ToString(),
                 isDisabled = s?.IsDisabled ?? false,
                 minMarketCap = s?.MinMarketCap,
-                trendingDisabled = s?.TrendingDisabled ?? false
+                trendingDisabled = s?.TrendingDisabled ?? false,
+                minTokenAgeMinutes = s?.MinTokenAgeMinutes
             };
         });
 
@@ -397,6 +405,20 @@ public class ManageController : ControllerBase
             return BadRequest(new { status = "error", message = "Unknown chain" });
 
         await _chainSettingsService.SetMinMarketCapAsync(user.Id, request.Chain, request.MinMarketCap);
+        return Ok(new { status = "success" });
+    }
+
+    // Minimum token age for one chain, in minutes. Null = follow the general setting; 0 = no minimum on this chain.
+    [HttpPost("chains/minage")]
+    public async Task<IActionResult> SetChainMinTokenAge([FromBody] SetChainMinTokenAgeRequest request)
+    {
+        var (user, error) = await ResolveSubscriberAsync();
+        if (user == null) return error!;
+
+        if (!IsValidChain(request.Chain))
+            return BadRequest(new { status = "error", message = "Unknown chain" });
+
+        await _chainSettingsService.SetMinTokenAgeAsync(user.Id, request.Chain, request.MinTokenAgeMinutes is int m ? Math.Clamp(m, 0, 43_200) : null);
         return Ok(new { status = "success" });
     }
 
@@ -555,12 +577,14 @@ public record UpdateManageSettingsRequest(
     bool NotifyPumpCallouts,
     bool NotifyTrending,
     int RepeatWindowMinutes,
-    bool? NotifyPumpBuySell = null);
+    bool? NotifyPumpBuySell = null,
+    int? MinTokenAgeMinutes = null);
 
 public record ManageTraderRequest(int TraderId);
 public record SetThresholdRequest(int TraderId, decimal? MinValueUsd);
 public record SetChainDisabledRequest(Chain Chain, bool Disabled);
 public record SetChainMinMarketCapRequest(Chain Chain, decimal? MinMarketCap);
+public record SetChainMinTokenAgeRequest(Chain Chain, int? MinTokenAgeMinutes);
 public record SetChainTrendingDisabledRequest(Chain Chain, bool Disabled);
 public record SuggestTraderItem(string Handle, Platform Platform);
 public record SuggestTraderRequest(List<SuggestTraderItem> Items);

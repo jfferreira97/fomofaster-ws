@@ -52,6 +52,7 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ITraderService, TraderService>();
 builder.Services.AddScoped<IChainSettingsService, ChainSettingsService>();
 builder.Services.AddSingleton<ChainSettingsCache>();
+builder.Services.AddSingleton<TokenAgeService>(); // how old a token is (DexScreener's earliest pair), for the minimum-token-age filters
 builder.Services.AddSingleton<FeedService>(); // /feed: web twin of the Telegram alert stream (SSE)
 builder.Services.AddSingleton<ITelegramService, TelegramService>();
 builder.Services.AddSingleton<AppConfigService>();
@@ -109,6 +110,7 @@ using (var scope = app.Services.CreateScope())
     dbContext.Database.ExecuteSqlRaw("PRAGMA journal_mode=WAL;");
     await scope.ServiceProvider.GetRequiredService<WebAnalyticsService>().EnsureSchemaAsync(); // WebEvents + BotStarts (raw SQL, outside EF migrations)
     await scope.ServiceProvider.GetRequiredService<UserActivityService>().EnsureSchemaAsync(); // UserActivity (raw SQL, same way)
+    await scope.ServiceProvider.GetRequiredService<TokenAgeService>().EnsureSchemaAsync(); // TokenAges (raw SQL, same way)
 
     // Category follows are materialized as UserTrader rows; catches up anything missing
     // (first run: backfills every existing category follow).

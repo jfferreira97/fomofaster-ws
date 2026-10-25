@@ -11,4 +11,5 @@ public interface IChainSettingsService
     Task<bool> SetDisabledAsync(int userId, Chain chain, bool disabled);
     Task<bool> SetMinMarketCapAsync(int userId, Chain chain, decimal? minMarketCap);
     Task<bool> SetTrendingDisabledAsync(int userId, Chain chain, bool disabled);
+    Task<bool> SetMinTokenAgeAsync(int userId, Chain chain, int? minTokenAgeMinutes);
 }

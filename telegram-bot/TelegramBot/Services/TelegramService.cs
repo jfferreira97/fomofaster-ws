@@ -237,6 +237,25 @@ public class TelegramService : ITelegramService
             }
         }
 
+        // Minimum token age, per user and per chain (the chain's own value wins over the user's general one). A user with no minimum
+        // is never touched. The age comes from DexScreener's earliest pair for the token, cached for good once known; a token it has no
+        // pair for yet counts as brand new. If the lookup does not answer in time, nobody is filtered: a slow API must never cost an alert.
+        if (chain.HasValue && !string.IsNullOrEmpty(contractAddress)
+            && notificationType is NotificationType.Buy or NotificationType.Sell or NotificationType.Callout or NotificationType.Thesis or NotificationType.CUSTOM_Trending)
+        {
+            var ageSettings = _chainSettingsCache.GetForChain(chain.Value);
+            int MinAgeFor(Models.User u) => ageSettings.TryGetValue(u.Id, out var s) && s.MinTokenAgeMinutes.HasValue ? s.MinTokenAgeMinutes.Value : u.MinTokenAgeMinutes;
+            if (users.Any(u => MinAgeFor(u) > 0))
+            {
+                var age = await scope.ServiceProvider.GetRequiredService<TokenAgeService>().GetAgeAsync(chain.Value, contractAddress, TimeSpan.FromMilliseconds(600));
+                if (age is not null)
+                {
+                    var ageMinutes = age.CreatedAt is DateTime created ? Math.Max(0, (DateTime.UtcNow - created).TotalMinutes) : 0;
+                    users = users.Where(u => { var min = MinAgeFor(u); return min <= 0 || ageMinutes >= min; }).ToList();
+                }
+            }
+        }
+
         // Repeat window: skip users who already got a Buy/Sell alert for this exact
         // trader+contract+side within their configured window (e.g. scrolling back
         // through history shouldn't re-surface the same signal on the same coin).

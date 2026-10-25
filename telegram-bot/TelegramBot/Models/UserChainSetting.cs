@@ -18,5 +18,9 @@ public class UserChainSetting
     // muting just its Trending signal (or vice versa isn't possible — IsDisabled always wins).
     public bool TrendingDisabled { get; set; }
 
+    // Minimum token age in minutes for this chain only. Null = follow the user's own MinTokenAgeMinutes; 0 = no minimum here
+    // even if the user has a general one.
+    public int? MinTokenAgeMinutes { get; set; }
+
     public User User { get; set; } = null!;
 }

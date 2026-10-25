@@ -49,6 +49,27 @@ public class DashboardController : ControllerBase
 
     private static object Tile(string label, string value) => new { l = label, v = value };
 
+    // ---- Token age check (local dashboard only): what age is found for one token, plus the lookup counters. ----
+    [HttpGet("token-age")]
+    public async Task<IActionResult> GetTokenAge([FromServices] TokenAgeService ages, [FromQuery] string? chain, [FromQuery] string? address)
+    {
+        object? result = null;
+        if (!string.IsNullOrEmpty(address) && Enum.TryParse<Chain>(chain, true, out var c))
+        {
+            var t0 = DateTime.UtcNow;
+            var age = await ages.GetAgeAsync(c, address, TimeSpan.FromSeconds(3));
+            result = new
+            {
+                answered = age != null,
+                createdAt = age?.CreatedAt,
+                ageMinutes = age?.CreatedAt is DateTime d ? Math.Round((DateTime.UtcNow - d).TotalMinutes, 1) : (double?)null,
+                brandNew = age != null && age.CreatedAt == null,
+                tookMs = (int)(DateTime.UtcNow - t0).TotalMilliseconds
+            };
+        }
+        return Ok(new { result, cached = ages.Cached, hits = ages.Hits, misses = ages.Misses, lookups = ages.Looked, unknown = ages.Unknown, timedOut = ages.TimedOut, failed = ages.Failed });
+    }
+
     // ---- Site activity tab: who uses the feed and the manage page, by name, what plan they are on, and what they did. ----
     private static string PlanOf(Models.User u)
     {

@@ -577,6 +577,9 @@ namespace TelegramBot.Migrations
                     b.Property<DateTime?>("LastActiveAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("MinTokenAgeMinutes")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("NotifyFomoBuySell")
                         .HasColumnType("INTEGER");
 
@@ -660,6 +663,9 @@ namespace TelegramBot.Migrations
 
                     b.Property<decimal?>("MinMarketCap")
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("MinTokenAgeMinutes")
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("TrendingDisabled")
                         .HasColumnType("INTEGER");

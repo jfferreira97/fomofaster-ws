@@ -50,6 +50,17 @@ public class ChainSettingsService : IChainSettingsService
         return true;
     }
 
+    public async Task<bool> SetMinTokenAgeAsync(int userId, Chain chain, int? minTokenAgeMinutes)
+    {
+        var setting = await GetOrCreateAsync(userId, chain);
+        setting.MinTokenAgeMinutes = minTokenAgeMinutes;
+        await _dbContext.SaveChangesAsync();
+        _cache.Upsert(setting);
+
+        _logger.LogInformation("User {UserId} set chain {Chain} MinTokenAgeMinutes={Minutes}", userId, chain, minTokenAgeMinutes);
+        return true;
+    }
+
     public async Task<bool> SetTrendingDisabledAsync(int userId, Chain chain, bool disabled)
     {
         var setting = await GetOrCreateAsync(userId, chain);
