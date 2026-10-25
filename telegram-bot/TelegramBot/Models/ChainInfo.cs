@@ -24,6 +24,9 @@ public static class ChainInfo
         // Solana/Ethereum/BNB/Base and Axiom's Arc support is unconfirmed, so both links stay
         // off until someone checks — DexScreener alone is correct today.
         [Chain.ARC]       = new(5042,       "arc",       ["arc"],          AxiomSupported: false),
+        // MegaETH: chainId 4326 seen on pump.fun's own stream (trades of FLUFFEY, 2026-10-25) and DexScreener's slug "megaeth" returned by its
+        // token API for that mint, so both are measured, not guessed. Padre and Axiom support is unconfirmed: links stay off.
+        [Chain.MEGAETH]   = new(4326,       "megaeth",   ["megaeth", "mega"], AxiomSupported: false),
     };
 
     private static readonly Dictionary<int, Chain> ByNetworkId =

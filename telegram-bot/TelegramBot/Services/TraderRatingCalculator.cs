@@ -87,7 +87,7 @@ public static class TraderRatingCalculator
 
     private static readonly Dictionary<int, string> ChainNames = new()
     {
-        [1399811149] = "SOL", [4663] = "ROBINHOOD", [56] = "BNB", [8453] = "BASE", [1] = "ETH", [5042] = "ARC", [143] = "MONAD"
+        [1399811149] = "SOL", [4663] = "ROBINHOOD", [56] = "BNB", [8453] = "BASE", [1] = "ETH", [5042] = "ARC", [143] = "MONAD", [4326] = "MEGAETH"
     };
 
     private static double? Exit(CallOutcome c, string window) => window switch

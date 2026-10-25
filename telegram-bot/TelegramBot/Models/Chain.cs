@@ -8,5 +8,6 @@ public enum Chain
     MONAD,
     ETH,
     ROBINHOOD,
-    ARC
+    ARC,
+    MEGAETH
 }
