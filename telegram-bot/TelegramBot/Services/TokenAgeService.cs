@@ -43,6 +43,20 @@ public class TokenAgeService
 
     public int Cached => _cache.Count;
 
+    // "6h", "3d", "2mo", "1y": the short form shown in the alert's link line. A token with no pair yet reads "new".
+    public static string Short(TokenAge age)
+    {
+        if (age.CreatedAt is not DateTime created) return "new";
+        var m = (DateTime.UtcNow - created).TotalMinutes;
+        if (m < 1) return "<1m";
+        if (m < 60) return $"{(int)m}m";
+        if (m < 48 * 60) return $"{(int)(m / 60)}h";
+        var d = m / 1440;
+        if (d < 60) return $"{(int)d}d";
+        if (d < 730) return $"{(int)(d / 30)}mo";
+        return $"{(int)(d / 365)}y";
+    }
+
     // Solana addresses are case-sensitive; EVM ones are not.
     private static string Key(Chain chain, string address) => $"{chain}:{(chain == Chain.SOL ? address : address.ToLowerInvariant())}";
 

@@ -240,14 +240,17 @@ public class TelegramService : ITelegramService
         // Minimum token age, per user and per chain (the chain's own value wins over the user's general one). A user with no minimum
         // is never touched. The age comes from DexScreener's earliest pair for the token, cached for good once known; a token it has no
         // pair for yet counts as brand new. If the lookup does not answer in time, nobody is filtered: a slow API must never cost an alert.
-        if (chain.HasValue && !string.IsNullOrEmpty(contractAddress)
-            && notificationType is NotificationType.Buy or NotificationType.Sell or NotificationType.Callout or NotificationType.Thesis or NotificationType.CUSTOM_Trending)
+        TokenAge? ageForText = null;   // also shown in the alert's link line
+        var carriesToken = chain.HasValue && !string.IsNullOrEmpty(contractAddress)
+            && notificationType is NotificationType.Buy or NotificationType.Sell or NotificationType.Callout or NotificationType.Thesis or NotificationType.CUSTOM_Trending;
+        if (carriesToken)
         {
             var ageSettings = _chainSettingsCache.GetForChain(chain.Value);
             int MinAgeFor(Models.User u) => ageSettings.TryGetValue(u.Id, out var s) && s.MinTokenAgeMinutes.HasValue ? s.MinTokenAgeMinutes.Value : u.MinTokenAgeMinutes;
             if (users.Any(u => MinAgeFor(u) > 0))
             {
-                var age = await scope.ServiceProvider.GetRequiredService<TokenAgeService>().GetAgeAsync(chain.Value, contractAddress, TimeSpan.FromMilliseconds(600));
+                var age = await scope.ServiceProvider.GetRequiredService<TokenAgeService>().GetAgeAsync(chain.Value, contractAddress!, TimeSpan.FromMilliseconds(600));
+                ageForText = age;
                 if (age is not null)
                 {
                     var ageMinutes = age.CreatedAt is DateTime created ? Math.Max(0, (DateTime.UtcNow - created).TotalMinutes) : 0;
@@ -255,6 +258,11 @@ public class TelegramService : ITelegramService
                 }
             }
         }
+
+        // The age for the link line, when nobody's filter needed it: a short wait only the first time a token is seen (cached for good after
+        // that), so the speed of the alert is not paid for on every message. No answer in time = the line simply has no age.
+        if (ageForText is null && carriesToken)
+            ageForText = await scope.ServiceProvider.GetRequiredService<TokenAgeService>().GetAgeAsync(chain!.Value, contractAddress!, TimeSpan.FromMilliseconds(250));
 
         // Repeat window: skip users who already got a Buy/Sell alert for this exact
         // trader+contract+side within their configured window (e.g. scrolling back
@@ -391,6 +399,15 @@ public class TelegramService : ITelegramService
 🔗 {chainLabel} | {typeBubble}{GenericTradeLinks}
 
 {SubscribeFooter}";
+        }
+
+        // The token's age sits in the link line: "🔗 SOL | 🕐 6h | Axiom | ..." ("new" when no exchange lists it yet).
+        if (ageForText is not null)
+        {
+            var linkHead = $"🔗 {chainLabel} | ";
+            var withAge = linkHead + $"🕐 {TokenAgeService.Short(ageForText)} | ";
+            fullMessage = fullMessage.Replace(linkHead, withAge);
+            obfuscatedMessage = obfuscatedMessage.Replace(linkHead, withAge);
         }
 
         // Global per-platform prefix — 👀 mirrors the FOMO logo, 💊 marks Pump-sourced
