@@ -648,6 +648,7 @@
             <div class="tab" onclick="switchTab('queue')">Queue</div>
             <div class="tab" onclick="switchTab('monitoring')">Monitoring<span class="mon-dot idle" id="monDot" title="App health"></span></div>
             <div class="tab" onclick="switchTab('users')">Users</div>
+            <div class="tab" onclick="switchTab('accumulation')">Accumulation</div>
             <div class="tab" onclick="switchTab('activity')">Site activity</div>
             <div class="tab" onclick="switchTab('categories')">Categories</div>
             <div class="tab" onclick="switchTab('payments')">Payments</div>
@@ -744,6 +745,38 @@
         </div>
 
         <!-- Categories Tab: every trader by category; drag a card (or use its menu) to move it by hand -->
+        <!-- Accumulation Tab: tokens the tracked traders keep buying over several days -->
+        <div id="accumulation-tab" class="tab-content">
+            <div class="chat-area" style="overflow-y: auto;">
+                <div class="settings-container">
+                    <div class="settings-section">
+                        <div class="settings-section-title">Accumulation: tokens our traders keep coming back to</div>
+                        <div style="color:#8a96a0;font-size:13px;line-height:1.6;margin:4px 0 12px;max-width:940px">
+                            A token bought only on launch day is mostly noise: bundles, snipers, quick flips. A token that <b>different tracked traders keep buying on different days</b>
+                            has more conviction behind it. A day only counts when enough different traders bought that day (set below), so one wallet buying all week is not "days".<br>
+                            <b>Days</b>: one bar per UTC day, taller = more different buyers that day. <b>Buyers / Sellers</b>: different traders over the window; the warning appears when one single trader made most of the buys (bot or DCA, not a crowd).
+                            <b>Today / yesterday</b>: different buyers on each day, so you can see if it is picking up or fading. <b>Net $</b>: tracked buys minus tracked sells.
+                            <b>Since 1st buy</b>: price now against the price at the first tracked buy <i>inside this window</i>, so it changes with the window, and it is hindsight, not a promise.
+                            Age with "≥" means DexScreener has no date for the token, so it is at least as old as our first tracked buy. Wrapped coins, stablecoins and well-known majors are hidden.
+                            Our own data: FOMO goes back months, pump.fun trades only since 19 Oct, so a 14 or 30 day window is mostly FOMO.
+                        </div>
+                        <div id="accFilters" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px;font-size:13px">
+                            <label>Window <select id="accDays" onchange="loadAccumulation()"><option value="3">3 days</option><option value="7" selected>7 days</option><option value="14">14 days</option><option value="30">30 days</option></select></label>
+                            <label>Days counted at least <select id="accMinDays" onchange="loadAccumulation()"><option>1</option><option selected>2</option><option>3</option><option>4</option><option>5</option><option>7</option></select></label>
+                            <label>Buyers needed in a day <select id="accPerDay" onchange="loadAccumulation()"><option>1</option><option selected>2</option><option>3</option><option>5</option></select></label>
+                            <label>Different buyers at least <select id="accMinBuyers" onchange="loadAccumulation()"><option>1</option><option>2</option><option selected>3</option><option>5</option><option>8</option><option>12</option></select></label>
+                            <label>Token older than <select id="accMinAge" onchange="loadAccumulation()"><option value="0" selected>any age</option><option value="6">6 hours</option><option value="24">1 day</option><option value="72">3 days</option><option value="168">7 days</option><option value="720">30 days</option></select></label>
+                            <label>Token younger than <select id="accMaxAge" onchange="loadAccumulation()"><option value="0" selected>any age</option><option value="72">3 days</option><option value="168">7 days</option><option value="720">30 days</option><option value="2160">90 days</option></select></label>
+                            <label>Chain <select id="accChain" onchange="loadAccumulation()"><option value="">all</option></select></label>
+                            <label>Sort <select id="accSort" onchange="renderAccumulation()"><option value="days">most days</option><option value="buyers">most buyers</option><option value="today">most buyers today</option><option value="net">biggest net buying</option><option value="rise">biggest rise since 1st buy</option><option value="recent">latest buy</option></select></label>
+                            <span id="accUpdated" style="color:#8a96a0;font-size:12px"></span>
+                        </div>
+                        <div id="accBody"><div class="loading">Loading…</div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Site activity Tab: who uses the feed and the manage page, and what they do there -->
         <div id="activity-tab" class="tab-content">
             <div class="chat-area" style="overflow-y: auto;">
@@ -1273,6 +1306,68 @@
         setInterval(monLight, 30000);
         monLight();
 
+        // ---------- Accumulation: tokens the tracked traders keep buying over several days ----------
+        let accData = null;
+        const accUsd = (n) => { const x = Math.abs(n); const t = x >= 1e6 ? (x / 1e6).toFixed(1) + 'M' : x >= 1e3 ? (x / 1e3).toFixed(1) + 'K' : String(Math.round(x)); return (n < 0 ? '-$' : '$') + t; };
+        function accAge(r) {
+            const m = r.ageMinutes;
+            if (m == null) return '<span style="color:#8a96a0">?</span>';
+            const t = m < 90 ? Math.round(m) + 'm' : m < 2880 ? (m / 60).toFixed(0) + 'h' : m < 86400 ? Math.round(m / 1440) + 'd' : (m / 43200).toFixed(0) + 'mo';
+            return r.ageExact ? t : '<span style="color:#8a96a0" title="DexScreener has no date for this token: at least as old as our first tracked buy">≥' + t + '</span>';
+        }
+        function accBars(r, days) {
+            const byDay = new Map(r.perDay.map(x => [x.day, x]));
+            const need = accData.minBuyersPerDay;
+            const out = [];
+            for (let i = days - 1; i >= 0; i--) {
+                const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+                const x = byDay.get(d), b = x ? x.buyers : 0;
+                const h = b === 0 ? 2 : Math.min(26, 6 + b * 4);
+                const colour = b === 0 ? '#202a35' : b >= need ? (b >= 3 ? '#2ea043' : '#58a6ff') : '#4b5563';
+                out.push('<span title="' + d + ': ' + b + ' buyers, ' + (x ? x.buys : 0) + ' buys, ' + (x ? x.sells : 0) + ' sells' + (b > 0 && b < need ? ' (does not count: fewer than ' + need + ' buyers)' : '') + '" style="display:inline-block;width:7px;height:' + h + 'px;margin-right:2px;vertical-align:bottom;border-radius:2px;background:' + colour + '"></span>');
+            }
+            return '<span style="display:inline-block;height:28px;white-space:nowrap">' + out.join('') + '</span>';
+        }
+        function accLast(at) {
+            if (!at) return '-';
+            const sec = Math.max(0, (Date.now() - new Date(at.replace(' ', 'T') + 'Z').getTime()) / 1000);
+            return sec < 5400 ? Math.max(1, Math.round(sec / 60)) + ' min ago' : sec < 172800 ? (sec / 3600).toFixed(0) + ' h ago' : Math.round(sec / 86400) + ' d ago';
+        }
+        function accTrend(r) {
+            const t = r.buyersToday, y = r.buyersYesterday;
+            const arrow = t > y ? '<span style="color:#2ea043">▲</span>' : t < y ? '<span style="color:#f85149">▼</span>' : '<span style="color:#8a96a0">•</span>';
+            return arrow + ' ' + t + ' / ' + y;
+        }
+        function renderAccumulation() {
+            if (!accData) return;
+            const sort = document.getElementById('accSort').value;
+            const rows = accData.rows.slice();
+            const key = { days: r => r.days * 1000 + r.buyers, buyers: r => r.buyers, today: r => r.buyersToday * 1000 + r.buyers, net: r => r.netUsd, rise: r => r.pctSinceFirstBuy ?? -1e9, recent: r => new Date((r.lastBuyAt || '').replace(' ', 'T') + 'Z').getTime() || 0 }[sort];
+            rows.sort((a, b) => key(b) - key(a));
+            if (!rows.length) { document.getElementById('accBody').innerHTML = '<div style="color:#8a96a0;font-size:13px">Nothing matches these filters. Try fewer days, fewer buyers or any age.</div>'; return; }
+            document.getElementById('accBody').innerHTML = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13.5px"><thead><tr><th style="text-align:left">Token</th><th style="text-align:left">Age</th><th style="text-align:left">Days (' + accData.days + ')</th><th style="text-align:right">Buyers / Sellers</th><th style="text-align:right">Today / yest.</th><th style="text-align:right">Buys / Sells</th><th style="text-align:right">Net $</th><th style="text-align:right">Since 1st buy</th><th style="text-align:left">Last buy</th></tr></thead><tbody>' +
+                rows.map(r => {
+                    const pct = r.pctSinceFirstBuy;
+                    const pctTxt = pct == null ? '<span style="color:#8a96a0">-</span>' : '<span style="color:' + (pct >= 0 ? '#2ea043' : '#f85149') + '">' + (pct >= 0 ? '+' : '') + pct.toFixed(0) + '%</span>';
+                    const warn = r.topBuyerPct >= 60 && r.buys >= 20 ? ' <span title="One single trader made ' + r.topBuyerPct + '% of the buys: probably a bot or a DCA, not a crowd" style="color:#d29922">⚠ ' + r.topBuyerPct + '%</span>' : '';
+                    return '<tr style="border-top:1px solid #202a35"><td><b>' + monEsc(r.ticker) + '</b> <span style="color:#8a96a0">' + monEsc(r.chain) + '</span> <a href="#" style="color:#8a96a0;font-size:11px" title="copy the contract address" onclick="navigator.clipboard.writeText(\'' + monEsc(r.address) + '\');return false">' + monEsc(r.address.slice(0, 4) + '…' + r.address.slice(-4)) + '</a></td><td>' + accAge(r) + '</td><td>' + accBars(r, accData.days) + ' <span style="color:#8a96a0">' + r.days + 'd</span></td><td style="text-align:right"><b>' + r.buyers + '</b> / ' + r.sellers + warn + '</td><td style="text-align:right">' + accTrend(r) + '</td><td style="text-align:right">' + r.buys + ' / ' + r.sells + '</td><td style="text-align:right;color:' + (r.netUsd >= 0 ? '#2ea043' : '#f85149') + '">' + accUsd(r.netUsd) + '</td><td style="text-align:right">' + pctTxt + '</td><td>' + accLast(r.lastBuyAt) + '</td></tr>';
+                }).join('') + '</tbody></table></div>';
+        }
+        async function loadAccumulation() {
+            const body = document.getElementById('accBody');
+            body.innerHTML = '<div class="loading">Loading… (the first time it also looks up each token\'s age, a few seconds)</div>';
+            try {
+                const q = new URLSearchParams({ days: document.getElementById('accDays').value, minDays: document.getElementById('accMinDays').value, minBuyers: document.getElementById('accMinBuyers').value, minBuyersPerDay: document.getElementById('accPerDay').value, minAgeHours: document.getElementById('accMinAge').value, maxAgeHours: document.getElementById('accMaxAge').value, chain: document.getElementById('accChain').value });
+                const res = await fetch(API_BASE + '/api/dashboard/accumulation?' + q);
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                accData = await res.json();
+                const sel = document.getElementById('accChain');
+                if (sel.options.length <= 1) accData.chains.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o); });
+                document.getElementById('accUpdated').textContent = 'showing ' + accData.shown + ' of ' + accData.total + ' matching tokens' + (accData.total > accData.shown ? ' (the top ones; narrow the filters to see others)' : '') + ' · refreshed every 5 min';
+                renderAccumulation();
+            } catch (e) { body.innerHTML = '<div style="color:#f85149">Could not load: ' + monEsc(e.message) + '</div>'; }
+        }
+
         // ---------- Site activity: who is on the feed, who uses the manage page, what each person did ----------
         function actName(w) { return w.username ? '@' + monEsc(w.username) : monEsc(w.firstName || ('chat ' + w.chatId)); }
         function actPlan(p) { const c = { lifetime: '#2ea043', paid: '#2ea043', trial: '#d29922', 'no access': '#8a96a0' }[p] || '#8a96a0'; return '<span style="color:' + c + ';font-weight:600">' + monEsc(p) + '</span>'; }
@@ -1369,7 +1464,9 @@
             document.getElementById(tabName + '-tab').classList.add('active');
 
             // Load data based on tab
-            if (tabName === 'activity') {
+            if (tabName === 'accumulation') {
+                loadAccumulation();
+            } else if (tabName === 'activity') {
                 loadActivity();
             } else if (tabName === 'queue') {
                 loadQueue();

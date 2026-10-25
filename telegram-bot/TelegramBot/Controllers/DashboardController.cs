@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TelegramBot.Data;
@@ -48,6 +49,85 @@ public class DashboardController : ControllerBase
     }
 
     private static object Tile(string label, string value) => new { l = label, v = value };
+
+    // ---- Accumulation tab: tokens the tracked traders keep buying over several days (not only on launch day). ----
+    // Tickers of majors and tokenized assets that are not memecoins: hidden only when the token is old (or its age is unknown),
+    // so a young memecoin that happens to be called BTC or ETH is not lost.
+    private static readonly HashSet<string> MajorTickers = new(StringComparer.OrdinalIgnoreCase)
+        { "BTC", "ETH", "BNB", "SOL", "WBTC", "CBBTC", "ZEC", "XMR", "DOGE", "LTC", "XRP", "ADA", "AVAX", "LINK", "TTWO", "DJT", "SPCX", "OPENAI", "ANTHRP" };
+
+    [HttpGet("accumulation")]
+    public async Task<IActionResult> GetAccumulation([FromServices] AccumulationService acc, [FromServices] TokenAgeService ages,
+        [FromQuery] int days = 7, [FromQuery] int minDays = 2, [FromQuery] int minBuyers = 3, [FromQuery] int minBuyersPerDay = 2,
+        [FromQuery] int minAgeHours = 0, [FromQuery] int maxAgeHours = 0, [FromQuery] string? chain = null, [FromQuery] int limit = 150)
+    {
+        days = Math.Clamp(days, 1, 30); minDays = Math.Clamp(minDays, 1, 30); minBuyers = Math.Clamp(minBuyers, 1, 100);
+        minBuyersPerDay = Math.Clamp(minBuyersPerDay, 1, 20); minAgeHours = Math.Clamp(minAgeHours, 0, 24 * 3650); maxAgeHours = Math.Clamp(maxAgeHours, 0, 24 * 3650); limit = Math.Clamp(limit, 10, 400);
+        var rows = await acc.GetAsync(days, minDays, minBuyers, minBuyersPerDay);
+        if (!string.IsNullOrEmpty(chain)) rows = rows.Where(r => string.Equals(r.Chain, chain, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        // How old each token is: DexScreener's earliest pair (cached for good once known). A token it has no pair for yet gets a lower bound
+        // instead: it is at least as old as our first tracked buy of it, so it is never shown as "new" while it has days of buying behind it.
+        async Task<Dictionary<string, (double Minutes, bool Exact)>> AgesFor(IEnumerable<AccumulationRow> list)
+        {
+            var map = new Dictionary<string, (double, bool)>();
+            using var gate = new SemaphoreSlim(8);
+            await Task.WhenAll(list.Select(async r =>
+            {
+                if (!Enum.TryParse<Chain>(r.Chain, out var c)) return;
+                await gate.WaitAsync();
+                try
+                {
+                    var a = await ages.GetAgeAsync(c, r.Address, TimeSpan.FromSeconds(2));
+                    var lower = r.FirstBuyAt != null && DateTime.TryParse(r.FirstBuyAt, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var fb)
+                        ? Math.Max(0, (DateTime.UtcNow - fb).TotalMinutes) : 0;
+                    lock (map) map[r.Chain + ":" + r.Address] = a?.CreatedAt is DateTime d ? (Math.Max(0, (DateTime.UtcNow - d).TotalMinutes), true) : (lower, false);
+                }
+                finally { gate.Release(); }
+            }));
+            return map;
+        }
+
+        // Filtering on age needs every candidate's age; without an age filter only the rows shown (plus the majors-looking ones) need it.
+        var needAll = minAgeHours > 0 || maxAgeHours > 0;
+        var pool = needAll ? rows.Take(500).ToList() : rows.Take(limit + 60).ToList();
+        var ageMap = await AgesFor(pool);
+        double? AgeOf(AccumulationRow r, out bool exact) { exact = false; if (!ageMap.TryGetValue(r.Chain + ":" + r.Address, out var v)) return null; exact = v.Exact; return v.Minutes; }
+
+        var kept = new List<AccumulationRow>();
+        foreach (var r in pool)
+        {
+            var age = AgeOf(r, out var exact);
+            if (MajorTickers.Contains(r.Ticker) && (age is null || !exact || age.Value > 180 * 1440)) continue;
+            if (minAgeHours > 0 && (age is null || age.Value < minAgeHours * 60.0)) continue;
+            if (maxAgeHours > 0 && exact && age is double ag && ag > maxAgeHours * 60.0) continue;
+            kept.Add(r);
+        }
+        // Without an age filter only part of the list was looked at (the rest is counted as matching, minus nothing it could not check).
+        var total = needAll ? kept.Count : kept.Count + Math.Max(0, rows.Count - pool.Count);
+        var today = DateTime.UtcNow.ToString("yyyy-MM-dd"); var yesterday = DateTime.UtcNow.AddDays(-1).ToString("yyyy-MM-dd");
+        var shaped = kept.Take(limit).Select(r =>
+        {
+            var age = AgeOf(r, out var exact);
+            double? pct = r.FirstPrice is > 0 && r.LastPrice is > 0 ? Math.Round((r.LastPrice.Value / r.FirstPrice.Value - 1) * 100, 1) : null;
+            return new
+            {
+                r.Chain, r.Address, r.Ticker, days = r.SolidDays, r.BuyDays, r.Buyers, r.Sellers, r.Buys, r.Sells,
+                buyUsd = Math.Round(r.BuyUsd), sellUsd = Math.Round(r.SellUsd), netUsd = Math.Round(r.BuyUsd - r.SellUsd),
+                r.FirstBuyAt, r.LastBuyAt, pctSinceFirstBuy = pct, r.PerDay,
+                buyersToday = r.PerDay.FirstOrDefault(d => d.Day == today)?.Buyers ?? 0, buyersYesterday = r.PerDay.FirstOrDefault(d => d.Day == yesterday)?.Buyers ?? 0,
+                topBuyerPct = r.TopBuyerPct, ageMinutes = age, ageExact = exact
+            };
+        }).ToList();
+
+        return Ok(new
+        {
+            days, minDays, minBuyers, minBuyersPerDay, minAgeHours, maxAgeHours, total, shown = shaped.Count,
+            note = "FOMO trades go back months; pump.fun trades only since 19 Oct. Days are whole UTC days, today included.",
+            chains = Enum.GetNames<Chain>(),
+            rows = shaped
+        });
+    }
 
     // ---- Token age check (local dashboard only): what age is found for one token, plus the lookup counters. ----
     [HttpGet("token-age")]

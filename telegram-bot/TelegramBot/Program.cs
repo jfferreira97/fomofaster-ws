@@ -52,6 +52,7 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ITraderService, TraderService>();
 builder.Services.AddScoped<IChainSettingsService, ChainSettingsService>();
 builder.Services.AddSingleton<ChainSettingsCache>();
+builder.Services.AddSingleton<AccumulationService>(); // dashboard Accumulation tab: tokens the tracked traders keep buying over several days
 builder.Services.AddSingleton<TokenAgeService>(); // how old a token is (DexScreener's earliest pair), for the minimum-token-age filters
 builder.Services.AddSingleton<FeedService>(); // /feed: web twin of the Telegram alert stream (SSE)
 builder.Services.AddSingleton<ITelegramService, TelegramService>();
