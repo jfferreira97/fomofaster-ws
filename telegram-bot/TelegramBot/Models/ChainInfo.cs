@@ -27,6 +27,11 @@ public static class ChainInfo
         // MegaETH: chainId 4326 seen on pump.fun's own stream (trades of FLUFFEY, 2026-10-25) and DexScreener's slug "megaeth" returned by its
         // token API for that mint, so both are measured, not guessed. Padre and Axiom support is unconfirmed: links stay off.
         [Chain.MEGAETH]   = new(4326,       "megaeth",   ["megaeth", "mega"], AxiomSupported: false),
+        // HyperEVM (chainId 999) and Ink (57073): both seen on pump.fun's stream with EVM mints, and DexScreener's token API returned the
+        // slugs "hyperevm" and "ink" for those mints. Padre / Axiom support unconfirmed: links stay off. X Layer (196) also showed up once,
+        // but its token had no DexScreener pair to read a slug from, so it is not added until there is something to confirm it with.
+        [Chain.HYPEREVM]  = new(999,        "hyperevm",  ["hyperevm", "hyper"], AxiomSupported: false),
+        [Chain.INK]       = new(57073,      "ink",       ["ink"],          AxiomSupported: false),
     };
 
     private static readonly Dictionary<int, Chain> ByNetworkId =

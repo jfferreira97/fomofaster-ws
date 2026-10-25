@@ -9,5 +9,7 @@ public enum Chain
     ETH,
     ROBINHOOD,
     ARC,
-    MEGAETH
+    MEGAETH,
+    HYPEREVM,
+    INK
 }
