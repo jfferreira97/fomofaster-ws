@@ -309,7 +309,12 @@ public class FeedService
 
     private static bool ImageHostOk(Uri u) =>
         u.Scheme == Uri.UriSchemeHttps
-        && (ImageHosts.Contains(u.Host, StringComparer.OrdinalIgnoreCase) || u.Host.EndsWith(".ipfs.dweb.link", StringComparison.OrdinalIgnoreCase));
+        && HostAllowed(u.Host);
+
+    private static bool HostAllowed(string host) =>
+        ImageHosts.Contains(host, StringComparer.OrdinalIgnoreCase)
+        || host.EndsWith(".ipfs.dweb.link", StringComparison.OrdinalIgnoreCase)
+        || host.EndsWith(".myfilebase.com", StringComparison.OrdinalIgnoreCase);
 
     // Serves a picture for an opaque id. The upstream URL comes only from our own map (never from the request) and must
     // be on the allow-list, redirects are followed by hand and re-checked, and only small real images are returned.
@@ -358,14 +363,34 @@ public class FeedService
     private static readonly string[] ImageHosts =
     {
         "prod-fomo-profile-pics.s3.amazonaws.com", "socialimages.pump.fun", "pump.mypinata.cloud",
-        "ipfs.io", "token-media.defined.fi", "pbs.twimg.com"
+        "ipfs.io", "token-media.defined.fi", "pbs.twimg.com",
+        // what pump.fun's coinImage and FOMO's tokenImageUrl really carried over three days of alerts (2026-10-27): without these, every coin
+        // whose launchpad keeps its pictures on Axiom's CDN, j7tracker, uxento... lost its picture. DexScreener's own is the last resort.
+        "dd.dexscreener.com", "cdn.dexscreener.com", "images.pump.fun",
+        "axiomtrading-v2.axiom-cdn.io", "axiom-bnb.axiom-cdn.io", "axiomtrading.sfo3.cdn.digitaloceanspaces.com",
+        "metadata.j7tracker.io", "edge.uxento.io", "meta.notrandom.fun", "m.rapidlaunch.io", "image.solanatracker.io",
+        "cf-ipfs.com", "fast-ipfs.com", "gateway.pinata.cloud", "gateway.irys.xyz", "ipfs.launchblitz.ai", "metadata.pumper.ink",
+        "media.thegrid.id", "assets.coingecko.com", "static.coinpaprika.com", "assets.phantom.app", "metadata.mobula.io"
     };
 
     private static string? SafeImage(string? url)
     {
         if (string.IsNullOrWhiteSpace(url) || url.Length > 500) return null;
+        if (BareCid.Match(url.Trim()) is { Success: true } cid) url = "https://ipfs.io/ipfs/" + cid.Groups[1].Value;   // some launchpads send the bare CID
         if (!Uri.TryCreate(url, UriKind.Absolute, out var u) || u.Scheme != Uri.UriSchemeHttps) return null;
-        return ImageHosts.Contains(u.Host, StringComparer.OrdinalIgnoreCase) ? u.AbsoluteUri : null;
+        return HostAllowed(u.Host) ? u.AbsoluteUri : null;
+    }
+
+    private static readonly Regex BareCid = new(@"^(?:ipfs://(?:ipfs/)?)?(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[a-z0-9]{50,})$", RegexOptions.Compiled);
+
+    // The picture DexScreener itself shows for a token: the last resort when the alert carried none (or one we do not trust).
+    // pump.fun's own image host knows every coin it lists on any chain (an unknown mint gets its generic placeholder), so for the pump
+    // feed it is the better last resort; DexScreener's static pictures are the one for FOMO's coins, which are not all on pump.fun.
+    private static string? FallbackImage(Chain? chain, string? ca, bool pump)
+    {
+        if (chain is not { } c || string.IsNullOrEmpty(ca) || !Regex.IsMatch(ca, @"^[A-Za-z0-9]{20,64}$")) return null;
+        return pump ? $"https://images.pump.fun/coin-image/{ca}"
+                    : $"https://dd.dexscreener.com/ds-data/tokens/{ChainInfo.DexScreenerSlug(c)}/{ca}.png";
     }
 
     private Entry Build(long id, Notification n, IReadOnlySet<long> recipients, double? usd, string? tokenImage = null, string? traderImage = null)
@@ -398,7 +423,8 @@ public class FeedService
         // not secret (the name is shown there too), with the intel file as the fallback for
         // FOMO traders whose live events carry none.
         var coinImg = SafeImage(tokenImage)
-            ?? (!string.IsNullOrEmpty(ca) && _tokenImages.TryGetValue(ca, out var known) ? known : null);
+            ?? (!string.IsNullOrEmpty(ca) && _tokenImages.TryGetValue(ca, out var known) ? known : null)
+            ?? FallbackImage(chain, ca, pump: !isFomo);
         var faceImg = SafeImage(traderImage)
             ?? (string.IsNullOrEmpty(n.Trader) ? null : SafeImage(_intel.Get(n.Platform, n.Trader)?.Avatar));
 
