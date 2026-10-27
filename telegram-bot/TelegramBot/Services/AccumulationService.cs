@@ -17,7 +17,10 @@ namespace TelegramBot.Services;
 public sealed record AccumulationDay(string Day, int Buyers, int Buys, int Sells);
 public sealed record AccumulationRow(
     string Chain, string Address, string Ticker, int SolidDays, int BuyDays, int Buyers, int Sellers, int Buys, int Sells, double BuyUsd, double SellUsd,
-    string? FirstBuyAt, string? LastBuyAt, double? FirstPrice, double? LastPrice, int TopBuyerBuys, double TopBuyerPct, List<AccumulationDay> PerDay);
+    string? FirstBuyAt, string? LastBuyAt, double? FirstPrice, double? LastPrice, int TopBuyerBuys, double TopBuyerPct, List<AccumulationDay> PerDay, string? Img = null);
+
+// One trade of one token, for the bubble chart: who, on which platform, buy or sell, how many dollars, at what price and market cap.
+public sealed record TradePoint(string At, string Trader, string Platform, bool Buy, double Usd, double? Price, double? Mcap, string? Img);
 
 public class AccumulationService
 {
@@ -46,6 +49,38 @@ public class AccumulationService
             return rows;
         }
         finally { _gate.Release(); }
+    }
+
+    // Every tracked trade of one token inside the window. FOMO events carry the market cap; pump.fun's carry only the price, so the market
+    // cap of those is the price times the token's supply, with the supply read from the FOMO events of the same token (market cap / price),
+    // or 1 billion for a pump.fun token on Solana (that is the supply of every one of them).
+    public async Task<(List<TradePoint> Points, double? Supply)> TradesAsync(Chain chain, string address, int days)
+    {
+        using var scope = _services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var conn = db.Database.GetDbConnection();
+        if (conn.State != ConnectionState.Open) await conn.OpenAsync();
+        var since = DateTime.UtcNow.Date.AddDays(-(Math.Clamp(days, 1, 60) - 1)).ToString("yyyy-MM-dd HH:mm:ss");
+        var cid = (long)ChainInfo.NetworkIdOf(chain);
+        var rows = await Q(conn, @"
+            SELECT CreatedAt AS at, 'f:' || UserHandle, 'fomo', CASE WHEN Type = 'swap_buy' THEN 1 ELSE 0 END, CAST(UsdAmount AS REAL), CAST(Price AS REAL), CAST(MarketCap AS REAL), json_extract(RawJson,'$.profilePictureLink')
+            FROM WsEvents WHERE Type IN ('swap_buy','swap_sell') AND NetworkId = $c AND lower(TokenAddress) = lower($a) AND CreatedAt >= $s
+            UNION ALL
+            SELECT CreatedAt, 'p:' || ActorHandle, 'pump', CASE WHEN json_extract(RawJson,'$.trade.isBuy') = 1 THEN 1 ELSE 0 END,
+                   json_extract(RawJson,'$.trade.amountUsd'), json_extract(RawJson,'$.trade.priceUsd'), NULL, json_extract(RawJson,'$.author.profileImage')
+            FROM PumpEvents WHERE Kind = 'trade' AND ChainId = $c AND lower(CoinMint) = lower($a) AND CreatedAt >= $s
+            ORDER BY 1 LIMIT 5000", ("$c", cid), ("$a", address), ("$s", since));
+
+        var ratios = rows.Where(r => r[6] != null && r[5] != null && D(r[5]) > 0 && D(r[6]) > 0).Select(r => D(r[6]) / D(r[5])).OrderBy(x => x).ToList();
+        double? supply = ratios.Count > 0 ? ratios[ratios.Count / 2] : (chain == Chain.SOL && address.EndsWith("pump", StringComparison.OrdinalIgnoreCase) ? 1_000_000_000.0 : null);
+
+        var points = rows.Select(r =>
+        {
+            var price = DN(r[5]);
+            var mcap = DN(r[6]) ?? (supply is double sp && price is > 0 ? price * sp : null);
+            return new TradePoint(((string)r[0]!).Replace(' ', 'T').TrimEnd('Z') + "Z", ((string)r[1]!)[2..], (string)r[2]!, Convert.ToInt32(r[3]) == 1, D(r[4]), price, mcap, r[7] as string);
+        }).ToList();
+        return (points, supply);
     }
 
     private static void P(DbCommand c, string name, object value)
@@ -83,7 +118,7 @@ public class AccumulationService
         // one flat list of trades from both platforms (temp table: it lives and dies with this connection)
         using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = "CREATE TEMP TABLE IF NOT EXISTS acc_ev (cid INTEGER, addr TEXT, tk TEXT, day TEXT, at TEXT, trader TEXT, buy INTEGER, usd REAL, price REAL)";
+            cmd.CommandText = "CREATE TEMP TABLE IF NOT EXISTS acc_ev (cid INTEGER, addr TEXT, tk TEXT, day TEXT, at TEXT, trader TEXT, buy INTEGER, usd REAL, price REAL, img TEXT)";
             await cmd.ExecuteNonQueryAsync();
             cmd.CommandText = "DELETE FROM acc_ev";
             await cmd.ExecuteNonQueryAsync();
@@ -94,12 +129,12 @@ public class AccumulationService
             cmd.CommandText = $@"
                 INSERT INTO acc_ev
                 SELECT NetworkId, CASE WHEN NetworkId = {SolanaId} THEN TokenAddress ELSE lower(TokenAddress) END, Ticker, substr(CreatedAt,1,10), CreatedAt, 'f:' || UserHandle,
-                       CASE WHEN Type = 'swap_buy' THEN 1 ELSE 0 END, CAST(UsdAmount AS REAL), CAST(Price AS REAL)
+                       CASE WHEN Type = 'swap_buy' THEN 1 ELSE 0 END, CAST(UsdAmount AS REAL), CAST(Price AS REAL), json_extract(RawJson,'$.tokenImageUrl')
                 FROM WsEvents WHERE Type IN ('swap_buy','swap_sell') AND CreatedAt >= $s AND TokenAddress IS NOT NULL AND UserHandle IS NOT NULL;
                 INSERT INTO acc_ev
                 SELECT ChainId, CASE WHEN ChainId = {SolanaId} THEN CoinMint ELSE lower(CoinMint) END, Symbol, substr(CreatedAt,1,10), CreatedAt, 'p:' || ActorHandle,
                        CASE WHEN json_extract(RawJson,'$.trade.isBuy') = 1 THEN 1 ELSE 0 END,
-                       json_extract(RawJson,'$.trade.amountUsd'), json_extract(RawJson,'$.trade.priceUsd')
+                       json_extract(RawJson,'$.trade.amountUsd'), json_extract(RawJson,'$.trade.priceUsd'), json_extract(RawJson,'$.coinImage')
                 FROM PumpEvents WHERE Kind = 'trade' AND CreatedAt >= $s AND CoinMint IS NOT NULL AND ActorHandle IS NOT NULL;
                 DELETE FROM acc_ev WHERE UPPER(tk) IN ('SOL','WSOL','WETH','WBNB','USDC','USDT','USDS','USD1','DAI','PYUSD')
                    OR addr IN ('So11111111111111111111111111111111111111112','EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v','Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB');
@@ -117,7 +152,7 @@ public class AccumulationService
         var tokens = await Q(conn, @"
             SELECT cid, addr, MAX(tk), COUNT(DISTINCT CASE WHEN buy = 1 THEN trader END), COUNT(DISTINCT CASE WHEN buy = 0 THEN trader END),
                    SUM(buy), SUM(1 - buy), SUM(CASE WHEN buy = 1 THEN usd ELSE 0 END), SUM(CASE WHEN buy = 0 THEN usd ELSE 0 END),
-                   MIN(CASE WHEN buy = 1 THEN at END), MAX(CASE WHEN buy = 1 THEN at END)
+                   MIN(CASE WHEN buy = 1 THEN at END), MAX(CASE WHEN buy = 1 THEN at END), MAX(img)
             FROM acc_ev GROUP BY cid, addr HAVING SUM(buy) > 0 AND COUNT(DISTINCT CASE WHEN buy = 1 THEN trader END) >= $b", ("$b", minBuyers));
 
         var chosen = new List<(object?[] T, List<AccumulationDay> Days, int Solid)>();
@@ -146,7 +181,7 @@ public class AccumulationService
             var lp = await Q(conn, "SELECT price FROM acc_ev WHERE cid = $c AND addr = $a AND price > 0 ORDER BY at DESC LIMIT 1", ("$c", cid), ("$a", addr));
             result.Add(new AccumulationRow(chain.Value.ToString(), addr, (t[2] as string) ?? "?", solid, pd.Count(d => d.Buys > 0), Convert.ToInt32(t[3]), Convert.ToInt32(t[4]), buys, Convert.ToInt32(t[6]),
                 D(t[7]), D(t[8]), firstBuyAt, lastBuyAt, fp.Count > 0 ? DN(fp[0][0]) : null, lp.Count > 0 ? DN(lp[0][0]) : null,
-                topBuys, buys > 0 ? Math.Round(100.0 * topBuys / buys, 0) : 0, pd));
+                topBuys, buys > 0 ? Math.Round(100.0 * topBuys / buys, 0) : 0, pd, t[11] as string));
         }
         result = result.OrderByDescending(r => r.SolidDays).ThenByDescending(r => r.Buyers).ToList();
 

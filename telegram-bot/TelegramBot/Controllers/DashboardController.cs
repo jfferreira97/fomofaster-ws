@@ -116,7 +116,7 @@ public class DashboardController : ControllerBase
                 buyUsd = Math.Round(r.BuyUsd), sellUsd = Math.Round(r.SellUsd), netUsd = Math.Round(r.BuyUsd - r.SellUsd),
                 r.FirstBuyAt, r.LastBuyAt, pctSinceFirstBuy = pct, r.PerDay,
                 buyersToday = r.PerDay.FirstOrDefault(d => d.Day == today)?.Buyers ?? 0, buyersYesterday = r.PerDay.FirstOrDefault(d => d.Day == yesterday)?.Buyers ?? 0,
-                topBuyerPct = r.TopBuyerPct, ageMinutes = age, ageExact = exact
+                topBuyerPct = r.TopBuyerPct, ageMinutes = age, ageExact = exact, img = r.Img
             };
         }).ToList();
 
@@ -127,6 +127,32 @@ public class DashboardController : ControllerBase
             chains = Enum.GetNames<Chain>(),
             rows = shaped
         });
+    }
+
+    // Candles for one token's chart (price, per bar), one page of up to 300 bars ending before `before` (unix seconds; none = the
+    // newest page), plus the supply to turn them into market cap.
+    [HttpGet("accumulation/candles")]
+    public async Task<IActionResult> GetAccumulationCandles([FromServices] AccumulationService acc, [FromServices] ChartCandleService candles,
+        [FromQuery] string chain, [FromQuery] string address, [FromQuery] int days = 7, [FromQuery] int res = 5, [FromQuery] long? before = null)
+    {
+        if (string.IsNullOrWhiteSpace(address) || !Enum.TryParse<Chain>(chain, true, out var c)) return BadRequest(new { error = "chain and address are required" });
+        res = res switch { <= 1 => 1, <= 5 => 5, <= 15 => 15, <= 60 => 60, _ => 240 };
+        days = Math.Clamp(days, 1, 30);
+        (List<TradePoint> Points, double? Supply)? trades = null;
+        async Task<List<TradePoint>> Ours() { trades ??= await acc.TradesAsync(c, address.Trim(), days); return trades.Value.Points; }
+        var got = await candles.PageAsync(c, address.Trim(), res, before, Ours);
+        // pump.fun's own supply wins for the market cap; otherwise the one read from FOMO's figures
+        var supply = got.Supply ?? (before is null ? (trades ??= await acc.TradesAsync(c, address.Trim(), days)).Supply : null);
+        return Ok(new { chain = c.ToString(), address, days, res, before, source = got.Source, supply, createdMs = got.CreatedMs, hasOlder = got.HasOlder, bars = got.Bars });
+    }
+
+    // The trades behind one accumulation row, for the bubble chart.
+    [HttpGet("accumulation/trades")]
+    public async Task<IActionResult> GetAccumulationTrades([FromServices] AccumulationService acc, [FromQuery] string chain, [FromQuery] string address, [FromQuery] int days = 7)
+    {
+        if (string.IsNullOrWhiteSpace(address) || !Enum.TryParse<Chain>(chain, true, out var c)) return BadRequest(new { error = "chain and address are required" });
+        var (points, supply) = await acc.TradesAsync(c, address.Trim(), days);
+        return Ok(new { chain = c.ToString(), address, days, supply, count = points.Count, points });
     }
 
     // ---- Token age check (local dashboard only): what age is found for one token, plus the lookup counters. ----

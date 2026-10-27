@@ -746,6 +746,7 @@
 
         <!-- Categories Tab: every trader by category; drag a card (or use its menu) to move it by hand -->
         <!-- Accumulation Tab: tokens the tracked traders keep buying over several days -->
+        <style>#accChart table, #accChart tr, #accChart td, #accChart th { margin: 0 !important; padding: 0 !important; border: 0 !important; background: transparent !important; }</style>
         <div id="accumulation-tab" class="tab-content">
             <div class="chat-area" style="overflow-y: auto;">
                 <div class="settings-container">
@@ -771,6 +772,8 @@
                             <label>Sort <select id="accSort" onchange="renderAccumulation()"><option value="days">most days</option><option value="buyers">most buyers</option><option value="today">most buyers today</option><option value="net">biggest net buying</option><option value="rise">biggest rise since 1st buy</option><option value="recent">latest buy</option></select></label>
                             <span id="accUpdated" style="color:#8a96a0;font-size:12px"></span>
                         </div>
+                        <div id="accMapWrap"></div>
+                        <div id="accDetail"></div>
                         <div id="accBody"><div class="loading">Loading…</div></div>
                     </div>
                 </div>
@@ -997,12 +1000,9 @@
         let displayedNotificationIds = new Set();
 
         // Chain enum to DEXScreener URL mapping (single source of truth)
-        const CHAIN_TO_DEXSCREENER = {
-            'SOL': (ca) => `https://dexscreener.com/solana/${ca}`,
-            'BNB': (ca) => `https://dexscreener.com/bsc/${ca}`,
-            'BASE': (ca) => `https://dexscreener.com/base/${ca}`,
-            'MONAD': (ca) => `https://dexscreener.com/monad/${ca}`
-        };
+        // The slugs are DexScreener's own chain ids (the same table as ChainInfo.cs; each one was read back from its token API).
+        const DEXSCREENER_SLUG = { SOL: 'solana', BNB: 'bsc', BASE: 'base', ETH: 'ethereum', ROBINHOOD: 'robinhood', ARC: 'arc', MONAD: 'monad', MEGAETH: 'megaeth', HYPEREVM: 'hyperevm', INK: 'ink' };
+        const CHAIN_TO_DEXSCREENER = Object.fromEntries(Object.entries(DEXSCREENER_SLUG).map(([chain, slug]) => [chain, (ca) => `https://dexscreener.com/${slug}/${ca}`]));
 
         function getDexScreenerUrl(chain, contractAddress) {
             const urlBuilder = CHAIN_TO_DEXSCREENER[chain] || CHAIN_TO_DEXSCREENER['SOL'];
@@ -1344,13 +1344,15 @@
             const rows = accData.rows.slice();
             const key = { days: r => r.days * 1000 + r.buyers, buyers: r => r.buyers, today: r => r.buyersToday * 1000 + r.buyers, net: r => r.netUsd, rise: r => r.pctSinceFirstBuy ?? -1e9, recent: r => new Date((r.lastBuyAt || '').replace(' ', 'T') + 'Z').getTime() || 0 }[sort];
             rows.sort((a, b) => key(b) - key(a));
+            accShown = rows;
+            renderAccBubbleMap(rows);
             if (!rows.length) { document.getElementById('accBody').innerHTML = '<div style="color:#8a96a0;font-size:13px">Nothing matches these filters. Try fewer days, fewer buyers or any age.</div>'; return; }
             document.getElementById('accBody').innerHTML = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13.5px"><thead><tr><th style="text-align:left">Token</th><th style="text-align:left">Age</th><th style="text-align:left">Days (' + accData.days + ')</th><th style="text-align:right">Buyers / Sellers</th><th style="text-align:right">Today / yest.</th><th style="text-align:right">Buys / Sells</th><th style="text-align:right">Net $</th><th style="text-align:right">Since 1st buy</th><th style="text-align:left">Last buy</th></tr></thead><tbody>' +
-                rows.map(r => {
+                rows.map((r, idx) => {
                     const pct = r.pctSinceFirstBuy;
                     const pctTxt = pct == null ? '<span style="color:#8a96a0">-</span>' : '<span style="color:' + (pct >= 0 ? '#2ea043' : '#f85149') + '">' + (pct >= 0 ? '+' : '') + pct.toFixed(0) + '%</span>';
                     const warn = r.topBuyerPct >= 60 && r.buys >= 20 ? ' <span title="One single trader made ' + r.topBuyerPct + '% of the buys: probably a bot or a DCA, not a crowd" style="color:#d29922">⚠ ' + r.topBuyerPct + '%</span>' : '';
-                    return '<tr style="border-top:1px solid #202a35"><td><b>' + monEsc(r.ticker) + '</b> <span style="color:#8a96a0">' + monEsc(r.chain) + '</span> <a href="#" style="color:#8a96a0;font-size:11px" title="copy the contract address" onclick="navigator.clipboard.writeText(\'' + monEsc(r.address) + '\');return false">' + monEsc(r.address.slice(0, 4) + '…' + r.address.slice(-4)) + '</a></td><td>' + accAge(r) + '</td><td>' + accBars(r, accData.days) + ' <span style="color:#8a96a0">' + r.days + 'd</span></td><td style="text-align:right"><b>' + r.buyers + '</b> / ' + r.sellers + warn + '</td><td style="text-align:right">' + accTrend(r) + '</td><td style="text-align:right">' + r.buys + ' / ' + r.sells + '</td><td style="text-align:right;color:' + (r.netUsd >= 0 ? '#2ea043' : '#f85149') + '">' + accUsd(r.netUsd) + '</td><td style="text-align:right">' + pctTxt + '</td><td>' + accLast(r.lastBuyAt) + '</td></tr>';
+                    return '<tr class="acc-row" onclick="openAccDetail(' + idx + ')" title="click for the chart of who bought it, when and at what market cap" style="cursor:pointer;border-top:1px solid #202a35"><td><b>' + monEsc(r.ticker) + '</b> <span style="color:#8a96a0">' + monEsc(r.chain) + '</span> <a href="#" style="color:#8a96a0;font-size:11px" title="copy the contract address" onclick="event.stopPropagation();navigator.clipboard.writeText(\'' + monEsc(r.address) + '\');return false">' + monEsc(r.address.slice(0, 4) + '…' + r.address.slice(-4)) + '</a></td><td>' + accAge(r) + '</td><td>' + accBars(r, accData.days) + ' <span style="color:#8a96a0">' + r.days + 'd</span></td><td style="text-align:right"><b>' + r.buyers + '</b> / ' + r.sellers + warn + '</td><td style="text-align:right">' + accTrend(r) + '</td><td style="text-align:right">' + r.buys + ' / ' + r.sells + '</td><td style="text-align:right;color:' + (r.netUsd >= 0 ? '#2ea043' : '#f85149') + '">' + accUsd(r.netUsd) + '</td><td style="text-align:right">' + pctTxt + '</td><td>' + accLast(r.lastBuyAt) + '</td></tr>';
                 }).join('') + '</tbody></table></div>';
         }
         async function loadAccumulation() {
@@ -1366,6 +1368,253 @@
                 document.getElementById('accUpdated').textContent = 'showing ' + accData.shown + ' of ' + accData.total + ' matching tokens' + (accData.total > accData.shown ? ' (the top ones; narrow the filters to see others)' : '') + ' · refreshed every 5 min';
                 renderAccumulation();
             } catch (e) { body.innerHTML = '<div style="color:#f85149">Could not load: ' + monEsc(e.message) + '</div>'; }
+        }
+
+        // ---------- Accumulation charts: a map of all tokens, and for one token a candle chart (Axiom style) with every trade as a bubble ----------
+        let accShown = [], accDetailState = null;
+        const ACC_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], ACC_DAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const AX = { bg: '#06070b', panel: '#0b0d12', line: '#1a1d24', text: '#c9ced6', dim: '#7b8492', up: '#18c98c', down: '#f23645', fomo: '#a78bfa', pump: '#fbbf24', blue: '#5b8cff' };
+        const accP2 = (n) => String(n).padStart(2, '0');
+        const accTime = (iso) => { const d = new Date(iso); return ACC_DAY[d.getUTCDay()] + ' ' + d.getUTCDate() + ' ' + ACC_MON[d.getUTCMonth()] + ' ' + accP2(d.getUTCHours()) + ':' + accP2(d.getUTCMinutes()) + ' UTC'; };
+        const accMc = (n) => n == null ? '-' : '$' + (n >= 1e9 ? (n / 1e9).toFixed(2) + 'B' : n >= 1e6 ? (n / 1e6).toFixed(n >= 1e8 ? 0 : 1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e5 ? 0 : 1) + 'K' : n.toFixed(0));
+        const accPx = (n) => n == null ? '-' : '$' + (n >= 1 ? n.toFixed(2) : n >= 0.01 ? n.toFixed(4) : n.toPrecision(3));
+        const accMoney = (n) => '$' + Math.round(n).toLocaleString('en-US');
+        function accTipEl() { let t = document.getElementById('accTip'); if (!t) { t = document.createElement('div'); t.id = 'accTip'; t.style.cssText = 'position:fixed;z-index:60;pointer-events:none;background:#101318;border:1px solid #262b35;border-radius:10px;padding:9px 11px;font-size:12.5px;line-height:1.5;color:#e6edf3;display:none;max-width:320px;box-shadow:0 10px 30px rgba(0,0,0,.55)'; document.body.appendChild(t); } return t; }
+        function accTipShow(x, y, html) { const t = accTipEl(); t.innerHTML = html; t.style.display = 'block'; const w = t.offsetWidth, h = t.offsetHeight; t.style.left = Math.min(window.innerWidth - w - 8, x + 16) + 'px'; t.style.top = Math.min(window.innerHeight - h - 8, y + 16) + 'px'; }
+        function accTipHide() { accTipEl().style.display = 'none'; }
+
+        // pictures (trader avatars, token logos), loaded once and redrawn when they arrive
+        const accImgs = new Map();
+        function accImg(url, onLoad) {
+            if (!url) return null;
+            if (url.startsWith('ipfs://')) url = 'https://ipfs.io/ipfs/' + url.slice(7);
+            if (!/^https?:/.test(url)) return null;
+            let e = accImgs.get(url);
+            if (!e) { e = { img: new Image(), ok: false, waiters: [] }; e.img.referrerPolicy = 'no-referrer'; e.img.onload = () => { e.ok = true; e.waiters.splice(0).forEach(f => f()); }; e.img.onerror = () => { e.bad = true; }; e.img.src = url; accImgs.set(url, e); }
+            if (!e.ok && onLoad && !e.bad) e.waiters.push(onLoad);
+            return e.ok ? e.img : null;
+        }
+
+        // TradingView's free Lightweight Charts, loaded the first time a chart opens
+        let accLwc = null;
+        function accLoadLwc() {
+            if (window.LightweightCharts) return Promise.resolve(window.LightweightCharts);
+            if (!accLwc) accLwc = new Promise((ok, bad) => { const s = document.createElement('script'); s.src = 'https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js'; s.onload = () => ok(window.LightweightCharts); s.onerror = () => bad(new Error('could not load the chart library')); document.head.appendChild(s); });
+            return accLwc;
+        }
+
+        // ---- the map: all tokens, x = age (log), y = different buyers (square root), bubble = token logo, ring = net buying (green) or selling (red)
+        function renderAccBubbleMap(rows) {
+            const el = document.getElementById('accMapWrap');
+            const pts = rows.map((r, i) => ({ r, i })).filter(x => x.r.ageMinutes != null);
+            if (!pts.length) { el.innerHTML = ''; return; }
+            const W = Math.max(640, el.clientWidth || 1000), H = 360, m = { l: 54, r: 24, t: 16, b: 44 };
+            const minA = 60, maxA = 60 * 24 * 365 * 3, maxB = Math.max(5, ...pts.map(p => p.r.buyers));
+            const xs = (a) => m.l + (Math.log(Math.max(a, minA) / minA) / Math.log(maxA / minA)) * (W - m.l - m.r);
+            const ys = (b) => H - m.b - Math.sqrt(b / maxB) * (H - m.t - m.b);
+            const rad = (r) => Math.min(20, 7 + Math.sqrt(r.buys) * 0.7);
+            const ticks = [[60, '1h'], [360, '6h'], [1440, '1d'], [4320, '3d'], [10080, '7d'], [43200, '30d'], [129600, '90d'], [525600, '1y']];
+            let svg = '<svg width="' + W + '" height="' + H + '" style="display:block;background:' + AX.bg + ';border:1px solid ' + AX.line + ';border-radius:12px"><defs>';
+            pts.forEach(p => { svg += '<clipPath id="accClip' + p.i + '"><circle cx="' + xs(p.r.ageMinutes).toFixed(1) + '" cy="' + ys(p.r.buyers).toFixed(1) + '" r="' + (rad(p.r) - 1.5).toFixed(1) + '"/></clipPath>'; });
+            svg += '</defs>';
+            for (const [a, l] of ticks) svg += '<line x1="' + xs(a) + '" x2="' + xs(a) + '" y1="' + m.t + '" y2="' + (H - m.b) + '" stroke="rgba(255,255,255,.04)"/><text x="' + xs(a) + '" y="' + (H - m.b + 17) + '" fill="' + AX.dim + '" font-size="11" text-anchor="middle">' + l + '</text>';
+            for (const b of [0, 2, 5, 10, 20, 40, 60, 80, 100, 150, 200].filter(v => v <= maxB)) svg += '<line x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + ys(b) + '" y2="' + ys(b) + '" stroke="rgba(255,255,255,.04)"/><text x="' + (m.l - 9) + '" y="' + (ys(b) + 4) + '" fill="' + AX.dim + '" font-size="11" text-anchor="end">' + b + '</text>';
+            svg += '<text x="' + (m.l + (W - m.l - m.r) / 2) + '" y="' + (H - 7) + '" fill="' + AX.dim + '" font-size="11.5" text-anchor="middle">token age (log scale)</text>';
+            svg += '<text transform="translate(15 ' + (m.t + (H - m.t - m.b) / 2) + ') rotate(-90)" fill="' + AX.dim + '" font-size="11.5" text-anchor="middle">different traders who bought</text>';
+            for (const p of pts.slice().sort((a, b) => b.r.buys - a.r.buys)) {
+                const r = p.r, x = xs(r.ageMinutes).toFixed(1), y = ys(r.buyers).toFixed(1), R = rad(r), bot = r.topBuyerPct >= 60 && r.buys >= 20, ring = r.netUsd >= 0 ? AX.up : AX.down;
+                svg += '<g class="acc-bub" data-i="' + p.i + '" style="cursor:pointer">';
+                svg += '<circle cx="' + x + '" cy="' + y + '" r="' + R.toFixed(1) + '" fill="#1b1f27"/>';
+                if (r.img) svg += '<image href="' + monEsc(r.img) + '" x="' + (x - R) + '" y="' + (y - R) + '" width="' + (2 * R) + '" height="' + (2 * R) + '" clip-path="url(#accClip' + p.i + ')" preserveAspectRatio="xMidYMid slice" referrerpolicy="no-referrer"/>';
+                else svg += '<text x="' + x + '" y="' + (+y + 4) + '" fill="' + AX.text + '" font-size="10" text-anchor="middle">' + monEsc((r.ticker || '?').slice(0, 3)) + '</text>';
+                svg += '<circle cx="' + x + '" cy="' + y + '" r="' + R.toFixed(1) + '" fill="none" stroke="' + (bot ? '#d29922' : ring) + '" stroke-width="2"' + (bot ? ' stroke-dasharray="3 2"' : '') + '/></g>';
+            }
+            // names only where they do not collide
+            const boxes = [];
+            for (const p of pts.slice().sort((a, b) => b.r.buyers - a.r.buyers)) {
+                const x = xs(p.r.ageMinutes) + rad(p.r) + 4, y = ys(p.r.buyers) + 4, w = (p.r.ticker || '').length * 6.6 + 4;
+                if (boxes.some(b => x < b.x + b.w && x + w > b.x && y - 11 < b.y && y > b.y - 11) || boxes.length >= 16) continue;
+                boxes.push({ x, y, w });
+                svg += '<text x="' + x + '" y="' + y + '" fill="' + AX.text + '" font-size="11.5" font-weight="600" style="pointer-events:none;paint-order:stroke" stroke="' + AX.bg + '" stroke-width="3">' + monEsc(p.r.ticker) + '</text>';
+            }
+            svg += '</svg>';
+            el.innerHTML = '<div style="margin:2px 0 7px;color:' + AX.dim + ';font-size:12.5px"><b style="color:' + AX.text + '">Every token at a glance</b> · bubble size = number of buys · ring <span style="color:' + AX.up + '">green</span> = our traders buying more than selling, <span style="color:' + AX.down + '">red</span> = selling more, <span style="color:#d29922">dashed amber</span> = one trader made most of the buys · click a token for its chart</div>' + svg;
+            el.querySelectorAll('.acc-bub').forEach(g => {
+                const r = rows[+g.dataset.i];
+                g.addEventListener('mousemove', ev => accTipShow(ev.clientX, ev.clientY, '<b>' + monEsc(r.ticker) + '</b> <span style="color:' + AX.dim + '">' + monEsc(r.chain) + '</span><br>' + r.buyers + ' different buyers, ' + r.days + ' days counted<br>' + r.buys + ' buys / ' + r.sells + ' sells · net ' + accUsd(r.netUsd) + '<br>age ' + accAge(r).replace(/<[^>]+>/g, '')));
+                g.addEventListener('mouseleave', accTipHide);
+                g.addEventListener('click', () => openAccDetail(+g.dataset.i));
+            });
+            el.style.marginBottom = '14px';
+        }
+
+        // ---- one token
+        async function openAccDetail(i) {
+            const r = accShown[i]; if (!r) return;
+            const box = document.getElementById('accDetail');
+            if (accDetailState && accDetailState.chart) { try { accDetailState.chart.remove(); } catch (e) { } }
+            box.innerHTML = '<div class="loading" style="margin:10px 0">Loading the chart of ' + monEsc(r.ticker) + '…</div>';
+            box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            const res = accData.days <= 1 ? 1 : accData.days <= 3 ? 5 : accData.days <= 7 ? 5 : 15;
+            accDetailState = { row: r, res, metric: 'mcap', show: 'all', minUsd: 0, sizeByUsd: false, trader: null };
+            try {
+                const [t, c] = await Promise.all([
+                    fetch(API_BASE + '/api/dashboard/accumulation/trades?chain=' + encodeURIComponent(r.chain) + '&address=' + encodeURIComponent(r.address) + '&days=' + accData.days).then(x => x.json()),
+                    fetch(API_BASE + '/api/dashboard/accumulation/candles?chain=' + encodeURIComponent(r.chain) + '&address=' + encodeURIComponent(r.address) + '&days=' + accData.days + '&res=' + res).then(x => x.json()),
+                    accLoadLwc()
+                ]);
+                Object.assign(accDetailState, { points: t.points, supply: c.supply || t.supply, bars: c.bars, source: c.source, hasOlder: c.hasOlder });
+                if (!accDetailState.supply) accDetailState.metric = 'price';
+                renderAccDetail();
+            } catch (e) { box.innerHTML = '<div style="color:#f85149;margin:10px 0">Could not load the chart: ' + monEsc(e.message) + '</div>'; }
+        }
+        async function accSetRes(res) {
+            const S = accDetailState; S.res = res;
+            const c = await fetch(API_BASE + '/api/dashboard/accumulation/candles?chain=' + encodeURIComponent(S.row.chain) + '&address=' + encodeURIComponent(S.row.address) + '&days=' + accData.days + '&res=' + res).then(x => x.json());
+            S.bars = c.bars; S.source = c.source; S.hasOlder = c.hasOlder; renderAccDetail();
+        }
+        // older candles, one page at a time, when the chart is scrolled (or zoomed) near its left edge, like on pump.fun or Axiom
+        async function accLoadOlder() {
+            const S = accDetailState;
+            if (!S || !S.chart || S.loadingOlder || !S.hasOlder || !S.bars.length) return;
+            const chart = S.chart, res = S.res, first = S.bars[0].t;
+            S.loadingOlder = true;
+            try {
+                const c = await fetch(API_BASE + '/api/dashboard/accumulation/candles?chain=' + encodeURIComponent(S.row.chain) + '&address=' + encodeURIComponent(S.row.address) + '&days=' + accData.days + '&res=' + res + '&before=' + first).then(x => x.json());
+                if (S.chart !== chart || S.res !== res) return;
+                const older = (c.bars || []).filter(b => b.t < first);
+                S.hasOlder = !!c.hasOlder && older.length > 0;
+                if (!older.length) return;
+                const range = chart.timeScale().getVisibleLogicalRange();
+                S.bars = older.concat(S.bars);
+                S.setSeries();
+                if (range) chart.timeScale().setVisibleLogicalRange({ from: range.from + older.length, to: range.to + older.length });
+            } catch (e) { S.hasOlder = false; }
+            finally { S.loadingOlder = false; }
+            const r = S.chart === chart && chart.timeScale().getVisibleLogicalRange();
+            if (r && r.from < 30) accLoadOlder();   // still at the edge: the next page
+        }
+        function accSet(k, v) { accDetailState[k] = v; renderAccDetail(); }
+
+        function renderAccDetail() {
+            const S = accDetailState, r = S.row, box = document.getElementById('accDetail');
+            if (S.chart) { try { S.chart.remove(); } catch (e) { } S.chart = null; }
+            const f = S.metric === 'mcap' && S.supply ? S.supply : 1, fmt = S.metric === 'mcap' ? accMc : accPx;
+            const step = S.res * 60;
+            const pts = S.points.filter(p => p.price > 0 && p.usd >= S.minUsd && (S.show === 'all' || (S.show === 'buys' ? p.buy : !p.buy))).map(p => ({ ...p, t: Math.floor(new Date(p.at).getTime() / 1000), v: p.price * f }));
+            const buys = S.points.filter(p => p.buy), sells = S.points.filter(p => !p.buy);
+            const traders = new Map();
+            for (const p of S.points) { const k = p.platform + ':' + p.trader; const x = traders.get(k) || { key: k, name: p.trader, platform: p.platform, img: p.img, buys: 0, sells: 0, buyUsd: 0, sellUsd: 0, first: null, firstMc: null, last: null }; if (p.buy) { x.buys++; x.buyUsd += p.usd; if (!x.first || p.at < x.first) { x.first = p.at; x.firstMc = p.mcap; } x.last = !x.last || p.at > x.last ? p.at : x.last; } else { x.sells++; x.sellUsd += p.usd; } traders.set(k, x); }
+            const list = [...traders.values()].sort((a, b) => b.buyUsd - a.buyUsd);
+            const lastBar = S.bars.length ? S.bars[S.bars.length - 1] : null;
+            const pill = (on, label, js) => '<button onclick="' + js + '" style="background:' + (on ? 'rgba(91,140,255,.16)' : 'transparent') + ';color:' + (on ? AX.blue : AX.dim) + ';border:0;border-radius:6px;padding:4px 9px;font-size:12.5px;font-weight:600;cursor:pointer">' + label + '</button>';
+            const sep = '<span style="width:1px;height:18px;background:' + AX.line + ';margin:0 6px"></span>';
+            box.innerHTML =
+                '<div style="background:' + AX.bg + ';border:1px solid ' + AX.line + ';border-radius:12px;margin:6px 0 18px;overflow:hidden">' +
+                // token header, like Axiom's
+                '<div style="display:flex;align-items:center;gap:14px;padding:12px 16px;border-bottom:1px solid ' + AX.line + '">' +
+                (r.img ? '<img src="' + monEsc(r.img) + '" referrerpolicy="no-referrer" onerror="this.remove()" style="width:40px;height:40px;border-radius:8px;object-fit:cover">' : '') +
+                '<div><div style="font-weight:700;font-size:16px;color:#fff">' + monEsc(r.ticker) + ' <span style="color:' + AX.dim + ';font-weight:500;font-size:13px">' + monEsc(r.chain) + '</span></div><div style="color:' + AX.dim + ';font-size:12px">' + monEsc(r.address.slice(0, 6) + '…' + r.address.slice(-4)) + ' · age ' + accAge(r).replace(/<[^>]+>/g, '') + '</div></div>' +
+                '<div style="font-size:24px;font-weight:700;color:#fff;margin-left:6px">' + (lastBar ? fmt(lastBar.c * f) : '-') + '</div>' +
+                '<div style="display:flex;gap:22px;margin-left:10px;font-size:12px;color:' + AX.dim + '"><div>Buys<br><b style="color:' + AX.up + ';font-size:13.5px">' + buys.length + ' / ' + accUsd(buys.reduce((a, p) => a + p.usd, 0)) + '</b></div><div>Sells<br><b style="color:' + AX.down + ';font-size:13.5px">' + sells.length + ' / ' + accUsd(sells.reduce((a, p) => a + p.usd, 0)) + '</b></div><div>Traders<br><b style="color:' + AX.text + ';font-size:13.5px">' + traders.size + '</b></div><div>Window<br><b style="color:' + AX.text + ';font-size:13.5px">' + accData.days + ' days</b></div></div>' +
+                '<span style="margin-left:auto"></span><button onclick="if(accDetailState.chart)accDetailState.chart.remove();accDetailState.chart=null;document.getElementById(\'accDetail\').innerHTML=\'\'" style="background:none;border:0;color:' + AX.dim + ';font-size:20px;cursor:pointer" title="close">✕</button></div>' +
+                // toolbar, like Axiom's
+                '<div style="display:flex;align-items:center;gap:2px;padding:6px 12px;border-bottom:1px solid ' + AX.line + ';flex-wrap:wrap">' +
+                [[1, '1m'], [5, '5m'], [15, '15m'], [60, '1h'], [240, '4h']].map(([v, l]) => pill(S.res === v, l, 'accSetRes(' + v + ')')).join('') + sep +
+                (S.supply ? pill(S.metric === 'mcap', 'MarketCap', "accSet('metric','mcap')") : '') + pill(S.metric === 'price', 'Price', "accSet('metric','price')") + sep +
+                pill(S.show === 'all', 'All trades', "accSet('show','all')") + pill(S.show === 'buys', 'Buys', "accSet('show','buys')") + pill(S.show === 'sells', 'Sells', "accSet('show','sells')") + pill(S.show === 'none', 'Hide trades', "accSet('show','none')") + sep +
+                pill(S.sizeByUsd, 'Size by $', "accSet('sizeByUsd'," + !S.sizeByUsd + ")") +
+                '<select onchange="accSet(\'minUsd\', +this.value)" style="margin-left:6px;background:' + AX.panel + ';color:' + AX.text + ';border:1px solid ' + AX.line + ';border-radius:6px;padding:3px 6px;font-size:12px">' + [[0, 'any size'], [50, '> $50'], [200, '> $200'], [1000, '> $1K'], [5000, '> $5K']].map(([v, l]) => '<option value="' + v + '"' + (S.minUsd === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' +
+                '<span style="margin-left:auto;color:' + AX.dim + ';font-size:11.5px">candles: ' + monEsc(S.source || '-') + ' · UTC</span></div>' +
+                // chart
+                '<div style="position:relative"><div id="accLegend" style="position:absolute;left:12px;top:8px;z-index:3;font-size:12.5px;color:' + AX.text + ';pointer-events:none"></div><div id="accChart" style="height:480px"></div></div>' +
+                '<div style="padding:8px 16px 4px;color:' + AX.dim + ';font-size:12px">Each bubble is one trade of a tracked trader, at the exact time and ' + (S.metric === 'mcap' ? 'market cap' : 'price') + ': ring <span style="color:' + AX.up + '">green</span> = buy, <span style="color:' + AX.down + '">red</span> = sell; small dot <span style="color:' + AX.fomo + '">violet</span> = FOMO, <span style="color:' + AX.pump + '">yellow</span> = pump.fun. Hover for details, click a bubble to follow that trader.' + (S.metric === 'mcap' ? ' Market cap = price × ' + (S.supply >= 1e9 ? (S.supply / 1e9).toFixed(2) + 'B' : (S.supply / 1e6).toFixed(0) + 'M') + ' tokens.' : '') + '</div>' +
+                // traders
+                '<div style="padding:8px 16px 14px"><div style="display:flex;gap:6px;flex-wrap:wrap">' + list.slice(0, 20).map(t => '<button onclick="accSet(\'trader\',' + (S.trader === t.key ? 'null' : JSON.stringify(t.key).replace(/"/g, '&quot;')) + ')" style="display:inline-flex;align-items:center;gap:6px;background:' + (S.trader === t.key ? 'rgba(91,140,255,.18)' : AX.panel) + ';color:' + AX.text + ';border:1px solid ' + (S.trader === t.key ? AX.blue : AX.line) + ';border-radius:16px;padding:3px 10px 3px 3px;font-size:12px;cursor:pointer">' + (t.img ? '<img src="' + monEsc(t.img) + '" referrerpolicy="no-referrer" onerror="this.remove()" style="width:20px;height:20px;border-radius:50%;object-fit:cover;border:1.5px solid ' + (t.platform === 'fomo' ? AX.fomo : AX.pump) + '">' : '<span style="width:20px;height:20px;border-radius:50%;background:' + (t.platform === 'fomo' ? AX.fomo : AX.pump) + '"></span>') + '@' + monEsc(t.name) + ' <span style="color:' + AX.dim + '">' + t.buys + 'b ' + accUsd(t.buyUsd) + (t.sells ? ' · ' + t.sells + 's' : '') + '</span></button>').join('') + '</div>' +
+                '<div style="overflow-x:auto;margin-top:12px"><table style="width:100%;border-collapse:collapse;font-size:12.5px"><thead><tr style="color:' + AX.dim + '"><th style="text-align:left;padding:6px 4px">Trader</th><th style="text-align:left">First buy</th><th style="text-align:right">At</th><th style="text-align:right">Buys</th><th style="text-align:right">Bought</th><th style="text-align:right">Sells</th><th style="text-align:right">Sold</th><th style="text-align:left;padding-left:14px">Last buy</th></tr></thead><tbody>' +
+                list.slice(0, 15).map(t => '<tr style="border-top:1px solid ' + AX.line + '"><td style="padding:6px 4px">@' + monEsc(t.name) + ' <span style="color:' + (t.platform === 'fomo' ? AX.fomo : AX.pump) + ';font-size:11px">' + (t.platform === 'fomo' ? 'FOMO' : 'pump') + '</span></td><td>' + (t.first ? accTime(t.first) : '-') + '</td><td style="text-align:right">' + (t.firstMc != null ? accMc(t.firstMc) : '-') + '</td><td style="text-align:right">' + t.buys + '</td><td style="text-align:right;color:' + AX.up + '">' + accUsd(t.buyUsd) + '</td><td style="text-align:right">' + t.sells + '</td><td style="text-align:right;color:' + AX.down + '">' + accUsd(t.sellUsd) + '</td><td style="padding-left:14px">' + (t.last ? accTime(t.last) : '-') + '</td></tr>').join('') + '</tbody></table></div></div></div>';
+
+            const L = window.LightweightCharts, holder = document.getElementById('accChart');
+            const chart = L.createChart(holder, {
+                width: holder.clientWidth, height: 480,
+                layout: { background: { type: 'solid', color: AX.bg }, textColor: AX.dim, fontSize: 12, fontFamily: 'Inter, "Segoe UI", system-ui, sans-serif' },
+                grid: { vertLines: { color: 'rgba(255,255,255,.035)' }, horzLines: { color: 'rgba(255,255,255,.035)' } },
+                crosshair: { mode: 0, vertLine: { color: '#5b6270', style: 3, labelBackgroundColor: '#1e222d' }, horzLine: { color: '#5b6270', style: 3, labelBackgroundColor: '#1e222d' } },
+                rightPriceScale: { borderColor: AX.line, scaleMargins: { top: 0.1, bottom: 0.2 } },
+                timeScale: { borderColor: AX.line, timeVisible: true, secondsVisible: false, rightOffset: 8, barSpacing: S.res >= 60 ? 9 : 6 },
+                localization: { priceFormatter: fmt }
+            });
+            S.chart = chart;
+            const candles = chart.addCandlestickSeries({ upColor: AX.up, downColor: AX.down, borderVisible: false, wickUpColor: AX.up, wickDownColor: AX.down, priceFormat: { type: 'custom', formatter: fmt, minMove: 1e-12 },
+                autoscaleInfoProvider: base => { const r = base(); if (r && r.priceRange) r.priceRange.minValue = Math.max(0, r.priceRange.minValue); return r; } });
+            const vol = chart.addHistogramSeries({ priceScaleId: 'vol', priceFormat: { type: 'volume' }, lastValueVisible: false, priceLineVisible: false });
+            chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.84, bottom: 0 } });
+            S.setSeries = () => {
+                candles.setData(S.bars.map(b => ({ time: b.t, open: b.o * f, high: b.h * f, low: b.l * f, close: b.c * f })));
+                vol.setData(S.bars.map(b => ({ time: b.t, value: b.v || 0, color: b.c >= b.o ? 'rgba(24,201,140,.35)' : 'rgba(242,54,69,.35)' })));
+            };
+            S.setSeries();
+
+            // the bubbles: drawn on the chart itself, at the trade's exact time and value, so they move with zoom and scroll
+            const hits = [];
+            const bubbles = {
+                attached(p) { this.req = p.requestUpdate; },
+                detached() { },
+                updateAllViews() { },
+                paneViews() {
+                    return [{
+                        zOrder: () => 'top',
+                        renderer: () => ({
+                            draw: (target) => target.useBitmapCoordinateSpace(scope => {
+                                const ctx = scope.context, k = scope.horizontalPixelRatio, ts = chart.timeScale(), spacing = ts.options().barSpacing;
+                                hits.length = 0;
+                                const order = pts.slice().sort((a, b) => a.t - b.t);
+                                for (const p of order) {
+                                    const barT = Math.floor(p.t / step) * step;
+                                    let x = ts.timeToCoordinate(barT); if (x == null) continue;
+                                    x += ((p.t - barT) / step - 0.5) * spacing;
+                                    const y = candles.priceToCoordinate(p.v); if (y == null) continue;
+                                    const R = S.sizeByUsd ? Math.min(19, 7 + Math.sqrt(p.usd) * 0.22) : 11;
+                                    const dim = S.trader && S.trader !== p.platform + ':' + p.trader;
+                                    const X = x * k, Y = y * k, RR = R * k;
+                                    ctx.save(); ctx.globalAlpha = dim ? 0.13 : 1;
+                                    ctx.beginPath(); ctx.arc(X, Y, RR, 0, Math.PI * 2); ctx.fillStyle = '#1b1f27'; ctx.fill();
+                                    const img = accImg(p.img, () => bubbles.req && bubbles.req());
+                                    if (img) { ctx.save(); ctx.beginPath(); ctx.arc(X, Y, RR - 1.5 * k, 0, Math.PI * 2); ctx.clip(); ctx.drawImage(img, X - RR, Y - RR, RR * 2, RR * 2); ctx.restore(); }
+                                    else { ctx.fillStyle = AX.text; ctx.font = (9 * k) + 'px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText((p.trader || '?').slice(0, 2).toUpperCase(), X, Y); }
+                                    ctx.beginPath(); ctx.arc(X, Y, RR, 0, Math.PI * 2); ctx.lineWidth = 2.2 * k; ctx.strokeStyle = p.buy ? AX.up : AX.down; ctx.stroke();
+                                    ctx.beginPath(); ctx.arc(X + RR * 0.72, Y + RR * 0.72, 3.2 * k, 0, Math.PI * 2); ctx.fillStyle = p.platform === 'fomo' ? AX.fomo : AX.pump; ctx.fill(); ctx.lineWidth = 1.2 * k; ctx.strokeStyle = AX.bg; ctx.stroke();
+                                    ctx.restore();
+                                    if (!dim) hits.push({ x, y, R, p });
+                                }
+                            })
+                        })
+                    }];
+                }
+            };
+            candles.attachPrimitive(bubbles);
+
+            const legend = document.getElementById('accLegend');
+            const showLegend = (bar) => { if (!bar) { legend.innerHTML = ''; return; } const up = bar.close >= bar.open, c = up ? AX.up : AX.down; legend.innerHTML = '<b style="color:#fff">' + monEsc(r.ticker) + '/USD</b> <span style="color:' + AX.dim + '">· ' + (S.res >= 60 ? S.res / 60 + 'h' : S.res + 'm') + ' · ' + (S.metric === 'mcap' ? 'MarketCap' : 'Price') + '</span> &nbsp; <span style="color:' + AX.dim + '">O</span><span style="color:' + c + '">' + fmt(bar.open) + '</span> <span style="color:' + AX.dim + '">H</span><span style="color:' + c + '">' + fmt(bar.high) + '</span> <span style="color:' + AX.dim + '">L</span><span style="color:' + c + '">' + fmt(bar.low) + '</span> <span style="color:' + AX.dim + '">C</span><span style="color:' + c + '">' + fmt(bar.close) + '</span>'; };
+            const lastCandle = S.bars.length ? { open: S.bars[S.bars.length - 1].o * f, high: S.bars[S.bars.length - 1].h * f, low: S.bars[S.bars.length - 1].l * f, close: S.bars[S.bars.length - 1].c * f } : null;
+            showLegend(lastCandle);
+            const nearest = (pt) => { let best = null, bd = 1e9; for (const h of hits) { const d = Math.hypot(h.x - pt.x, h.y - pt.y); if (d <= h.R + 2 && d < bd) { bd = d; best = h; } } return best; };
+            chart.subscribeCrosshairMove(param => {
+                showLegend(param.seriesData && param.seriesData.get(candles) || lastCandle);
+                if (!param.point) { accTipHide(); holder.style.cursor = ''; return; }
+                const h = nearest(param.point);
+                if (!h) { accTipHide(); holder.style.cursor = ''; return; }
+                holder.style.cursor = 'pointer';
+                const rect = holder.getBoundingClientRect(), p = h.p;
+                accTipShow(rect.left + h.x, rect.top + h.y, (p.img ? '<img src="' + monEsc(p.img) + '" referrerpolicy="no-referrer" onerror="this.remove()" style="width:34px;height:34px;border-radius:50%;float:left;margin:0 9px 0 0;border:2px solid ' + (p.buy ? AX.up : AX.down) + '">' : '') + '<b>@' + monEsc(p.trader) + '</b> <span style="color:' + (p.platform === 'fomo' ? AX.fomo : AX.pump) + '">' + (p.platform === 'fomo' ? 'FOMO' : 'pump.fun') + '</span><br><b style="color:' + (p.buy ? AX.up : AX.down) + '">' + (p.buy ? 'Bought ' : 'Sold ') + accMoney(p.usd) + '</b> at ' + accMc(p.mcap) + ' MC<br><span style="color:' + AX.dim + '">' + accTime(p.at) + ' · price ' + accPx(p.price) + '</span>');
+            });
+            chart.subscribeClick(param => { if (!param.point) return; const h = nearest(param.point); if (h) accSet('trader', S.trader === h.p.platform + ':' + h.p.trader ? null : h.p.platform + ':' + h.p.trader); });
+            if (S.bars.length) {
+                const from = Math.max(S.bars[0].t, S.bars[S.bars.length - 1].t - (S.res <= 1 ? 6 : S.res <= 5 ? 36 : S.res <= 15 ? 96 : 24 * 7) * 3600);
+                chart.timeScale().setVisibleRange({ from, to: S.bars[S.bars.length - 1].t + step * 4 });
+            }
+            chart.timeScale().subscribeVisibleLogicalRangeChange(range => { if (range && range.from < 30) accLoadOlder(); });
+            new ResizeObserver(() => { if (S.chart === chart) chart.applyOptions({ width: holder.clientWidth }); }).observe(holder);
         }
 
         // ---------- Site activity: who is on the feed, who uses the manage page, what each person did ----------
