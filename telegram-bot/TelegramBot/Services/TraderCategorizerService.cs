@@ -20,8 +20,8 @@ namespace TelegramBot.Services;
 public class TraderCategorizerService : BackgroundService
 {
     private const int WindowDays = 30;
-    private const int Parallelism = 24; // pump.fun 503s a lot; most of a fetch is waiting on retries
-    private const int MaxAttempts = 3;
+    private const int Parallelism = 6;   // each candle service fetches one at a time, paced by pump.fun's rate limit (two services, two IPs): more only queues
+    private static readonly TimeSpan GiveUpAfter = TimeSpan.FromDays(31);
     private const string LastRunKey = "TraderCategorizerLastRunAt";
     private static readonly TimeSpan Horizon = TimeSpan.FromHours(24) + TimeSpan.FromMinutes(10);
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -313,9 +313,9 @@ public class TraderCategorizerService : BackgroundService
         var fetching = Parallel.ForEachAsync(groups, new ParallelOptions { MaxDegreeOfParallelism = Parallelism, CancellationToken = ct }, async (g, token) =>
         {
             var first = g[0];
-            var from = new DateTimeOffset(DateTime.SpecifyKind(first.CalledAt, DateTimeKind.Utc)).ToUnixTimeMilliseconds();
             var to = new DateTimeOffset(DateTime.SpecifyKind(g[^1].CalledAt, DateTimeKind.Utc)).ToUnixTimeMilliseconds();
-            var raw = await _candles.FetchAsync(first.NetworkId, first.TokenAddress, from - 5 * 60_000, to + 24 * 3_600_000, token);
+            var calls = g.Select(c => new DateTimeOffset(DateTime.SpecifyKind(c.CalledAt, DateTimeKind.Utc)).ToUnixTimeMilliseconds()).ToList();
+            var raw = await _candles.FetchReplayAsync(first.NetworkId, first.TokenAddress, calls, to + 24 * 3_600_000, token);
             var bars = raw == null ? null : FollowerReplay.Clean(raw);
             feed.Tape.TryGetValue((first.NetworkId, first.TokenAddress), out var tape);
             foreach (var c in g)
@@ -341,6 +341,9 @@ public class TraderCategorizerService : BackgroundService
                 var (c, r, source, failed) = x;
                 done++;
                 if (r == null && c.Status == CallOutcomeStatus.Ok) continue; // a re-run that failed keeps its old replay
+                // the candle source failed or was too slow (pump.fun rate limit): stays pending without using an attempt,
+                // so a slow night never marks calls as having no data; only after GiveUpAfter does a failing call stop being retried
+                if (failed && c.CalledAt >= now - GiveUpAfter) continue;
                 c.Attempts++;
                 if (r != null)
                 {
@@ -355,7 +358,7 @@ public class TraderCategorizerService : BackgroundService
                     c.EvaluatedAt = DateTime.UtcNow;
                     replayed++;
                 }
-                else if (!failed || c.Attempts >= MaxAttempts)
+                else
                 {
                     c.Status = CallOutcomeStatus.NoData;
                     c.EvaluatedAt = DateTime.UtcNow;

@@ -10,7 +10,8 @@ public record ReplayResult(
     bool Sl30,
     double EvQuick, double EvScalp, double EvFlip, double EvRunner);
 
-// A follower acting on an alert, replayed over 1-minute candles. C# port of the research
+// A follower acting on an alert, replayed over 1-minute candles (5-minute ones after the first ~5 hours: only times are used,
+// so mixed sizes work; a stop and a target inside one 5-minute bar count as the stop, as for 1-minute bars). C# port of the research
 // scripts (scripts/trader-audit/lib.js cleanBars, analyze.js simulate) so the live ratings
 // mean the same thing as the audit report.
 public static class FollowerReplay

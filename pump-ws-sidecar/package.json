@@ -6,7 +6,8 @@
   "scripts": {
     "start": "ts-node src/index.ts",
     "build": "tsc",
-    "start:built": "node dist/index.js"
+    "start:built": "node dist/index.js",
+    "candles": "ts-node src/candle-proxy.ts"
   },
   "dependencies": {
     "playwright": "^1.44.0"
