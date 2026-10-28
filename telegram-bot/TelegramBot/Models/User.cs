@@ -63,4 +63,8 @@ public class User
     // Flips true once PaymentPollerService has sent the "your trial ended" notice for this
     // expiry, so that one-time message doesn't re-fire on every subsequent poll tick.
     public bool TrialExpiryNotified { get; set; }
+
+    // The referral code this user came in with (link or /ref): the first one wins and it is never replaced. Null = none.
+    public string? ReferredByCode { get; set; }
+    public DateTime? ReferredAt { get; set; }
 }

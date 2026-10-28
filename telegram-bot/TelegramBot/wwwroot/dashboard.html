@@ -652,6 +652,7 @@
             <div class="tab" onclick="switchTab('activity')">Site activity</div>
             <div class="tab" onclick="switchTab('categories')">Categories</div>
             <div class="tab" onclick="switchTab('payments')">Payments</div>
+            <div class="tab" onclick="switchTab('referrals')">Referrals</div>
             <div class="tab" onclick="switchTab('website')">Website</div>
             <div class="tab" onclick="switchTab('config')">Config</div>
             <div class="tab" onclick="switchTab('settings')">Settings</div>
@@ -913,6 +914,51 @@
                             <summary class="settings-section-title" style="font-size:15px;cursor:pointer;">8. Latest visits, one row per person (click to open)</summary>
                             <div id="webRecent" style="margin-top:10px;overflow-x:auto;"></div>
                         </details>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Referrals Tab -->
+        <div id="referrals-tab" class="tab-content">
+            <div class="chat-area" style="overflow-y: auto;">
+                <div class="settings-container">
+                    <div class="settings-section">
+                        <div class="settings-section-title">New referral code</div>
+                        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                            <input id="refLabel" type="text" maxlength="80" placeholder="Who is it for (label)" style="padding:8px 10px;background:#0e1621;border:1px solid #2b5278;border-radius:6px;color:#e8e9ea;font-size:13px;width:220px;">
+                            <input id="refCode" type="text" maxlength="16" placeholder="Code (blank = random)" style="padding:8px 10px;background:#0e1621;border:1px solid #2b5278;border-radius:6px;color:#e8e9ea;font-size:13px;width:170px;">
+                            <input id="refPct" type="number" min="0" max="90" value="25" title="First-month discount, percent" style="padding:8px 10px;background:#0e1621;border:1px solid #2b5278;border-radius:6px;color:#e8e9ea;font-size:13px;width:70px;">
+                            <span style="color:#7c8aa0;font-size:12px;">% off the first month</span>
+                            <button onclick="createReferral()" class="btn" style="padding:7px 14px;font-size:13px;">Create</button>
+                        </div>
+                    </div>
+                    <div class="settings-section">
+                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                            <div class="settings-section-title" style="margin-bottom:0;">Codes</div>
+                            <button onclick="loadReferrals()" class="btn btn-secondary" style="padding:6px 12px;font-size:13px;">Refresh</button>
+                        </div>
+                        <table id="referralsTable">
+                            <thead>
+                                <tr>
+                                    <th>Label</th>
+                                    <th>Code</th>
+                                    <th>Off</th>
+                                    <th>Joined</th>
+                                    <th>Subscribed</th>
+                                    <th>SOL collected</th>
+                                    <th title="What you pay this referrer, as a percent of what their people pay">Commission</th>
+                                    <th>Earned</th>
+                                    <th>Paid</th>
+                                    <th>Owed</th>
+                                    <th>Links</th>
+                                    <th>Status</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="referralsTableBody"></tbody>
+                        </table>
+                        <div style="color:#7c8aa0;font-size:12px;margin-top:10px;">Joined = people who started the bot with the code (link or /ref). Subscribed = of those, people with at least one confirmed payment made after the code reached them. SOL, commission and the books are only shown here: the referrer's own page shows counts only. The discount applies to the first payment only and is never mentioned to users. <b>Commission</b> is what you pay the referrer by hand: set the percent and whether renewals count, log each payout you make, and <b>Owed</b> is earned minus paid. Open <b>Books</b> for the month-by-month view and the list of paying customers.</div>
                     </div>
                 </div>
             </div>
@@ -1727,6 +1773,8 @@
                 loadPayments();
             } else if (tabName === 'website') {
                 loadWebsite();
+            } else if (tabName === 'referrals') {
+                loadReferrals();
             } else if (tabName === 'config') {
                 loadConfig();
             } else if (tabName === 'categories') {
@@ -2051,6 +2099,138 @@
 
         // Payments tab
         let paymentsData = [];
+
+        // ---- Referrals tab ----
+        function refEsc(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+        const solFmt = n => { const v = Number(n || 0); return (Math.round(v * 10000) / 10000).toString(); };
+        const refOpen = new Set();
+
+        async function loadReferrals() {
+            try {
+                const res = await fetch('/api/dashboard/referrals');
+                const data = await res.json();
+                const rows = data.codes || [];
+                const tbody = document.getElementById('referralsTableBody');
+                if (!rows.length) {
+                    tbody.innerHTML = '<tr><td colspan="13" style="color:#7c8aa0;">No codes yet.</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = rows.map(r => `<tr>
+                    <td>${refEsc(r.label)}</td>
+                    <td><code>${refEsc(r.code)}</code></td>
+                    <td><input type="number" min="0" max="90" value="${r.discountPercent}" onchange="setReferralDiscount(${r.id}, this.value)" style="width:56px;padding:4px 6px;background:#0e1621;border:1px solid #2b5278;border-radius:6px;color:#e8e9ea;font-size:13px;">%</td>
+                    <td>${r.signups}</td>
+                    <td>${r.subscribed}</td>
+                    <td>${solFmt(r.solCollected)}</td>
+                    <td style="white-space:nowrap;">
+                        <input type="number" min="0" max="100" step="0.5" value="${r.commissionPercent}" id="comm-${r.id}" onchange="saveCommission(${r.id})" style="width:60px;padding:4px 6px;background:#0e1621;border:1px solid #2b5278;border-radius:6px;color:#e8e9ea;font-size:13px;">%
+                        <label style="font-size:11px;color:#7c8aa0;margin-left:4px;" title="Count renewals (every payment after a person's first) toward the commission"><input type="checkbox" id="commren-${r.id}" ${r.commissionOnRenewals ? 'checked' : ''} onchange="saveCommission(${r.id})"> renewals</label>
+                    </td>
+                    <td>${solFmt(r.earned)}</td>
+                    <td>${solFmt(r.paid)}</td>
+                    <td style="font-weight:700;color:${r.owed > 0.00005 ? '#e8ac3f' : '#7c8aa0'};">${solFmt(r.owed)}</td>
+                    <td style="white-space:nowrap;">
+                        <button class="btn btn-secondary" style="padding:4px 8px;font-size:12px;" onclick="copyText('${refEsc(r.botLink)}', this)">Telegram</button>
+                        <button class="btn btn-secondary" style="padding:4px 8px;font-size:12px;" onclick="copyText('${refEsc(r.siteLink)}', this)">Site</button>
+                        <button class="btn btn-secondary" style="padding:4px 8px;font-size:12px;" onclick="copyText('${refEsc(r.statsLink)}', this)">Stats page</button>
+                    </td>
+                    <td><button class="btn ${r.active ? 'btn-secondary' : 'btn-danger'}" style="padding:4px 10px;font-size:12px;" onclick="setReferralActive(${r.id}, ${!r.active})">${r.active ? 'Active' : 'Off'}</button></td>
+                    <td><button class="btn btn-secondary" style="padding:4px 10px;font-size:12px;" onclick="toggleBooks(${r.id})">Books</button></td>
+                </tr>
+                <tr id="books-${r.id}" style="display:none"><td colspan="13" id="booksBody-${r.id}" style="background:#0e1621;padding:14px 16px;"></td></tr>`).join('');
+                for (const id of refOpen) { const row = document.getElementById('books-' + id); if (row) { row.style.display = ''; renderBooks(id); } }
+            } catch (err) {
+                console.error('Failed to load referrals', err);
+            }
+        }
+
+        async function createReferral() {
+            const label = document.getElementById('refLabel').value.trim();
+            const code = document.getElementById('refCode').value.trim();
+            const pct = parseInt(document.getElementById('refPct').value, 10);
+            const res = await fetch('/api/dashboard/referrals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label, code: code || null, discountPercent: isNaN(pct) ? null : pct }) });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) { alert(data.message || 'Could not create the code'); return; }
+            document.getElementById('refLabel').value = '';
+            document.getElementById('refCode').value = '';
+            loadReferrals();
+        }
+
+        async function setReferralActive(id, active) {
+            await fetch('/api/dashboard/referrals/' + id + '/active', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active }) });
+            loadReferrals();
+        }
+
+        async function setReferralDiscount(id, value) {
+            const percent = parseInt(value, 10);
+            const res = await fetch('/api/dashboard/referrals/' + id + '/discount', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ percent: isNaN(percent) ? 0 : percent }) });
+            if (!res.ok) { const d = await res.json().catch(() => ({})); alert(d.message || 'Could not change the discount'); }
+            loadReferrals();
+        }
+
+        async function saveCommission(id) {
+            const percent = parseFloat(document.getElementById('comm-' + id).value);
+            const onRenewals = document.getElementById('commren-' + id).checked;
+            const res = await fetch('/api/dashboard/referrals/' + id + '/commission', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ percent: isNaN(percent) ? 0 : percent, onRenewals }) });
+            if (!res.ok) { const d = await res.json().catch(() => ({})); alert(d.message || 'Could not save the commission'); }
+            loadReferrals();
+        }
+
+        function toggleBooks(id) {
+            const row = document.getElementById('books-' + id);
+            if (row.style.display === 'none') { refOpen.add(id); row.style.display = ''; renderBooks(id); }
+            else { refOpen.delete(id); row.style.display = 'none'; }
+        }
+
+        async function renderBooks(id) {
+            const box = document.getElementById('booksBody-' + id);
+            box.innerHTML = '<span style="color:#7c8aa0">Loading…</span>';
+            const data = await fetch('/api/dashboard/referrals/' + id + '/ledger').then(r => r.json()).catch(() => null);
+            if (!data || !data.ledger) { box.textContent = 'Could not load the books.'; return; }
+            const L = data.ledger;
+            const th = 'style="text-align:left;color:#7c8aa0;font-weight:600;padding:6px 8px;border-bottom:1px solid #2b5278;font-size:12px;"';
+            const td = 'style="padding:6px 8px;border-bottom:1px solid #1d2a3a;font-size:13px;"';
+            const day = d => new Date(d).toISOString().slice(0, 10);
+            const tiles = [['First payments', L.firstSol], ['Renewals', L.renewalSol], ['Earned (' + L.commissionPercent + '%' + (L.onRenewals ? ', renewals count' : ', first payment only') + ')', L.earned], ['Paid out', L.paid], ['Owed', L.owed]]
+                .map(([k, v], i) => `<div style="background:#17212b;border:1px solid #2b5278;border-radius:8px;padding:10px 14px;min-width:130px;"><div style="color:#7c8aa0;font-size:11px;">${refEsc(k)}</div><div style="font-size:20px;font-weight:700;${i === 4 && v > 0.00005 ? 'color:#e8ac3f;' : ''}">${solFmt(v)} <span style="font-size:12px;color:#7c8aa0;">SOL</span></div></div>`).join('');
+            const months = L.months.length ? `<table style="width:100%;border-collapse:collapse;"><thead><tr><th ${th}>Month</th><th ${th}>New payers</th><th ${th}>First payments</th><th ${th}>Renewals</th><th ${th}>Commission</th></tr></thead><tbody>${L.months.map(m => `<tr><td ${td}>${m.month}</td><td ${td}>${m.newPayers}</td><td ${td}>${solFmt(m.firstSol)}</td><td ${td}>${solFmt(m.renewalSol)}</td><td ${td}>${solFmt(m.commission)}</td></tr>`).join('')}</tbody></table>` : '<div style="color:#7c8aa0;font-size:13px;">No payments yet.</div>';
+            const customers = L.customers.length ? `<table style="width:100%;border-collapse:collapse;"><thead><tr><th ${th}>Customer</th><th ${th}>Chat ID</th><th ${th}>Came in</th><th ${th}>First paid</th><th ${th}>Payments</th><th ${th}>SOL</th></tr></thead><tbody>${L.customers.map(c => `<tr><td ${td}>${c.username ? '@' + refEsc(c.username) : refEsc(c.firstName || '—')}</td><td ${td}><code>${c.chatId}</code></td><td ${td}>${day(c.referredAt)}</td><td ${td}>${day(c.firstPaidAt)}</td><td ${td}>${c.payments}</td><td ${td}>${solFmt(c.sol)}</td></tr>`).join('')}</tbody></table>` : '<div style="color:#7c8aa0;font-size:13px;">Nobody has paid yet.</div>';
+            const payouts = L.payouts.length ? `<table style="width:100%;border-collapse:collapse;"><thead><tr><th ${th}>Date</th><th ${th}>SOL</th><th ${th}>Note</th><th ${th}></th></tr></thead><tbody>${L.payouts.map(p => `<tr><td ${td}>${day(p.at)}</td><td ${td}>${solFmt(p.amountSol)}</td><td ${td}>${refEsc(p.note)}</td><td ${td}><button class="btn btn-danger" style="padding:2px 8px;font-size:11px;" onclick="deletePayout(${id}, ${p.id})">Delete</button></td></tr>`).join('')}</tbody></table>` : '<div style="color:#7c8aa0;font-size:13px;">No payouts logged yet.</div>';
+            const inp = 'style="padding:6px 9px;background:#0e1621;border:1px solid #2b5278;border-radius:6px;color:#e8e9ea;font-size:13px;"';
+            box.innerHTML = `
+                <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">${tiles}</div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:22px;">
+                    <div><div style="font-weight:700;margin-bottom:6px;">By month</div>${months}</div>
+                    <div><div style="font-weight:700;margin-bottom:6px;">Paying customers</div>${customers}</div>
+                    <div><div style="font-weight:700;margin-bottom:6px;">Payouts you made</div>${payouts}
+                        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+                            <input id="po-amt-${id}" type="number" step="0.01" min="0" placeholder="SOL paid" ${inp} style="width:100px;">
+                            <input id="po-note-${id}" type="text" maxlength="200" placeholder="Note (tx, month…)" ${inp} style="flex:1;min-width:140px;">
+                            <button class="btn" style="padding:6px 12px;font-size:13px;" onclick="addPayout(${id})">Log payout</button>
+                        </div>
+                    </div>
+                </div>`;
+        }
+
+        async function addPayout(id) {
+            const amt = parseFloat(document.getElementById('po-amt-' + id).value);
+            const note = document.getElementById('po-note-' + id).value;
+            if (!(amt > 0)) { alert('Enter the amount you paid, in SOL.'); return; }
+            const res = await fetch('/api/dashboard/referrals/' + id + '/payouts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amountSol: amt, note }) });
+            if (!res.ok) { const d = await res.json().catch(() => ({})); alert(d.message || 'Could not log the payout'); return; }
+            loadReferrals();
+        }
+
+        async function deletePayout(id, payoutId) {
+            if (!confirm('Delete this payout entry? Owed goes back up by its amount.')) return;
+            await fetch('/api/dashboard/referrals/' + id + '/payouts/' + payoutId, { method: 'DELETE' });
+            loadReferrals();
+        }
+
+        async function copyText(text, btn) {
+            try { await navigator.clipboard.writeText(text); } catch (e) { prompt('Copy:', text); return; }
+            const old = btn.textContent; btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = old; }, 1200);
+        }
 
         async function loadPayments() {
             try {

@@ -11,4 +11,7 @@ public class PendingPayment
     public DateTime ExpiresAt { get; set; }
     public bool IsConfirmed { get; set; }
     public DateTime? ConfirmedAt { get; set; }
+
+    // The referral code whose first-month price this address was created at (AmountSol already carries it). Null = full price.
+    public string? ReferralCode { get; set; }
 }

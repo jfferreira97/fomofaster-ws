@@ -368,6 +368,9 @@ public class TelegramBotPollingService : BackgroundService
                 {
                     var startPayload = message.Text!.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries).Skip(1).FirstOrDefault();
                     await scope.ServiceProvider.GetRequiredService<WebAnalyticsService>().RecordStartAsync(chatId, startPayload);
+                    // A referral code can ride on the same link (r_<code>, or inside a website button's payload). Saved quietly, never announced.
+                    if (ReferralService.FromStartPayload(startPayload) is { } startRef)
+                        await scope.ServiceProvider.GetRequiredService<ReferralService>().AttachAsync(chatId, startRef);
                 }
                 catch (Exception ex) { _logger.LogWarning(ex, "Could not record /start payload"); }
                 // A brand-new user starts on the longer-window categories (live: whoever is in
@@ -640,42 +643,24 @@ GROUPCHAT is not affiliated with FOMO or Pump.fun.",
             case "/subscribe":
                 using (var subscribeScope = _serviceProvider.CreateScope())
                 {
-                    var dbContext = subscribeScope.ServiceProvider.GetRequiredService<AppDbContext>();
-                    var appConfig = subscribeScope.ServiceProvider.GetRequiredService<AppConfigService>();
-                    var subscribeUser = await userService.GetUserByChatIdAsync(chatId);
+                    // The same service the website's Subscribe button uses: price (first-month code price included), an address that is
+                    // still open, or a new one.
+                    var quote = await subscribeScope.ServiceProvider.GetRequiredService<SubscriptionService>().GetOrCreateAsync(chatId);
+                    if (quote.Status == "no_user") break;
 
-                    if (subscribeUser == null) break;
-
-                    // Already active: allow renewing during the last 3 days (the new 30 days are added on top of what is left)
-                    var hasAccess = subscribeUser.IsRN4L || (subscribeUser.IsRegisteredNurse && subscribeUser.RNExpiresAt > DateTime.UtcNow);
-                    var renewing = false;
-                    if (hasAccess)
+                    if (quote.Status == "active")
                     {
-                        if (subscribeUser.IsRN4L || subscribeUser.RNExpiresAt!.Value - DateTime.UtcNow > TimeSpan.FromDays(3))
-                        {
-                            var until = subscribeUser.IsRN4L ? "forever" : subscribeUser.RNExpiresAt!.Value.ToString("yyyy-MM-dd HH:mm UTC");
-                            await _botClient.SendTextMessageAsync(
-                                chatId: chatId,
-                                text: $"✅ You already have full access ({until}). You can renew during the last 3 days.",
-                                parseMode: ParseMode.Markdown
-                            );
-                            break;
-                        }
-                        renewing = true;
+                        var until = quote.Lifetime ? "forever" : quote.ActiveUntil!.Value.ToString("yyyy-MM-dd HH:mm UTC");
+                        await _botClient.SendTextMessageAsync(
+                            chatId: chatId,
+                            text: $"✅ You already have full access ({until}). You can renew during the last 3 days.",
+                            parseMode: ParseMode.Markdown
+                        );
+                        break;
                     }
 
-                    var priceSol = await appConfig.GetSubscriptionPriceSolAsync();
-                    var priceText = PriceText(priceSol);
-                    var ownerLine = !string.IsNullOrEmpty(_ownerUsername)
-                        ? $"Problem with a payment? Message the developer: @{_ownerUsername}"
-                        : "Problem with a payment? Message the developer.";
-                    var renewLine = renewing ? Md2("You still have time left on your plan. The new 30 days are added on top, so nothing is lost.") + "\n\n" : "";
-
-                    // Check for existing unexpired unconfirmed payment
-                    var existing = await dbContext.PendingPayments
-                        .Where(p => p.ChatId == chatId && !p.IsConfirmed && p.ExpiresAt > DateTime.UtcNow)
-                        .OrderByDescending(p => p.CreatedAt)
-                        .FirstOrDefaultAsync();
+                    var priceText = PriceText(quote.Amount);
+                    var renewLine = quote.Renewing ? Md2("You still have time left on your plan. The new 30 days are added on top, so nothing is lost.") + "\n\n" : "";
 
                     string PaymentText(string headline, string address, string price) =>
                         headline + "\n\n" + renewLine +
@@ -683,40 +668,43 @@ GROUPCHAT is not affiliated with FOMO or Pump.fun.",
                         "`" + address + "`\n\n" +
                         Md2("Full access starts right away, and there's no auto-renew.");
 
-                    if (existing != null)
+                    if (quote.Reused)
                     {
-                        var timeLeft = existing.ExpiresAt - DateTime.UtcNow;
+                        var timeLeft = quote.ExpiresAt - DateTime.UtcNow;
                         var expiryDisplay = timeLeft.TotalMinutes >= 60
                             ? $"{(int)timeLeft.TotalHours}h {timeLeft.Minutes}m"
                             : $"{(int)timeLeft.TotalMinutes}m";
                         await SendWithFallbackAsync(chatId,
-                            PaymentText("⏳ Your payment address is still active \\(*" + Md2(expiryDisplay) + "* left\\):", existing.WalletPublicKey, PriceText(existing.AmountSol > 0 ? existing.AmountSol : priceSol)),
+                            PaymentText("⏳ Your payment address is still active \\(*" + Md2(expiryDisplay) + "* left\\):", quote.Address, priceText),
                             ParseMode.MarkdownV2);
                         break;
                     }
 
-                    // Generate new Solana keypair
-                    var keypair = GenerateSolanaKeypair();
-
-                    var pending = new PendingPayment
-                    {
-                        ChatId = chatId,
-                        WalletPublicKey = keypair.PublicKey,
-                        WalletPrivateKey = keypair.PrivateKey,
-                        AmountSol = priceSol,
-                        CreatedAt = DateTime.UtcNow,
-                        ExpiresAt = DateTime.UtcNow.AddHours(1),
-                        IsConfirmed = false
-                    };
-
-                    dbContext.PendingPayments.Add(pending);
-                    await dbContext.SaveChangesAsync();
-
                     await SendWithFallbackAsync(chatId,
-                        PaymentText("💎 *Unlock full alerts: " + Md2(priceText) + " SOL for 30 days*", keypair.PublicKey, priceText),
+                        PaymentText("💎 *Unlock full alerts: " + Md2(priceText) + " SOL for 30 days*", quote.Address, priceText),
                         ParseMode.MarkdownV2);
                 }
                 break;
+
+            case "/ref":
+            {
+                // Hidden on purpose: not in /help, not in the welcome message, not in any menu. For people who were handed a code by word of mouth.
+                var refArg = message.Text?.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries).Skip(1).FirstOrDefault();
+                if (string.IsNullOrWhiteSpace(refArg))
+                {
+                    await _botClient.SendTextMessageAsync(chatId: chatId, text: "Usage: /ref CODE");
+                    break;
+                }
+                var refResult = await scope.ServiceProvider.GetRequiredService<ReferralService>().AttachAsync(chatId, refArg);
+                await _botClient.SendTextMessageAsync(chatId: chatId, text: refResult switch
+                {
+                    AttachResult.Attached => "✅ Code saved.",
+                    AttachResult.AlreadyHasCode => "You already have a code on your account.",
+                    AttachResult.Throttled => "Too many tries. Please try again in an hour.",
+                    _ => "❌ That code isn't valid."
+                });
+                break;
+            }
 
             default:
                 await _botClient.SendTextMessageAsync(
@@ -754,18 +742,6 @@ GROUPCHAT is not affiliated with FOMO or Pump.fun.",
         return false;
     }
 
-    private static (string PublicKey, string PrivateKey) GenerateSolanaKeypair()
-    {
-        var wallet = new Solnet.Wallet.Wallet(
-            Solnet.Wallet.Bip39.WordCount.TwentyFour,
-            Solnet.Wallet.Bip39.WordList.English
-        );
-        var account = wallet.Account;
-        return (
-            PublicKey: account.PublicKey.Key,
-            PrivateKey: Convert.ToBase64String(account.PrivateKey.KeyBytes)
-        );
-    }
 }
 
 // A distinct concrete type is required here, not just a second factory-based

@@ -27,6 +27,9 @@ public class ManageController : ControllerBase
     private readonly TelegramSettings _telegramSettings;
     private readonly TraderIntelService _intel;
     private readonly ActiveUserCache _activeUsers;
+    private readonly SubscriptionService _subscriptions;
+    private readonly ReferralService _referrals;
+    private readonly AppConfigService _appConfig;
 
     // Budget is per SUBMISSION, not per handle — see SuggestTrader.
     private const int SubmissionRateLimit = 24;
@@ -41,9 +44,15 @@ public class ManageController : ControllerBase
         AppDbContext dbContext,
         IOptions<TelegramSettings> telegramSettings,
         TraderIntelService intel,
-        ActiveUserCache activeUsers)
+        ActiveUserCache activeUsers,
+        SubscriptionService subscriptions,
+        ReferralService referrals,
+        AppConfigService appConfig)
     {
         _activeUsers = activeUsers;
+        _subscriptions = subscriptions;
+        _referrals = referrals;
+        _appConfig = appConfig;
         _sessionService = sessionService;
         _userService = userService;
         _traderService = traderService;
@@ -77,6 +86,82 @@ public class ManageController : ControllerBase
     // trader ratings; everyone else gets the list, categories and follows, but none of the stats.
     // Enforced here, per request, from the session's own user — the page only mirrors it.
     private static bool HasRatings(Models.User user) => user.IsRN4L || user.IsRegisteredNurse;
+
+    // ---- Subscribe from the website: the same address and the same price as /subscribe in the bot ----
+
+    private static object PaymentShape(PaymentQuote q) => new
+    {
+        amount = q.Amount,
+        address = q.Address,
+        expiresAt = DateTime.SpecifyKind(q.ExpiresAt, DateTimeKind.Utc),
+        renewing = q.Renewing,
+        reused = q.Reused,
+        solanaPay = q.SolanaPayUrl,
+    };
+
+    public sealed record PayRequest(string? Code);
+
+    [HttpGet("subscription")]
+    public async Task<IActionResult> GetSubscription()
+    {
+        var (user, error) = await ResolveSubscriberAsync();
+        if (user == null) return error!;
+
+        var now = DateTime.UtcNow;
+        var hasAccess = user.IsRN4L || (user.IsRegisteredNurse && user.RNExpiresAt > now);
+        var canPay = !user.IsRN4L && (!hasAccess || user.RNExpiresAt!.Value - now <= TimeSpan.FromDays(3));
+        var open = await _subscriptions.GetOpenAsync(user.ChatId);
+        return Ok(new
+        {
+            status = "success",
+            fullAccess = hasAccess,
+            lifetime = user.IsRN4L,
+            activeUntil = user.IsRN4L || user.RNExpiresAt == null ? null : (DateTime?)DateTime.SpecifyKind(user.RNExpiresAt.Value, DateTimeKind.Utc),
+            canPay,
+            trialEndsAt = user.TrialExpiresAt == null ? null : (DateTime?)DateTime.SpecifyKind(user.TrialExpiresAt.Value, DateTimeKind.Utc),
+            basePrice = await _appConfig.GetSubscriptionPriceSolAsync(),
+            open = open == null ? null : PaymentShape(open),
+        });
+    }
+
+    // Opens (or reuses) the payment address. A code typed on the page, or the one the site remembered from a referral link, is attached
+    // first (first one wins, wrong ones are rate limited), so the amount the page shows is the one the payment is checked against.
+    [HttpPost("subscription/pay")]
+    public async Task<IActionResult> Pay([FromBody] PayRequest? req)
+    {
+        var (user, error) = await ResolveSubscriberAsync();
+        if (user == null) return error!;
+
+        string? codeResult = null;
+        if (!string.IsNullOrWhiteSpace(req?.Code))
+        {
+            var attached = await _referrals.AttachAsync(user.ChatId, req!.Code);
+            codeResult = attached switch
+            {
+                AttachResult.Attached => "saved",
+                AttachResult.AlreadyHasCode => "kept",
+                AttachResult.Throttled => "throttled",
+                _ => "invalid",
+            };
+
+            // An address opened at the full price before the code arrived: let it lapse so the new one carries the right amount.
+            if (attached == AttachResult.Attached)
+            {
+                var stale = await _dbContext.PendingPayments
+                    .Where(p => p.ChatId == user.ChatId && !p.IsConfirmed && p.ExpiresAt > DateTime.UtcNow && p.ReferralCode == null)
+                    .ToListAsync();
+                // a minute in the past, not "now": a timestamp equal to the clock tick can still compare as "open" in SQLite's text comparison
+                foreach (var p in stale) p.ExpiresAt = DateTime.UtcNow.AddMinutes(-1);
+                if (stale.Count > 0) await _dbContext.SaveChangesAsync();
+            }
+        }
+
+        var quote = await _subscriptions.GetOrCreateAsync(user.ChatId);
+        if (quote.Status == "active")
+            return Ok(new { status = "active", lifetime = quote.Lifetime, activeUntil = quote.ActiveUntil });
+
+        return Ok(new { status = "success", codeResult, payment = PaymentShape(quote) });
+    }
 
     [HttpGet("me")]
     public async Task<IActionResult> GetMe()

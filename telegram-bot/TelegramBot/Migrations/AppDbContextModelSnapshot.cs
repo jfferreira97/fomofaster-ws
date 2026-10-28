@@ -263,6 +263,9 @@ namespace TelegramBot.Migrations
                     b.Property<bool>("IsConfirmed")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("ReferralCode")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("WalletPrivateKey")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -334,6 +337,80 @@ namespace TelegramBot.Migrations
                     b.HasIndex("Kind");
 
                     b.ToTable("PumpEvents");
+                });
+
+            modelBuilder.Entity("TelegramBot.Models.ReferralCode", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("CommissionOnRenewals")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("CommissionPercent")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("DiscountPercent")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StatsToken")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("StatsToken")
+                        .IsUnique();
+
+                    b.ToTable("ReferralCodes");
+                });
+
+            modelBuilder.Entity("TelegramBot.Models.ReferralPayout", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("AmountSol")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("At")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ReferralCodeId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReferralCodeId");
+
+                    b.ToTable("ReferralPayouts");
                 });
 
             modelBuilder.Entity("TelegramBot.Models.SentMessage", b =>
@@ -598,6 +675,13 @@ namespace TelegramBot.Migrations
                     b.Property<DateTime?>("RNExpiresAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("ReferredAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReferredByCode")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("RepeatWindowMinutes")
                         .HasColumnType("INTEGER");
 
@@ -614,6 +698,9 @@ namespace TelegramBot.Migrations
 
                     b.HasIndex("ChatId")
                         .IsUnique();
+
+                    b.HasIndex("ReferredByCode")
+                        .HasFilter("\"ReferredByCode\" IS NOT NULL");
 
                     b.HasIndex("TrialExpiresAt")
                         .HasFilter("\"TrialExpiresAt\" IS NOT NULL");

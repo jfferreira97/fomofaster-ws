@@ -49,6 +49,8 @@ builder.Services.AddCors(options =>
 
 // Register services
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<ReferralService>();
+builder.Services.AddScoped<SubscriptionService>(); // the address and price behind /subscribe in the bot and the Subscribe button on /manage // referral codes: attribution, first-month price, per-code counts
 builder.Services.AddScoped<ITraderService, TraderService>();
 builder.Services.AddScoped<IChainSettingsService, ChainSettingsService>();
 builder.Services.AddSingleton<ChainSettingsCache>();
@@ -178,6 +180,16 @@ app.MapGet("/dashboard", async context =>
     context.Response.ContentType = "text/html";
     var html = await System.IO.File.ReadAllTextAsync("wwwroot/dashboard.html");
     await context.Response.WriteAsync(html);
+});
+
+// A referrer's private counts page. The secret in the path is the only credential, so keep it out of referrers, caches and indexes.
+app.MapGet("/r/{token}", async context =>
+{
+    context.Response.Headers["Referrer-Policy"] = "no-referrer";
+    context.Response.Headers["Cache-Control"] = "no-store";
+    context.Response.Headers["X-Robots-Tag"] = "noindex, nofollow";
+    context.Response.ContentType = "text/html";
+    await context.Response.WriteAsync(await System.IO.File.ReadAllTextAsync("wwwroot/referral.html"));
 });
 
 // Self-service alert manager. ?t=<token> from the bot's /manage command is redeemed here

@@ -2,6 +2,22 @@
    Sends: page view, clicks on the Telegram buttons, demo play, and which sections were reached.
    Every visit gets a short random token that is appended to the Telegram start link, so a trial can be tied back to the visit it came from.
    The owner can mark a browser as "ours" with ?internal=1 (and clear it with ?internal=0): those visits are kept out of the numbers. */
+/* A referral code in the address (?r=code) is carried into the Telegram buttons as start=..._r_<code>. It is not analytics, so it runs even
+   with Do Not Track. It is remembered for the browser, so the visitor can read other pages and still arrive with it. */
+(function () {
+  var code = '';
+  try {
+    var r = (new URLSearchParams(location.search).get('r') || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 16);
+    if (r.length >= 3) { code = r; try { localStorage.setItem('gc_r', r); } catch (e) {} }
+    else { try { code = localStorage.getItem('gc_r') || ''; } catch (e) {} }
+  } catch (e) {}
+  if (code.length < 3) return;
+  document.querySelectorAll('a[href*="t.me/GROUPCHAT_ALERTS_BOT"]').forEach(function (a) {
+    a.href = a.href.replace(/start=([A-Za-z0-9_\-]+)/, function (m, s) { return 'start=' + s.slice(0, 30) + '_r_' + code; });
+    if (!/start=/.test(a.href)) a.href += (a.href.indexOf('?') < 0 ? '?' : '&') + 'start=r_' + code;
+  });
+})();
+
 (function () {
   try { if (navigator.doNotTrack === '1' || window.doNotTrack === '1' || navigator.globalPrivacyControl) return; } catch (e) {}
   var q = new URLSearchParams(location.search);

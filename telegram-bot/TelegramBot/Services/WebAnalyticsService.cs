@@ -40,6 +40,7 @@ public class WebAnalyticsService
     private DateTime _internalAt = DateTime.MinValue;
     private DateTime _purgedAt = DateTime.MinValue;
 
+    private static readonly Regex ReferralPart = new(@"_r_[A-Za-z0-9]{3,16}(?=_u_|$)", RegexOptions.Compiled);
     private static readonly Regex TokenSuffix = new(@"_v_([A-Za-z0-9]{6,12})$", RegexOptions.Compiled);
 
     public WebAnalyticsService(IServiceProvider services, ILogger<WebAnalyticsService> logger)
@@ -230,6 +231,7 @@ public class WebAnalyticsService
     {
         if (string.IsNullOrEmpty(payload)) return ("(none)", "direct / organic", false);
         var core = TokenSuffix.Replace(payload, "");
+        core = ReferralPart.Replace(core, "");   // a referral code on a website button is not part of the button's name
         var fromWeb = core.StartsWith("web_") || core.StartsWith("guide_");
         var i = core.IndexOf("_u_", StringComparison.Ordinal);
         return i > 0 ? (core[..i], core[(i + 3)..], fromWeb) : (core, fromWeb ? "(no utm)" : "other link", fromWeb);

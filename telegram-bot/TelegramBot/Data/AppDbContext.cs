@@ -25,6 +25,8 @@ public class AppDbContext : DbContext
     public DbSet<CallOutcome> CallOutcomes { get; set; }
     public DbSet<TraderRating> TraderRatings { get; set; }
     public DbSet<UserCategoryFollow> UserCategoryFollows { get; set; }
+    public DbSet<ReferralCode> ReferralCodes { get; set; }
+    public DbSet<ReferralPayout> ReferralPayouts { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -35,9 +37,28 @@ public class AppDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => e.ChatId).IsUnique();
             entity.HasIndex(e => e.TrialExpiresAt).HasFilter("\"TrialExpiresAt\" IS NOT NULL");
+            entity.HasIndex(e => e.ReferredByCode).HasFilter("\"ReferredByCode\" IS NOT NULL");
+            entity.Property(e => e.ReferredByCode).HasMaxLength(16);
             entity.Property(e => e.ChatId).IsRequired();
             entity.Property(e => e.JoinedAt).IsRequired();
             entity.Property(e => e.IsActive).IsRequired();
+        });
+
+        modelBuilder.Entity<ReferralCode>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.Code).IsUnique();
+            entity.HasIndex(e => e.StatsToken).IsUnique();
+            entity.Property(e => e.Code).IsRequired().HasMaxLength(16);
+            entity.Property(e => e.Label).IsRequired().HasMaxLength(80);
+            entity.Property(e => e.StatsToken).IsRequired().HasMaxLength(64);
+        });
+
+        modelBuilder.Entity<ReferralPayout>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.ReferralCodeId);
+            entity.Property(e => e.Note).HasMaxLength(200);
         });
 
         modelBuilder.Entity<Trader>(entity =>
