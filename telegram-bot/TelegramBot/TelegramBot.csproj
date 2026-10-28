@@ -5,6 +5,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>e4b68bbb-d7ee-43af-b03d-51f38caf1aa9</UserSecretsId>
+    <!-- Server GC keeps one heap per CPU thread (24 here); DATAS sizes the heaps to the actual load. -->
+    <GarbageCollectionAdaptationMode>1</GarbageCollectionAdaptationMode>
   </PropertyGroup>
 
   <ItemGroup>

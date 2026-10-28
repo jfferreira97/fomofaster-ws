@@ -4,10 +4,11 @@
   "description": "Playwright poller — pump.fun following-positions/alerts (callout/repost/reply) forwarded to fomofaster backend",
   "main": "dist/index.js",
   "scripts": {
-    "start": "ts-node src/index.ts",
+    "start": "tsc && node dist/index.js",
     "build": "tsc",
     "start:built": "node dist/index.js",
-    "candles": "ts-node src/candle-proxy.ts"
+    "candles": "tsc && node dist/candle-proxy.js",
+    "dev": "ts-node src/index.ts"
   },
   "dependencies": {
     "playwright": "^1.44.0"
