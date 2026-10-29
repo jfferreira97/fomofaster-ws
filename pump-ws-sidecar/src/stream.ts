@@ -11,8 +11,9 @@ import { join } from 'path';
 //   3. Events arrive as NATS frames on the page's nats.realtime.pump.fun websocket. For callouts, replies
 //      and reposts the event is only a doorbell ("a new row exists"): the site then re-fetches the feed.
 //      Trades are inserted straight from the event; we do not ingest trades, so they are ignored upstream.
-// We do not read or reuse the stream's login: the logged-in page sets that up for its own worker, and
-// we only listen to what the page itself receives (same approach as bag-watch's pump trades tab).
+// The logged-in page sets the stream's login up for its own worker, and this listens to what the page itself
+// receives (same approach as bag-watch's pump trades tab). natsMirror.ts adds connections from Node with what
+// the page hands its worker, because one connection can land on a server that delivers nothing.
 // The stream "degrades to HTTP polling, never the reverse" (site contract), so index.ts keeps a slow
 // fallback poll and speeds it up only while the stream is not healthy.
 
@@ -38,6 +39,8 @@ export interface AlertStream {
   healthy(): boolean;
   /** Listening for real: presence is alive, the subject is subscribed and the NATS socket is delivering frames right now. */
   ready(): boolean;
+  /** The subject pattern the presence call returned (null until it did, or during a registry outage). */
+  subject(): string | null;
   describe(): string;
   stop(): void;
 }
@@ -252,6 +255,7 @@ export function startAlertStream(
       !!subject && subscribedSubject === subject && natsSocketSeen &&
       Date.now() - lastPresenceOkAt < 2.5 * Math.max(15, hbSeconds) * 1000 &&
       Date.now() - lastFrameAt < 30_000,
+    subject: () => subject,
     describe: () =>
       `subject=${subject ? 'yes' : 'no'} subscribed=${subscribedSubject === subject && !!subject} nats=${natsSocketSeen} ` +
       `frames=${frames} events=${events} lastFrameAgo=${lastFrameAt ? Math.round((Date.now() - lastFrameAt) / 1000) + 's' : 'never'}`,

@@ -4,6 +4,7 @@ import { transformItem, type PumpFeedItem } from './transform';
 import { runVerifiedSync } from './verifiedSync';
 import { logTiming } from './timingLog';
 import { startAlertStream, type AlertStream, type StreamEvent } from './stream';
+import { startNatsMirror, type NatsMirror } from './natsMirror';
 import { logPumpTrade, tradeFromEvent, tradeFromItem, type PumpTradeRecord } from './tradeLog';
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
@@ -54,6 +55,8 @@ const PROBE_FAILURES_BEFORE_RELOAD = 3;
 // and the Cloudflare clearance stay as they are.
 const PAGE_REFRESH_MS = (Number(process.env.PAGE_REFRESH_HOURS) || 8) * 60 * 60_000;
 const VERIFIED_SYNC_INTERVAL_MS = Number(process.env.VERIFIED_SYNC_INTERVAL_MS) || 6 * 60 * 60_000; // 6h default
+// Extra connections from Node to the alerts stream next to the page's own (see natsMirror.ts). PUMP_NATS_MIRROR=0 turns them off.
+const MIRROR_CONNECTIONS = process.env.PUMP_NATS_MIRROR === '0' ? 0 : Number(process.env.PUMP_NATS_MIRROR) || 2;
 
 interface AlertsProbeResult {
   ok: boolean;
@@ -130,6 +133,10 @@ async function session(firstRun: boolean): Promise<void> {
           w.postMessage = (m, ...rest) => {
             try {
               if (m && typeof m === 'object') {
+                // what natsMirror.ts needs to connect like the worker does: the CORE server + the site's public subscriber
+                // login, and the per-user token once pump.fun turns it on. Kept in the page, read only by natsMirror.ts.
+                if (m.type === 'configs' && m.configs && m.configs.CORE) window.__natsCore = m.configs.CORE;
+                if (m.type === 'auth' && m.instance === 'CORE') window.__natsJwt = (m.auth && m.auth.jwt) || null;
                 if (m.type === 'subscribe' && typeof m.channel === 'string' && m.channel.indexOf('alertsFeed.user.') === 0) window.__pageAlertsSub = true;
                 const o = { dir: 'out', type: m.type, instance: m.instance };
                 if (m.type === 'configs' && m.configs) o.configInstances = Object.keys(m.configs).join(',');
@@ -160,6 +167,7 @@ async function session(firstRun: boolean): Promise<void> {
   let refreshTimer: NodeJS.Timeout | undefined;
   let triggerInterval: NodeJS.Timeout | undefined;
   let stream: AlertStream | undefined;
+  let mirror: NatsMirror | undefined;
 
   try {
     let page = context.pages()[0] ?? await context.newPage();
@@ -173,8 +181,21 @@ async function session(firstRun: boolean): Promise<void> {
     // Listen for pump.fun's live feed from the very start: its NATS websocket opens at page load,
     // before the login check below finishes. Presence registration waits for the login (stream.begin()).
     let ring: (ev: StreamEvent) => void = () => { /* wired once the poller exists */ };
+    // The same event can arrive from the page and from each mirror connection (and from both pages during a rotation): only the
+    // first copy rings, so a duplicate never costs an extra fetch of the alerts API.
+    const heard = new Set<string>();
+    let heardTotal = 0, heardFirstByMirror = 0;
+    const hear = (ev: StreamEvent, via: 'page' | 'mirror') => {
+      const key = `${ev.kind}:${ev.id}`;
+      if (heard.has(key)) return;
+      heard.add(key);
+      if (heard.size > 5_000) heard.delete(heard.values().next().value as string);
+      heardTotal++;
+      if (via === 'mirror') heardFirstByMirror++;
+      ring(ev);
+    };
     const firstPage = page;
-    stream = startAlertStream(page, (ev) => { seenBy(firstPage, ev.id); ring(ev); }, (m) => console.log(`${ts()} ${m}`));
+    stream = startAlertStream(page, (ev) => { seenBy(firstPage, ev.id); hear(ev, 'page'); }, (m) => console.log(`${ts()} ${m}`));
 
     const emulateFocus = async (p: import('playwright').Page) => {
       try {
@@ -205,6 +226,12 @@ async function session(firstRun: boolean): Promise<void> {
       console.log(`${ts()} [main] ✅ logged in, session persisted to ${PROFILE_DIR}`);
     }
     stream.begin();
+    if (MIRROR_CONNECTIONS > 0) {
+      mirror = startNatsMirror({
+        page: () => page, subject: () => stream?.subject() ?? null, pageHearing: () => !!stream?.healthy(),
+        onEvent: (ev) => hear(ev, 'mirror'), log: (m) => console.log(`${ts()} ${m}`), connections: MIRROR_CONNECTIONS,
+      });
+    }
 
     let recovering = false;
     const recover = async (reason: string) => {
@@ -276,7 +303,7 @@ async function session(firstRun: boolean): Promise<void> {
           lastMaxAgeS = probe.data?.maxAgeSeconds ?? lastMaxAgeS;
           if (Date.now() - lastTickLog > 10_000 || reason.startsWith('ring')) {
             lastTickLog = Date.now();
-            console.log(`${ts()} [poll] fetch=${fetchMs}ms reason=${reason} polls=${tickCount} trades=${tradesSeen} stream-trades full=${tradeEventsFull} stub=${tradeEventsStub} | ${stream?.describe()}`);
+            console.log(`${ts()} [poll] fetch=${fetchMs}ms reason=${reason} polls=${tickCount} trades=${tradesSeen} stream-trades full=${tradeEventsFull} stub=${tradeEventsStub} | ${stream?.describe()} | ${mirror?.describe() ?? 'mirror off'} heard=${heardTotal} first-by-mirror=${heardFirstByMirror}`);
             logTiming('poll', reason, `fetchMs=${fetchMs}`, `polls=${tickCount}`, `streamHealthy=${stream?.healthy()}`);
             tickCount = 0;
           }
@@ -455,7 +482,7 @@ async function session(firstRun: boolean): Promise<void> {
         await lean(fresh);
         watch(fresh);
         const freshPage = fresh;
-        freshStream = startAlertStream(fresh, (ev) => { seenBy(freshPage, ev.id); ring(ev); }, (m) => console.log(`${ts()} [new] ${m}`));
+        freshStream = startAlertStream(fresh, (ev) => { seenBy(freshPage, ev.id); hear(ev, 'page'); }, (m) => console.log(`${ts()} [new] ${m}`));
         await fresh.goto(url, { waitUntil: 'domcontentloaded' });
         freshStream.begin();
         const readyBy = Date.now() + 90_000;
@@ -540,6 +567,7 @@ async function session(firstRun: boolean): Promise<void> {
     if (pollInterval) clearInterval(pollInterval);
     if (followUpTimer) clearTimeout(followUpTimer);
     stream?.stop();
+    mirror?.stop();
     if (verifiedSyncInterval) clearInterval(verifiedSyncInterval);
     await context.close().catch(() => {});
   }
