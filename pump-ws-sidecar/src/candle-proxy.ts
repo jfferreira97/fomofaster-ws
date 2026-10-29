@@ -29,7 +29,10 @@ async function launch(): Promise<void> {
     channel: 'chrome',
     headless: false,
     viewport: { width: 900, height: 620 },
-    args: ['--disable-blink-features=AutomationControlled', '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows'],
+    // No usable GPU on this machine: without these three the GPU process emulates one (~220 MB). The alert sidecar runs with the same
+    // three and passes Cloudflare.
+    args: ['--disable-blink-features=AutomationControlled', '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows',
+      '--disable-gpu', '--disable-software-rasterizer', '--disable-gpu-compositing'],
     ignoreDefaultArgs: ['--enable-automation'],
   });
   page = ctx.pages()[0] ?? await ctx.newPage();

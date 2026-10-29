@@ -5,14 +5,17 @@ import { runVerifiedSync } from './verifiedSync';
 import { logTiming } from './timingLog';
 import { startAlertStream, type AlertStream, type StreamEvent } from './stream';
 import { logPumpTrade, tradeFromEvent, tradeFromItem, type PumpTradeRecord } from './tradeLog';
-import { existsSync, unlinkSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
 
 const ts = () => { const d = new Date(); return `[${new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().replace('T', ' ').slice(0, 19)}]`; };
 
 const HEADLESS = process.env.HEADLESS === 'true';
 const PROFILE_DIR = './chromium-profile';
-const PUMP_URL = 'https://pump.fun/';
+// The page the sidecar sits on. Any pump.fun page carries the login, the app's NATS worker and the alerts subscription, so it sits on
+// the not-found page: the home page also renders live coin lists, which subscribe it to the trades of dozens of coins (thousands of
+// frames a minute for nothing) and grew the tab to 2.5 GB, against ~0.6 GB here (measured 2026-10-29). PUMP_PAGE_URL overrides it.
+let pumpUrl = process.env.PUMP_PAGE_URL || 'https://pump.fun/404';
 const ALERTS_API = 'https://frontend-api-v3.pump.fun/following-positions/alerts?pageSize=50&kinds=callout,repost,reply,trade&minTradeAmountUsd=10';
 // A trade older than this is recorded but never alerted (restart / outage backlog must not replay as alerts).
 const MAX_TRADE_ALERT_AGE_MS = 90_000;
@@ -92,7 +95,7 @@ async function session(firstRun: boolean): Promise<void> {
       '--disable-gpu',
       '--disable-software-rasterizer',
       '--disable-gpu-compositing',
-      // The window lives on another virtual desktop / behind a closed lid: keep Chrome from throttling
+      // The window may be hidden or behind a closed lid: keep Chrome from throttling
       // or "occluding" the page, or the live NATS feed would go quiet.
       '--disable-background-timer-throttling',
       '--disable-renderer-backgrounding',
@@ -182,8 +185,8 @@ async function session(firstRun: boolean): Promise<void> {
     await emulateFocus(page);
     await lean(page);
 
-    console.log(`${ts()} [main] navigating to`, PUMP_URL);
-    await page.goto(PUMP_URL, { waitUntil: 'domcontentloaded' });
+    console.log(`${ts()} [main] navigating to`, pumpUrl);
+    await page.goto(pumpUrl, { waitUntil: 'domcontentloaded' });
 
     if (firstRun) {
       // First run: no session yet. Give the user time to log into pump.fun by hand
@@ -209,7 +212,7 @@ async function session(firstRun: boolean): Promise<void> {
       recovering = true;
       console.warn(`${ts()} [main] recovering page (${reason})...`);
       try {
-        await page.goto(PUMP_URL, { waitUntil: 'domcontentloaded' });
+        await page.goto(pumpUrl, { waitUntil: 'domcontentloaded' });
         console.log(`${ts()} [main] ✅ page recovered`);
         logTiming('recovered');
       } catch (err) {
@@ -438,14 +441,14 @@ async function session(firstRun: boolean): Promise<void> {
     hbInterval = setInterval(() => { heartbeat().catch(() => {}); }, HEARTBEAT_INTERVAL_MS);
 
     let rotating = false;
-    const rotatePage = async (why: string): Promise<boolean> => {
+    const rotatePage = async (why: string, url: string = pumpUrl): Promise<boolean> => {
       if (rotating || recovering) return false;
       rotating = true;
       const old = page, oldStream = stream;
       let fresh: import('playwright').Page | undefined;
       let freshStream: AlertStream | undefined;
       try {
-        console.log(`${ts()} [rotate] start (${why}): a second page opens while the first keeps working`);
+        console.log(`${ts()} [rotate] start (${why}): a second page opens on ${url} while the first keeps working`);
         overlap = { oldPage: old, old: new Set(), neu: new Set() };
         fresh = await context.newPage();
         await emulateFocus(fresh);
@@ -453,7 +456,7 @@ async function session(firstRun: boolean): Promise<void> {
         watch(fresh);
         const freshPage = fresh;
         freshStream = startAlertStream(fresh, (ev) => { seenBy(freshPage, ev.id); ring(ev); }, (m) => console.log(`${ts()} [new] ${m}`));
-        await fresh.goto(PUMP_URL, { waitUntil: 'domcontentloaded' });
+        await fresh.goto(url, { waitUntil: 'domcontentloaded' });
         freshStream.begin();
         const readyBy = Date.now() + 90_000;
         while (Date.now() < readyBy && !freshStream.ready()) await sleep(1_000);
@@ -473,6 +476,7 @@ async function session(firstRun: boolean): Promise<void> {
         await sleep(5_000);                        // a few more seconds of both at once
         const o = overlap, onlyOld = [...o.old].filter((id) => !o.neu.has(id)).length, onlyNew = [...o.neu].filter((id) => !o.old.has(id)).length;
         page = fresh; stream = freshStream;        // from here on, the new page is the one that counts
+        pumpUrl = url;                             // and its address is the one later rotations and recoveries use
         oldStream?.stop();
         await old.close().catch(() => { /* already gone */ });
         console.log(`${ts()} [rotate] done: old page closed. During the overlap the old page saw ${o.old.size} events, the new ${o.neu.size}, only-old ${onlyOld}, only-new ${onlyNew}`);
@@ -498,12 +502,15 @@ async function session(firstRun: boolean): Promise<void> {
     };
     scheduleRotation(PAGE_REFRESH_MS * (0.8 + Math.random() * 0.4));
 
-    // Manual trigger for tests and emergencies: create the file logs/rotate-now and the next check (5 s) rotates once.
+    // Manual trigger for tests and emergencies: create the file logs/rotate-now and the next check (5 s) rotates once. If the file
+    // holds a pump.fun address, the new page opens there, and the sidecar stays on it only if it passes the same checks as any rotation.
     const triggerFile = join(__dirname, '..', 'logs', 'rotate-now');
     triggerInterval = setInterval(() => {
       if (!existsSync(triggerFile)) return;
+      let wanted = '';
+      try { wanted = readFileSync(triggerFile, 'utf8').trim(); } catch { /* unreadable: plain rotation */ }
       try { unlinkSync(triggerFile); } catch { /* gone already */ }
-      void rotatePage('requested by file');
+      void rotatePage('requested by file', /^https:\/\/pump\.fun\//.test(wanted) ? wanted : pumpUrl);
     }, 5_000);
 
     let syncingVerified = false;

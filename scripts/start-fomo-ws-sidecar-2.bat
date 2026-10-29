@@ -8,4 +8,6 @@ set "PATH=C:\Program Files\nodejs;%PATH%"
 set "PROFILE_DIR=./chromium-profile-2"
 set "ACCOUNT_NAME=account-2"
 cd /d "%~dp0..\fomo-ws-sidecar"
-npm start
+REM Compile, then run node directly: npm start would keep an npm process alive next to the sidecar for nothing.
+call npm run build
+node dist\index.js

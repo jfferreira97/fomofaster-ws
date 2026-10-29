@@ -7,4 +7,6 @@ REM and every run after this one can be headless (set HEADLESS=true below).
 REM Start the backend (start-telegram-bot.bat) FIRST — this posts to it on :8000.
 set "PATH=C:\Program Files\nodejs;%PATH%"
 cd /d "%~dp0..\pump-ws-sidecar"
-npm start
+REM Compile, then run node directly: npm start would keep an npm process alive next to the sidecar for nothing.
+call npm run build
+node dist\index.js

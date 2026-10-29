@@ -44,6 +44,15 @@ async function session(firstRun: boolean): Promise<void> {
     ignoreDefaultArgs: ['--enable-automation'],
   });
 
+  // The page is only listened to: pictures, video and fonts are refused before they download (the trade feed's token and avatar images
+  // otherwise fill the tab). Network sockets and the app's own requests are not touched. FOMO_LEAN_PAGE=0 turns it off.
+  if (process.env.FOMO_LEAN_PAGE !== '0') {
+    await context.route('**/*', (route) => {
+      const t = route.request().resourceType();
+      if (t === 'image' || t === 'media' || t === 'font') void route.abort(); else void route.continue();
+    });
+  }
+
   let hbInterval: NodeJS.Timeout | undefined;
   let probeInterval: NodeJS.Timeout | undefined;
   let refreshTimer: NodeJS.Timeout | undefined;
