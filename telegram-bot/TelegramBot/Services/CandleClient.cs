@@ -7,7 +7,7 @@ namespace TelegramBot.Services;
 // end of the range, 300 bars at a time (the route refuses more since October 2026: "count must not be greater than 300", which it
 // answers with a 400 that used to be read as "token unknown" and left most calls without price data).
 // The route answers a plain HTTP client from this machine with a Cloudflare challenge, so every request first goes through the local
-// candle service (a real Chrome past Cloudflare, see pump-ws-sidecar/src/candle-proxy.ts, 127.0.0.1:8130, and a second one on 8131) and only falls back to a
+// candle service (a real Chrome past Cloudflare, see pump-ws-sidecar/src/candle-proxy.ts, 127.0.0.1:8130) and only falls back to a
 // direct request when that service is down.
 public class CandleClient
 {
@@ -25,9 +25,9 @@ public class CandleClient
 
     public static bool IsServed(int networkId) => Served.Contains(networkId);
 
-    // Two candle services, each going out through its own IP (pump.fun limits the route per IP): 8130 from this machine, 8131 through the
-    // dedicated proxy. A request goes to the one with fewer in flight, so the one slowed by 429s takes less; 8131 is optional.
-    private static readonly string[] ProxyUrls = { "http://127.0.0.1:8130/fetch?url=", "http://127.0.0.1:8131/fetch?url=" };
+    // Candle services, each going out through its own IP (pump.fun limits the route per IP). With more than one, a request goes to the
+    // one with fewer in flight, so the one slowed by 429s takes less, and one that is down is skipped.
+    private static readonly string[] ProxyUrls = { "http://127.0.0.1:8130/fetch?url=" };
     private readonly DateTime[] _proxyDownUntil = new DateTime[ProxyUrls.Length];
     private readonly int[] _inFlight = new int[ProxyUrls.Length];
     private const int PageSize = 300;

@@ -29,5 +29,3 @@ telegram-bot/TelegramBot/Intel/trader-intel.json
 # pump sidecar runtime logs (latency trail, followed traders' trades)
 pump-ws-sidecar/logs/
 candle-profile/
-candle-profile-2/
-pump-ws-sidecar/src/candle-proxy-2.ts

@@ -20,7 +20,7 @@ namespace TelegramBot.Services;
 public class TraderCategorizerService : BackgroundService
 {
     private const int WindowDays = 30;
-    private const int Parallelism = 6;   // each candle service fetches one at a time, paced by pump.fun's rate limit (two services, two IPs): more only queues
+    private const int Parallelism = 4;   // the candle service fetches one at a time, paced by pump.fun's rate limit: more only queues
     private static readonly TimeSpan GiveUpAfter = TimeSpan.FromDays(31);
     private const string LastRunKey = "TraderCategorizerLastRunAt";
     private static readonly TimeSpan Horizon = TimeSpan.FromHours(24) + TimeSpan.FromMinutes(10);
