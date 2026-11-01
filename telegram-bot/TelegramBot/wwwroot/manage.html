@@ -879,7 +879,7 @@
                     </div>
                 </div>
                 <div class="panel-body">
-                    <div class="trial-note" id="trialNote" style="display:none">Free trial: you get full alerts, but scores, stats and trader cards are for subscribers. <a href="#" id="trialSubLink" style="color:var(--accent)">Subscribe</a></div>
+                    <div class="trial-note" id="trialNote" style="display:none"><span id="trialNoteText"></span> <a href="#" id="trialSubLink" style="color:var(--accent)">Subscribe</a></div>
                     <div class="cat-strip" id="catStrip"></div>
                     <div class="filter-row" id="filterRow"></div>
                     <div class="traders-toolbar">
@@ -1061,7 +1061,7 @@ function showApp(me) {
 
     fullAccess = me.access !== 'trial';
     document.body.classList.toggle('trial-mode', !fullAccess);
-    document.getElementById('trialNote').style.display = fullAccess ? 'none' : '';
+    document.getElementById('trialNote').style.display = 'none';   // renderPlan shows it once the plan is known, with the text that fits it
     renderFilters();
 
     currentSettings = me.settings;
@@ -1105,6 +1105,15 @@ function renderPlan() {
         text = s.trialEndsAt ? 'Trial ended' : 'No active plan'; cls = 'none'; title = s.trialEndsAt ? 'Your free trial ended ' + fmt(s.trialEndsAt) : 'No active plan';
     }
     pill.style.display = ''; pill.textContent = text; pill.className = 'plan-pill ' + cls; pill.title = title;
+
+    // The note under the header says what the current plan gets: a trial has full alerts, no plan has the hidden ones.
+    const note = document.getElementById('trialNote');
+    const onTrial = !s.activeUntil && !s.lifetime && s.trialEndsAt && new Date(s.trialEndsAt).getTime() > now;
+    note.style.display = fullAccess ? 'none' : '';
+    const hidden = 'alerts hide the ticker, buy size and contract, and scores, stats and trader cards are for subscribers.';
+    document.getElementById('trialNoteText').textContent = onTrial
+        ? 'Free trial: you get full alerts, but scores, stats and trader cards are for subscribers.'
+        : (s.trialEndsAt ? 'Your trial ended: ' : 'No active plan: ') + hidden;
 }
 
 async function initSubscribe() {
