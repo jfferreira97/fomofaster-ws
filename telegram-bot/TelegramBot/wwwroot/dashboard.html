@@ -2,661 +2,677 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#17212b">
     <title>GROUPCHAT Alerts - Dashboard</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        /* =====================================================================
+           GROUPCHAT owner dashboard: design system
+           tokens -> base -> controls -> layout (header, tabs, cards) -> tabs' own parts -> phone
+           ===================================================================== */
+        :root {
+            color-scheme: dark;
+            /* surfaces (Telegram-night navy) */
+            --bg: #0e1621;
+            --surface: #17212b;
+            --surface-2: #1b2733;
+            --surface-3: #223142;
+            --inset: #101a25;
+            --line: #243344;
+            --line-2: #2f4358;
+            /* text */
+            --text: #eaf0f5;
+            --text-2: #b8c2cc;
+            --text-3: #8a96a0;
+            /* accent + status */
+            --accent: #5288c1;
+            --accent-2: #5ca8e2;
+            --accent-soft: rgba(82, 136, 193, .16);
+            --green: #4ade80;
+            --green-soft: rgba(74, 222, 128, .12);
+            --green-line: rgba(74, 222, 128, .30);
+            --red: #f87171;
+            --red-soft: rgba(248, 113, 113, .12);
+            --red-line: rgba(248, 113, 113, .34);
+            --amber: #f0b429;
+            --amber-soft: rgba(240, 180, 41, .12);
+            --amber-line: rgba(240, 180, 41, .32);
+            /* radius + spacing + type scale */
+            --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-pill: 999px;
+            --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 28px;
+            --fs-xs: 11.5px; --fs-sm: 12.5px; --fs-base: 14px; --fs-md: 15px; --fs-lg: 17px; --fs-xl: 22px; --fs-2xl: 28px;
+            --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+            --shadow-1: 0 1px 2px rgba(0, 0, 0, .28);
+            --shadow-2: 0 12px 32px rgba(0, 0, 0, .5);
+            /* iOS safe areas (the page opts in with viewport-fit=cover) */
+            --safe-t: env(safe-area-inset-top, 0px);
+            --safe-r: env(safe-area-inset-right, 0px);
+            --safe-b: env(safe-area-inset-bottom, 0px);
+            --safe-l: env(safe-area-inset-left, 0px);
         }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { -webkit-text-size-adjust: 100%; background: var(--bg); }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background-color: #0e1621;
-            color: #ffffff;
+            font-family: var(--font);
+            font-size: var(--fs-base);
+            line-height: 1.45;
+            font-variant-numeric: tabular-nums;
+            -webkit-font-smoothing: antialiased;
+            background: var(--bg);
+            color: var(--text);
             height: 100vh;
+            height: 100dvh;
             overflow: hidden;
         }
 
-        .container {
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-        }
+        .container { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
 
+        a { color: var(--accent-2); }
+        b, strong { font-weight: 650; }
+        code {
+            font-family: var(--mono); font-size: .92em; color: var(--text);
+            background: var(--inset); border: 1px solid var(--line); padding: 1px 6px; border-radius: var(--r-sm);
+            overflow-wrap: anywhere;
+        }
+        :focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+
+        /* ---------- header ---------- */
         .header {
-            background-color: #17212b;
-            padding: 12px 20px;
-            border-bottom: 1px solid #0e1621;
-            display: flex;
-            align-items: center;
-            gap: 12px;
+            flex: none;
+            display: flex; align-items: center; gap: var(--s3);
+            padding: calc(10px + var(--safe-t)) max(var(--s4), var(--safe-r)) 10px max(var(--s4), var(--safe-l));
+            background: var(--surface);
+            border-bottom: 1px solid var(--line);
         }
+        .brand { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+        .brand-mark {
+            flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
+            font-weight: 800; font-size: 16px; color: #fff; letter-spacing: -.02em;
+            background: linear-gradient(140deg, #6bb4ec 0%, #3f74ad 100%);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18), 0 2px 8px rgba(0, 0, 0, .35);
+        }
+        .brand-text { min-width: 0; }
+        .header-title { font-size: var(--fs-md); font-weight: 650; letter-spacing: -.01em; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .header-subtitle { font-size: var(--fs-xs); color: var(--text-3); margin-top: 1px; }
+        .jump { flex: none; display: flex; gap: 6px; align-items: center; }
+        .jump-input { width: 120px; }
 
-        .header-title {
-            font-size: 16px;
-            font-weight: 500;
-            color: #ffffff;
+        /* ---------- tab bar ---------- */
+        .tabs-wrap {
+            flex: none; position: relative; z-index: 5;
+            background: var(--surface); border-bottom: 1px solid var(--line);
         }
+        .tabs-wrap::before, .tabs-wrap::after {
+            content: ""; position: absolute; top: 0; bottom: 0; width: 30px; z-index: 2; pointer-events: none; opacity: 0; transition: opacity .2s;
+        }
+        .tabs-wrap::before { left: 0; background: linear-gradient(90deg, var(--surface) 20%, transparent); }
+        .tabs-wrap::after { right: 0; background: linear-gradient(270deg, var(--surface) 20%, transparent); }
+        .tabs-wrap.fade-l::before, .tabs-wrap.fade-r::after { opacity: 1; }
+        .tabs {
+            display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain;
+            padding: 0 max(var(--s2), var(--safe-r)) 0 max(var(--s2), var(--safe-l));
+        }
+        .tabs::-webkit-scrollbar { display: none; }
+        .tab {
+            -webkit-appearance: none; appearance: none; background: none; border: 0; border-radius: 0;
+            flex: 0 0 auto; position: relative; display: inline-flex; align-items: center; gap: 6px;
+            height: 46px; padding: 0 14px; white-space: nowrap;
+            font: inherit; font-size: var(--fs-base); font-weight: 550; color: var(--text-3);
+            cursor: pointer; -webkit-tap-highlight-color: transparent; transition: color .15s;
+        }
+        .tab::after {
+            content: ""; position: absolute; left: 12px; right: 12px; bottom: 0; height: 2px; border-radius: 2px 2px 0 0;
+            background: var(--accent-2); transform: scaleX(0); transition: transform .2s ease;
+        }
+        .tab:hover { color: var(--text-2); }
+        .tab.active { color: var(--text); }
+        .tab.active::after { transform: scaleX(1); }
+        .tab:focus-visible { outline-offset: -4px; border-radius: 10px; }
 
-        .header-subtitle {
-            font-size: 14px;
-            color: #8a96a0;
-            margin-top: 2px;
-        }
+        .tab-content { display: none; flex: 1; min-height: 0; overflow: hidden; }
+        .tab-content.active { display: flex; flex-direction: column; }
 
         .chat-area {
-            flex: 1;
-            overflow-y: auto;
-            padding: 20px;
-            background-color: #0e1621;
+            flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+            padding: var(--s5) max(var(--s5), var(--safe-r)) calc(var(--s6) + var(--safe-b)) max(var(--s5), var(--safe-l));
+            background: var(--bg);
         }
 
-        .message-bubble {
-            max-width: 80%;
-            margin-bottom: 12px;
-            animation: fadeIn 0.3s ease-in;
-        }
+        /* ---------- status dots ---------- */
+        .mon-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #6b7a88; flex: none; }
+        .mon-dot.ok, .mon-state-dot.ok { background: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
+        .mon-dot.degraded, .mon-state-dot.degraded { background: var(--amber); box-shadow: 0 0 0 3px var(--amber-soft); }
+        .mon-dot.down, .mon-state-dot.down { background: var(--red); box-shadow: 0 0 0 3px var(--red-soft); }
+        .mon-dot.idle, .mon-state-dot.idle { background: #6b7a88; box-shadow: 0 0 0 3px rgba(107, 122, 136, .14); }
+        .mon-state-dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; flex: none; }
 
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+        /* ---------- controls ---------- */
+        select, textarea, input:not([type=checkbox]):not([type=radio]) {
+            font: inherit; font-size: var(--fs-base); color: var(--text);
+            background-color: var(--inset); border: 1px solid var(--line-2); border-radius: var(--r-md);
+            height: 38px; padding: 0 12px; max-width: 100%;
+            transition: border-color .15s, box-shadow .15s;
         }
-
-        .message-content {
-            background-color: #182533;
-            border-radius: 12px;
-            padding: 8px 12px;
-            position: relative;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        textarea { height: auto; padding: 10px 12px; line-height: 1.45; resize: vertical; display: block; }
+        select {
+            -webkit-appearance: none; appearance: none; cursor: pointer; padding-right: 34px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%238a96a0' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+            background-repeat: no-repeat; background-position: right 12px center; background-size: 11px;
         }
-
-        .message-text {
-            font-size: 15px;
-            line-height: 1.35;
-            color: #e8e9ea;
-            word-wrap: break-word;
+        select:hover, input:hover, textarea:hover { border-color: #3c566f; }
+        select:focus-visible, textarea:focus-visible, input:focus-visible {
+            outline: none; border-color: var(--accent-2); box-shadow: 0 0 0 3px rgba(92, 168, 226, .25);
         }
-
-        .message-meta {
-            display: flex;
-            align-items: center;
-            justify-content: flex-end;
-            gap: 8px;
-            font-size: 12px;
-            color: #6c7883;
-            margin-top: 4px;
+        ::placeholder { color: #66737f; }
+        input[type=number] { font-variant-numeric: tabular-nums; }
+        input[type=checkbox]:not(.switch) { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; flex: none; }
+        input.switch {
+            -webkit-appearance: none; appearance: none; flex: none; position: relative; cursor: pointer; vertical-align: middle;
+            width: 42px; height: 24px; border-radius: var(--r-pill); background: var(--surface-3); border: 1px solid var(--line-2); transition: background .2s, border-color .2s;
         }
-
-        .message-time {
-            font-size: 12px;
-            color: #6c7883;
+        input.switch::after {
+            content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #c6d0da; transition: transform .2s, background .2s;
         }
+        input.switch:checked { background: var(--accent); border-color: var(--accent); }
+        input.switch:checked::after { transform: translateX(18px); background: #fff; }
+        input.switch:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+        .inp-xs { width: 62px; height: 32px; padding: 0 8px; font-size: var(--fs-sm); }
 
-        .message-ticker {
-            display: inline;
-            background-color: transparent;
-            color: inherit;
-            padding: 0;
-            border-radius: 0;
-            font-size: inherit;
-            font-weight: normal;
-            margin-right: 0;
+        .form-group { margin-bottom: var(--s4); }
+        .form-label { display: block; font-size: var(--fs-sm); font-weight: 550; color: var(--text-2); margin-bottom: 6px; }
+        .form-input { width: 100%; }
+
+        /* buttons: primary / secondary / ghost / danger, small variant */
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: none;
+            height: 38px; padding: 0 16px; border-radius: var(--r-md); border: 1px solid var(--line-2);
+            background: var(--surface-3); color: var(--text);
+            font: inherit; font-size: var(--fs-base); font-weight: 600; line-height: 1; white-space: nowrap;
+            cursor: pointer; -webkit-tap-highlight-color: transparent;
+            transition: background .15s, border-color .15s, filter .15s, transform .06s;
         }
+        .btn:hover { filter: brightness(1.14); }
+        .btn:active { transform: translateY(1px); }
+        .btn:disabled { opacity: .5; cursor: not-allowed; filter: none; transform: none; }
+        .btn-primary { background: linear-gradient(180deg, #5b94ce, #4a7fb8); border-color: #6aa0d6; color: #fff; }
+        .btn-secondary { background: var(--surface-3); border-color: var(--line-2); color: var(--text); }
+        .btn-ghost { background: transparent; border-color: transparent; color: var(--accent-2); }
+        .btn-danger { background: var(--red-soft); border-color: var(--red-line); color: var(--red); }
+        .btn-danger:hover { background: rgba(248, 113, 113, .22); filter: none; }
+        .btn-danger.btn-solid { background: linear-gradient(180deg, #d9534f, #c0403c); border-color: #e46a66; color: #fff; }
+        .btn-danger.btn-solid:hover { filter: brightness(1.1); }
+        .btn-sm { height: 32px; padding: 0 12px; font-size: var(--fs-sm); border-radius: 8px; }
+        .btn-push { margin-left: auto; }
 
-        .message-trader {
-            color: #5ca8e2;
-            text-decoration: none;
-            font-weight: 500;
+        /* badges / status pills */
+        .badge {
+            display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: var(--r-pill);
+            font-size: var(--fs-xs); font-weight: 650; line-height: 1; white-space: nowrap;
+            background: var(--surface-3); color: var(--text-2); border: 1px solid var(--line-2);
         }
+        .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .9; }
+        .badge.plain::before { display: none; }
+        .badge-green { background: var(--green-soft); color: var(--green); border-color: var(--green-line); }
+        .badge-amber { background: var(--amber-soft); color: var(--amber); border-color: var(--amber-line); }
+        .badge-red { background: var(--red-soft); color: var(--red); border-color: var(--red-line); }
+        .badge-blue { background: var(--accent-soft); color: var(--accent-2); border-color: rgba(92, 168, 226, .3); }
+        .badge-gray { background: rgba(138, 150, 160, .1); color: var(--text-3); border-color: rgba(138, 150, 160, .25); }
 
-        .message-trader:hover {
-            text-decoration: underline;
-        }
+        .row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+        .muted { color: var(--text-3); }
+        .pos { color: var(--green); }
+        .neg { color: var(--red); }
 
-        .contract-address {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            margin-top: 6px;
-            padding: 6px 8px;
-            background-color: #0e1621;
-            border-radius: 6px;
-            font-size: 12px;
-            color: #8a96a0;
-        }
-
-        .contract-address-text {
-            font-family: 'Courier New', monospace;
-            font-size: 11px;
-            color: #5ca8e2;
-            word-break: break-all;
-        }
-
-        .contract-icon {
-            width: 16px;
-            height: 16px;
-            background-color: #2b5278;
-            border-radius: 4px;
-            display: inline-block;
-        }
-
-        .dex-link {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            color: #5ca8e2;
-            text-decoration: none;
-            font-size: 12px;
-            margin-top: 4px;
-        }
-
-        .dex-link:hover {
-            text-decoration: underline;
-        }
-
-        .recipient-count {
-            font-size: 11px;
-            color: #6c7883;
-            margin-top: 4px;
-        }
-
-        .message-metadata {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 11px;
-            color: #6c7883;
-            margin-top: 6px;
-            padding-top: 6px;
-            border-top: 1px solid rgba(255, 255, 255, 0.05);
-        }
-
-        .buy-indicator {
-            color: #4caf50;
-        }
-
-        .sell-indicator {
-            color: #f44336;
-        }
-
-        .deposit-indicator {
-            color: #f0a500;
-        }
-
+        /* loading + empty states */
         .loading {
-            text-align: center;
-            padding: 40px;
-            color: #6c7883;
-            font-size: 14px;
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            text-align: center; padding: 36px 16px; color: var(--text-3); font-size: var(--fs-base);
         }
+        .loading::before {
+            content: ""; width: 16px; height: 16px; border-radius: 50%; flex: none;
+            border: 2px solid var(--line-2); border-top-color: var(--accent-2); animation: spin .8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .empty-state { text-align: center; padding: 64px 20px; color: var(--text-3); }
+        .empty-state-icon { font-size: 40px; margin-bottom: 12px; opacity: .6; }
+        .empty { color: var(--text-3); font-size: var(--fs-base); padding: 14px 4px; text-align: center; }
 
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: #6c7883;
+        /* ---------- cards + section headers ---------- */
+        .settings-container { max-width: 1200px; margin: 0 auto; }
+        .settings-section {
+            background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+            padding: var(--s5); margin-bottom: var(--s4); box-shadow: var(--shadow-1);
         }
+        .settings-section.flat { background: transparent; border: 0; box-shadow: none; padding: 0; }
+        .settings-section-title { font-size: var(--fs-lg); font-weight: 650; letter-spacing: -.01em; line-height: 1.3; margin-bottom: var(--s3); color: var(--text); }
+        .settings-section-title.sub {
+            font-size: var(--fs-md); margin: var(--s6) 0 4px; padding-top: var(--s5); border-top: 1px solid var(--line);
+            display: flex; align-items: baseline; gap: 8px;
+        }
+        .section-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: var(--s4); }
+        .section-head .settings-section-title { margin: 0 auto 0 0; }
+        .section-head .meta { order: 10; font-size: var(--fs-xs); color: var(--text-3); }
+        .section-head select { height: 34px; font-size: var(--fs-sm); }
+        .hint { color: var(--text-3); font-size: var(--fs-sm); line-height: 1.55; margin: 0 0 10px; }
+        .hint b { color: var(--text-2); }
+        .web-block { margin-bottom: var(--s3); overflow-x: auto; }
+        .check { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-sm); color: var(--text-2); cursor: pointer; }
+        .danger-bar {
+            display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px;
+            margin: 0 0 var(--s4); padding: 12px 14px; border-radius: var(--r-md);
+            background: var(--red-soft); border: 1px dashed var(--red-line);
+        }
+        .danger-bar span { font-size: var(--fs-sm); color: var(--text-2); flex: 1 1 220px; }
 
-        .empty-state-icon {
-            font-size: 48px;
-            margin-bottom: 16px;
-            opacity: 0.5;
+        /* ---------- tables (desktop); phones turn them into cards, see the media query ---------- */
+        table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13.5px; }
+        th, td { text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--line); }
+        th { font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); border-bottom-color: var(--line-2); white-space: nowrap; }
+        td { color: var(--text); vertical-align: middle; }
+        th.r, td.r { text-align: right; }
+        tbody tr { transition: background .12s; }
+        tbody tr:hover { background: rgba(255, 255, 255, .025); }
+        .token-actions { display: flex; gap: 8px; }
+        td.mono, .mono { font-family: var(--mono); font-size: 12.5px; }
+        td.nw { white-space: nowrap; }
+        th.bk { padding: 6px 8px; }
+        td.bk { padding: 7px 8px; font-size: 13px; }
+        .rollout { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 12px 16px; font-size: 13.5px; color: var(--text-2); line-height: 1.5; }
+        .rollout span { color: var(--text-3); }
+
+        /* ---------- notifications: chat-like alert bubbles ---------- */
+        .message-bubble {
+            position: relative; max-width: 720px; margin: 0 auto 12px;
+            background: var(--surface); border: 1px solid var(--line); border-radius: 16px 16px 16px 5px;
+            box-shadow: var(--shadow-1); animation: fadeIn .25s ease-out;
         }
+        .message-bubble:has(.buy-indicator) { box-shadow: inset 3px 0 0 var(--green), var(--shadow-1); }
+        .message-bubble:has(.sell-indicator) { box-shadow: inset 3px 0 0 var(--red), var(--shadow-1); }
+        .message-bubble:has(.deposit-indicator) { box-shadow: inset 3px 0 0 var(--amber), var(--shadow-1); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .message-content { padding: 12px 14px 10px; overflow-wrap: anywhere; }
+        .message-text { font-size: var(--fs-md); line-height: 1.5; color: var(--text); word-wrap: break-word; }
+        .message-ticker { font-weight: 750; color: #fff; letter-spacing: .005em; }
+        .message-trader { color: var(--accent-2); text-decoration: none; font-weight: 600; }
+        .message-trader:hover { text-decoration: underline; }
+        .amt { font-weight: 700; color: #fff; }
+        .mc { color: var(--text-3); }
+        .buy-indicator { color: var(--green); font-weight: 650; }
+        .sell-indicator { color: var(--red); font-weight: 650; }
+        .deposit-indicator { color: var(--amber); font-weight: 650; }
+        .contract-row {
+            display: flex; align-items: flex-start; gap: 10px; margin-top: 10px; padding: 8px 10px;
+            background: var(--inset); border: 1px solid var(--line); border-radius: var(--r-md);
+        }
+        .contract-label { flex: none; font-size: 10px; font-weight: 750; letter-spacing: .1em; color: var(--text-3); padding-top: 3px; }
+        .contract-address-text {
+            background: none; border: 0; padding: 0; border-radius: 0;
+            font-family: var(--mono); font-size: 12px; line-height: 1.5; color: var(--accent-2);
+            word-break: break-all; overflow-wrap: anywhere; -webkit-user-select: all; user-select: all;
+        }
+        .dex-link {
+            display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 6px 11px; border-radius: 8px;
+            background: var(--accent-soft); color: var(--accent-2); text-decoration: none; font-size: var(--fs-sm); font-weight: 650;
+        }
+        .dex-link:hover { background: rgba(82, 136, 193, .26); }
+        .message-metadata {
+            display: flex; align-items: center; justify-content: space-between; gap: 10px;
+            padding: 8px 14px; border-top: 1px solid var(--line); font-size: var(--fs-xs); color: var(--text-3);
+        }
+        .message-time { font-variant-numeric: tabular-nums; }
+        .recipient-count { font-size: var(--fs-xs); color: var(--text-3); }
 
         .refresh-indicator {
-            position: fixed;
-            top: 70px;
-            right: 20px;
-            background-color: #2b5278;
-            color: #5ca8e2;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 12px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-            animation: slideIn 0.3s ease-out;
+            position: fixed; z-index: 900; top: 72px; right: 20px; display: inline-flex; align-items: center; gap: 8px;
+            background: var(--surface-3); color: var(--text); border: 1px solid var(--line-2);
+            padding: 8px 14px; border-radius: var(--r-pill); font-size: var(--fs-sm); font-weight: 600;
+            box-shadow: var(--shadow-2); animation: pillIn .25s ease-out; pointer-events: none;
         }
+        .refresh-indicator::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
+        @keyframes pillIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
 
-        @keyframes slideIn {
-            from {
-                transform: translateX(100px);
-                opacity: 0;
-            }
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
-        }
-
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: #0e1621;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: #2b5278;
-            border-radius: 4px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-            background: #3d6a99;
-        }
-
-        /* Tab Navigation */
-        .tabs {
-            display: flex;
-            background-color: #17212b;
-            border-bottom: 1px solid #0e1621;
-        }
-
-        .tab {
-            padding: 12px 24px;
-            cursor: pointer;
-            font-size: 14px;
-            color: #8a96a0;
-            border-bottom: 2px solid transparent;
-            transition: all 0.2s;
-        }
-
-        .tab:hover {
-            background-color: #1a2633;
-            color: #ffffff;
-        }
-
-        .tab.active {
-            color: #ffffff;
-            border-bottom-color: #5288c1;
-        }
-
-        .tab-content {
-            display: none;
-            flex: 1;
-            overflow: hidden;
-        }
-
-        .tab-content.active {
-            display: flex;
-            flex-direction: column;
-        }
-
-        /* Settings Page */
-        .settings-container {
-            padding: 20px;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .settings-section {
-            background-color: #182533;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 20px;
-        }
-
-        .settings-section-title {
-            font-size: 18px;
-            font-weight: 500;
-            margin-bottom: 16px;
-            color: #ffffff;
-        }
-
-        .form-group {
-            margin-bottom: 16px;
-        }
-
-        .form-label {
-            display: block;
-            font-size: 14px;
-            color: #8a96a0;
-            margin-bottom: 6px;
-        }
-
-        .form-input {
-            width: 100%;
-            padding: 10px 12px;
-            background-color: #0e1621;
-            border: 1px solid #2b5278;
-            border-radius: 6px;
-            color: #ffffff;
-            font-size: 14px;
-        }
-
-        .form-input:focus {
-            outline: none;
-            border-color: #5288c1;
-        }
-
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-
-        .btn-primary {
-            background-color: #5288c1;
-            color: #ffffff;
-        }
-
-        .btn-primary:hover {
-            background-color: #4a7bb0;
-        }
-
-        .btn-danger {
-            background-color: #d9534f;
-            color: #ffffff;
-        }
-
-        .btn-danger:hover {
-            background-color: #c9302c;
-        }
-
-        .btn-secondary {
-            background-color: #2b5278;
-            color: #ffffff;
-        }
-
-        .btn-secondary:hover {
-            background-color: #3d6a99;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 12px;
-        }
-
-        th, td {
-            text-align: left;
-            padding: 12px;
-            border-bottom: 1px solid #2b5278;
-        }
-
-        th {
-            font-size: 13px;
-            color: #8a96a0;
-            font-weight: 500;
-        }
-
-        td {
-            font-size: 14px;
-            color: #e8e9ea;
-        }
-
-        tr:hover {
-            background-color: #1a2633;
-        }
-
-        .token-actions {
-            display: flex;
-            gap: 8px;
-        }
-
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.7);
-        }
-
-        .modal-content {
-            background-color: #182533;
-            margin: 10% auto;
-            padding: 24px;
-            border-radius: 12px;
-            width: 90%;
-            max-width: 500px;
-        }
-
-        .modal-title {
-            font-size: 18px;
-            font-weight: 500;
-            margin-bottom: 16px;
-            color: #ffffff;
-        }
-
-        .modal-close {
-            color: #8a96a0;
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        .modal-close:hover {
-            color: #ffffff;
-        }
-
-        .recipients-tooltip-container {
-            position: relative;
-            display: inline-block;
-            cursor: pointer;
-        }
-
-        .recipients-tooltip-container:hover {
-            color: #5ba0d0;
-        }
-
+        /* recipients popover (hover on desktop) */
+        .recipients-tooltip-container { position: relative; display: inline-block; cursor: pointer; border-bottom: 1px dotted var(--line-2); }
+        .recipients-tooltip-container:hover { color: var(--accent-2); }
         .recipients-tooltip {
-            display: none;
-            position: absolute;
-            bottom: 100%;
-            left: 0;
-            margin-bottom: 8px;
-            background-color: #17212b;
-            border: 1px solid #2b5278;
-            border-radius: 8px;
-            padding: 8px 12px;
-            min-width: 200px;
-            max-width: 300px;
-            max-height: 300px;
-            overflow-y: auto;
-            z-index: 1000;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            display: none; position: absolute; bottom: 100%; left: 0; margin-bottom: 10px; z-index: 1000;
+            background: var(--surface-2); border: 1px solid var(--line-2); border-radius: var(--r-md); padding: 8px 12px;
+            min-width: 200px; max-width: 300px; max-height: 300px; overflow-y: auto; box-shadow: var(--shadow-2); cursor: default;
         }
+        .recipients-tooltip-container:hover .recipients-tooltip { display: block; }
+        .recipients-tooltip-title { font-weight: 650; font-size: var(--fs-xs); color: var(--text-3); margin-bottom: 6px; border-bottom: 1px solid var(--line-2); padding-bottom: 4px; }
+        .recipients-tooltip-item { font-size: 13px; color: var(--text); padding: 3px 0; }
+        .recipients-tooltip-loading { font-size: 13px; color: var(--text-3); font-style: italic; }
+        .recipients-tooltip-arrow { display: none; }
 
-        .recipients-tooltip-container:hover .recipients-tooltip {
-            display: block;
+        .ws-json-collapse { margin-top: 4px; border: 1px solid var(--line-2); border-radius: var(--r-sm); font-size: 11px; overflow: hidden; }
+        .ws-json-collapse-header { padding: 4px 8px; background: var(--surface-2); color: var(--accent-2); cursor: pointer; user-select: none; }
+        .ws-json-collapse-header:hover { background: var(--surface-3); }
+        .ws-json-collapse-body { display: none; padding: 8px; background: var(--inset); }
+        .ws-json-collapse.expanded .ws-json-collapse-body { display: block; }
+        .ws-json-pre { font-family: var(--mono); font-size: 11px; color: #8cffa0; white-space: pre-wrap; word-break: break-all; margin: 0; }
+
+        /* ---------- modals ---------- */
+        .modal { display: none; position: fixed; z-index: 1000; inset: 0; background: rgba(5, 9, 14, .74); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+        .modal-content {
+            position: relative; background: var(--surface); border: 1px solid var(--line-2); border-radius: 18px; box-shadow: var(--shadow-2);
+            margin: 12vh auto 0; padding: 22px; width: calc(100% - 32px); max-width: 500px;
         }
-
-        .recipients-tooltip-title {
-            font-weight: 600;
-            font-size: 12px;
-            color: #8a96a0;
-            margin-bottom: 6px;
-            border-bottom: 1px solid #2b5278;
-            padding-bottom: 4px;
+        .modal-title { font-size: var(--fs-lg); font-weight: 650; margin-bottom: var(--s3); color: var(--text); padding-right: 40px; }
+        .modal-content p { font-size: var(--fs-base); line-height: 1.5; }
+        .modal-close {
+            position: absolute; top: 14px; right: 14px; width: 34px; height: 34px; display: grid; place-items: center;
+            border-radius: 50%; color: var(--text-3); font-size: 24px; line-height: 1; cursor: pointer; transition: background .15s, color .15s;
         }
+        .modal-close:hover { background: var(--surface-3); color: var(--text); }
 
-        .recipients-tooltip-item {
-            font-size: 13px;
-            color: #e8e9ea;
-            padding: 3px 0;
-        }
+        /* scrollbars */
+        * { scrollbar-width: thin; scrollbar-color: #2f4358 transparent; }
+        ::-webkit-scrollbar { width: 9px; height: 9px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #2f4358; border-radius: 6px; border: 2px solid var(--bg); }
+        ::-webkit-scrollbar-thumb:hover { background: #3d5873; }
 
-        .recipients-tooltip-loading {
-            font-size: 13px;
-            color: #8a96a0;
-            font-style: italic;
-        }
-
-        .recipients-tooltip-arrow {
-            position: absolute;
-            top: 100%;
-            left: 20px;
-            width: 0;
-            height: 0;
-            border-left: 6px solid transparent;
-            border-right: 6px solid transparent;
-            border-top: 6px solid #2b5278;
-        }
-
-        .ws-json-collapse {
-            margin-top: 4px;
-            border: 1px solid #2b3f52;
-            border-radius: 6px;
-            font-size: 11px;
-            overflow: hidden;
-        }
-
-        .ws-json-collapse-header {
-            padding: 4px 8px;
-            background: #1e2d3d;
-            color: #5ca8e2;
-            cursor: pointer;
-            user-select: none;
-        }
-
-        .ws-json-collapse-header:hover {
-            background: #243447;
-        }
-
-        .ws-json-collapse-body {
-            display: none;
-            padding: 8px;
-            background: #0e1621;
-        }
-
-        .ws-json-collapse.expanded .ws-json-collapse-body {
-            display: block;
-        }
-
-        .ws-json-pre {
-            font-family: 'Courier New', monospace;
-            font-size: 11px;
-            color: #8cffa0;
-            white-space: pre-wrap;
-            word-break: break-all;
-            margin: 0;
-        }
-
-        /* Categories board */
-        .cb-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px 20px; background: #17212b; border-bottom: 1px solid #0e1621; }
-        .cb-toolbar select, .cb-toolbar input[type=text] { padding: 6px 10px; background: #0e1621; border: 1px solid #2b5278; border-radius: 6px; color: #e8e9ea; font-size: 13px; }
-        .cb-toolbar label { font-size: 13px; color: #8a96a0; display: flex; gap: 6px; align-items: center; cursor: pointer; }
-        .cb-status { font-size: 12.5px; color: #8a96a0; margin-left: auto; text-align: right; line-height: 1.4; }
-        .cb-status b { color: #e8e9ea; font-weight: 500; }
-        .cb-board { flex: 1; display: flex; gap: 12px; padding: 16px 20px; overflow-x: auto; overflow-y: hidden; }
-        .cb-col { flex: 0 0 250px; display: flex; flex-direction: column; background: #17212b; border: 1px solid #1f2d3a; border-radius: 10px; min-height: 0; }
-        .cb-col.drop { border-color: #5288c1; background: #1a2a3a; }
-        .cb-col-head { padding: 10px 12px; border-bottom: 1px solid #1f2d3a; }
-        .cb-col-title { font-size: 14px; font-weight: 600; display: flex; justify-content: space-between; gap: 8px; }
-        .cb-col-title span { color: #8a96a0; font-weight: 400; font-size: 12.5px; }
-        .cb-col-desc { font-size: 11.5px; color: #6c7883; margin-top: 4px; line-height: 1.35; }
+        /* ---------- Categories board ---------- */
+        .cb-toolbar { flex: none; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px max(var(--s5), var(--safe-r)) 12px max(var(--s5), var(--safe-l)); background: var(--surface); border-bottom: 1px solid var(--line); }
+        .cb-toolbar select, .cb-toolbar input[type=text] { height: 34px; font-size: var(--fs-sm); }
+        .cb-toolbar label { font-size: var(--fs-sm); color: var(--text-2); display: flex; gap: 8px; align-items: center; cursor: pointer; }
+        .cb-status { font-size: var(--fs-sm); color: var(--text-3); margin-left: auto; text-align: right; line-height: 1.45; }
+        .cb-status b { color: var(--text); font-weight: 600; }
+        .cb-board { flex: 1; min-height: 0; display: flex; gap: 12px; padding: 16px max(var(--s5), var(--safe-r)) calc(16px + var(--safe-b)) max(var(--s5), var(--safe-l)); overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; background: var(--bg); }
+        .cb-col { flex: 0 0 264px; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); min-height: 0; scroll-snap-align: start; transition: border-color .15s, background .15s; }
+        .cb-col.drop { border-color: var(--accent); background: #1a2a3a; }
+        .cb-col-head { padding: 12px 14px; border-bottom: 1px solid var(--line); }
+        .cb-col-title { font-size: var(--fs-base); font-weight: 650; display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+        .cb-col-title span { color: var(--text-3); font-weight: 450; font-size: var(--fs-xs); text-align: right; }
+        .cb-col-desc { font-size: var(--fs-xs); color: var(--text-3); margin-top: 4px; line-height: 1.4; }
         .cb-col-body { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
-        .cb-card { background: #182533; border: 1px solid #22303e; border-radius: 8px; padding: 7px 9px; cursor: grab; font-size: 13px; }
-        .cb-card:hover { border-color: #2b5278; }
+        .cb-card { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md); padding: 8px 10px; cursor: grab; font-size: 13px; transition: border-color .15s; }
+        .cb-card:hover { border-color: var(--line-2); }
         .cb-card.dragging { opacity: .4; }
-        .cb-card.manual { border-left: 3px solid #e8ac3f; }
+        .cb-card.manual { box-shadow: inset 3px 0 0 var(--amber); }
         .cb-card-top { display: flex; align-items: center; gap: 7px; }
-        .cb-av { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; background: #0e1621; flex-shrink: 0; font-size: 11px; display: flex; align-items: center; justify-content: center; color: #8a96a0; }
-        .cb-handle { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e8e9ea; text-decoration: none; }
-        .cb-handle:hover { color: #5ca8e2; }
-        .cb-meta { font-size: 11px; color: #6c7883; margin-top: 3px; display: flex; gap: 8px; flex-wrap: wrap; }
-        .cb-meta .pos { color: #4fae4e; } .cb-meta .neg { color: #e06c6c; }
-        .cb-tag { font-size: 10.5px; padding: 0 5px; border-radius: 4px; border: 1px solid #e8ac3f; color: #e8ac3f; white-space: nowrap; }
-        .cb-card select { margin-top: 5px; width: 100%; padding: 3px 6px; background: #0e1621; border: 1px solid #2b5278; border-radius: 5px; color: #e8e9ea; font-size: 12px; }
-        .cb-empty { font-size: 12px; color: #6c7883; text-align: center; padding: 12px 0; }
-    
-        /* ---- Monitoring tab ---- */
-        .mon-dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-left:6px; background:#6b7a88; vertical-align:middle; }
-        .mon-dot.ok, .mon-state-dot.ok { background:#3ecf8e; }
-        .mon-dot.degraded, .mon-state-dot.degraded { background:#f0b429; }
-        .mon-dot.down, .mon-state-dot.down { background:#ef5350; }
-        .mon-dot.idle, .mon-state-dot.idle { background:#6b7a88; }
-        .mon-state-dot { display:inline-block; width:11px; height:11px; border-radius:50%; flex:none; }
-        .mon-banner { display:flex; align-items:center; gap:14px; padding:16px 20px; border-radius:12px; margin-bottom:16px; font-size:17px; font-weight:600; border:1px solid #2b5278; background:#17212b; }
-        .mon-banner.ok { border-color:#25603f; background:linear-gradient(90deg,#14301f,#17212b 60%); }
-        .mon-banner.degraded { border-color:#7a5d1a; background:linear-gradient(90deg,#33290f,#17212b 60%); }
-        .mon-banner.down { border-color:#7a2a2a; background:linear-gradient(90deg,#361818,#17212b 60%); }
-        .mon-banner .sub { margin-left:auto; font-weight:400; font-size:13px; color:#8a96a0; }
-        .mon-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(380px,1fr)); gap:14px; }
-        .mon-card { background:#17212b; border:1px solid #243447; border-radius:12px; padding:16px 18px; }
-        .mon-head { display:flex; align-items:center; gap:10px; font-size:15.5px; font-weight:600; }
-        .mon-head .st { margin-left:auto; font-size:12.5px; font-weight:500; color:#8a96a0; }
-        .mon-sum { margin:6px 0 12px; color:#8a96a0; font-size:13.5px; }
-        .mon-tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(118px,1fr)); gap:8px; }
-        .mon-tile { background:#0e1621; border-radius:8px; padding:8px 11px; }
-        .mon-tile .v { font-size:16px; font-weight:600; }
-        .mon-tile .l { font-size:11px; color:#8a96a0; text-transform:uppercase; letter-spacing:.4px; }
-        .mon-strip { display:flex; gap:2px; margin:12px 0 2px; height:22px; align-items:flex-end; }
-        .mon-strip i { flex:1; max-width:11px; border-radius:2px; background:#3ecf8e; min-height:7px; opacity:.9; }
-        .mon-strip i.bad { background:#ef5350; height:100% !important; }
-        .mon-strip i.none { background:#243447; height:7px; }
-        /* ---- Queue tab ---- */
-        .q-chips { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
-        .q-chip { background:#17212b; border:1px solid #243447; border-radius:10px; padding:10px 16px; }
-        .q-chip .v { font-size:22px; font-weight:700; }
-        .q-chip .l { font-size:11.5px; color:#8a96a0; text-transform:uppercase; letter-spacing:.4px; }
-        .q-chip.hot .v { color:#f0b429; }
-        .q-row { background:#17212b; border:1px solid #243447; border-radius:12px; padding:12px 16px; margin-bottom:8px; }
-        .q-row.sending { border-color:#7a5d1a; }
-        .q-row.paiddone { border-color:#2b5278; }
-        .q-row.done { opacity:.8; }
-        .q-top { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:14.5px; }
-        .q-top .what { font-weight:600; }
-        .q-top .age { margin-left:auto; color:#8a96a0; font-size:12.5px; }
-        .q-chipst { font-size:11.5px; font-weight:600; padding:2px 9px; border-radius:20px; background:#243447; color:#c3ccd5; }
-        .q-chipst.sending { background:#33290f; color:#f0b429; }
-        .q-chipst.paiddone { background:#16314d; color:#6cb2f2; }
-        .q-chipst.done { background:#14301f; color:#3ecf8e; }
-        .q-text { color:#8a96a0; font-size:12.5px; margin:4px 0 8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .q-bars { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
-        .q-bar-l { display:flex; justify-content:space-between; font-size:12px; color:#8a96a0; margin-bottom:3px; }
-        .q-bar { height:8px; border-radius:4px; background:#0e1621; overflow:hidden; }
-        .q-bar i { display:block; height:100%; background:#3ecf8e; }
-        .q-bar.free i { background:#6cb2f2; }
-        .mon-h2 { font-size:14px; font-weight:600; color:#c3ccd5; margin:22px 0 8px; text-transform:uppercase; letter-spacing:.5px; }
-        .mon-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
-        .mon-stat { background:#17212b; border:1px solid #243447; border-radius:10px; padding:12px 16px; }
-        .mon-stat .v { font-size:22px; font-weight:700; }
-        .mon-stat .l { font-size:11.5px; color:#8a96a0; text-transform:uppercase; letter-spacing:.4px; }
+        .cb-av { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; background: var(--inset); flex-shrink: 0; font-size: 11px; display: flex; align-items: center; justify-content: center; color: var(--text-3); }
+        .cb-handle { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); text-decoration: none; font-weight: 550; }
+        .cb-handle:hover { color: var(--accent-2); }
+        .cb-meta { font-size: var(--fs-xs); color: var(--text-3); margin-top: 4px; display: flex; gap: 10px; flex-wrap: wrap; }
+        .cb-meta .pos { color: var(--green); } .cb-meta .neg { color: var(--red); }
+        .cb-tag { font-size: 10.5px; padding: 1px 6px; border-radius: var(--r-pill); border: 1px solid var(--amber-line); background: var(--amber-soft); color: var(--amber); white-space: nowrap; }
+        .cb-card select { margin-top: 6px; width: 100%; height: 30px; padding: 0 28px 0 8px; font-size: 12px; border-radius: 8px; }
+        .cb-empty { font-size: var(--fs-xs); color: var(--text-3); text-align: center; padding: 14px 0; }
+
+        /* ---------- Monitoring ---------- */
+        .mon-banner {
+            display: flex; align-items: center; gap: 14px; padding: 16px 18px; border-radius: var(--r-lg); margin-bottom: var(--s4);
+            font-size: var(--fs-lg); font-weight: 650; border: 1px solid var(--line-2); background: var(--surface);
+        }
+        .mon-banner.ok { border-color: rgba(74, 222, 128, .34); background: linear-gradient(90deg, rgba(74, 222, 128, .14), var(--surface) 70%); }
+        .mon-banner.degraded { border-color: var(--amber-line); background: linear-gradient(90deg, rgba(240, 180, 41, .14), var(--surface) 70%); }
+        .mon-banner.down { border-color: var(--red-line); background: linear-gradient(90deg, rgba(248, 113, 113, .16), var(--surface) 70%); }
+        .mon-banner .sub { margin-left: auto; font-weight: 450; font-size: var(--fs-sm); color: var(--text-3); text-align: right; }
+        .mon-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr)); gap: 14px; }
+        .mon-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 16px 18px; box-shadow: var(--shadow-1); }
+        .mon-head { display: flex; align-items: center; gap: 10px; font-size: var(--fs-md); font-weight: 650; line-height: 1.3; }
+        .mon-head .st {
+            margin-left: auto; flex: none; font-size: var(--fs-xs); font-weight: 650; padding: 3px 9px; border-radius: var(--r-pill);
+            background: rgba(138, 150, 160, .12); color: var(--text-3); border: 1px solid rgba(138, 150, 160, .25);
+        }
+        .mon-head .st.ok { background: var(--green-soft); color: var(--green); border-color: var(--green-line); }
+        .mon-head .st.degraded { background: var(--amber-soft); color: var(--amber); border-color: var(--amber-line); }
+        .mon-head .st.down { background: var(--red-soft); color: var(--red); border-color: var(--red-line); }
+        .mon-sum { margin: 6px 0 12px; color: var(--text-3); font-size: 13px; }
+        .mon-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 8px; }
+        .mon-tile { background: var(--inset); border: 1px solid var(--line); border-radius: var(--r-md); padding: 9px 11px; }
+        .mon-tile .v { font-size: var(--fs-md); font-weight: 700; line-height: 1.25; }
+        .mon-tile .l { font-size: 10.5px; color: var(--text-3); text-transform: uppercase; letter-spacing: .05em; margin-top: 2px; }
+        .mon-strip { display: flex; gap: 2px; margin: 14px 0 2px; height: 22px; align-items: flex-end; }
+        .mon-strip i { flex: 1; max-width: 11px; border-radius: 2px; background: var(--green); min-height: 7px; opacity: .9; }
+        .mon-strip i.bad { background: var(--red); height: 100% !important; }
+        .mon-strip i.none { background: var(--line); height: 7px; }
+        .mon-chip { display: inline-flex; gap: 6px; margin: 8px 6px 0 0; padding: 3px 10px; background: var(--inset); border: 1px solid var(--line); border-radius: var(--r-pill); font-size: var(--fs-xs); }
+        .mon-chip span { color: var(--text-3); }
+        .mon-h2 {
+            font-size: 13px; font-weight: 650; color: var(--text-2); line-height: 1.4; margin: var(--s6) 0 var(--s3);
+            padding-left: 10px; border-left: 3px solid var(--accent);
+        }
+        .mon-stats, .q-chips { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+        .mon-stat, .q-chip { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 12px 16px; box-shadow: var(--shadow-1); }
+        .mon-stat .v, .q-chip .v { font-size: var(--fs-xl); font-weight: 750; line-height: 1.15; }
+        .mon-stat .l, .q-chip .l { font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: .05em; margin-top: 3px; }
+        .pipe-wrap { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 4px 8px; }
+        .pipe-wrap table { margin: 0; }
+        .pipe-note { color: var(--text-3); font-size: var(--fs-xs); font-weight: 400; margin-top: 2px; line-height: 1.4; }
+        tr.pipe-total td { background: rgba(74, 222, 128, .07); font-weight: 650; }
+
+        /* ---------- Queue ---------- */
+        .q-chips { grid-template-columns: repeat(3, 1fr); margin-bottom: var(--s4); }
+        .q-chip.hot { border-color: var(--amber-line); }
+        .q-chip.hot .v { color: var(--amber); }
+        .q-row { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 13px 16px; margin-bottom: 10px; box-shadow: var(--shadow-1); }
+        .q-row.sending { border-color: var(--amber-line); }
+        .q-row.paiddone { border-color: rgba(92, 168, 226, .38); }
+        .q-row.done { opacity: .88; }
+        .q-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 10px; font-size: var(--fs-md); }
+        .q-top .what { grid-column: 1; grid-row: 1; font-weight: 650; overflow-wrap: anywhere; }
+        .q-top .age { grid-column: 2; grid-row: 1; color: var(--text-3); font-size: var(--fs-sm); white-space: nowrap; }
+        .q-chipst { grid-column: 1 / -1; grid-row: 2; justify-self: start; font-size: var(--fs-xs); font-weight: 650; padding: 3px 10px; border-radius: var(--r-pill); background: var(--surface-3); color: var(--text-2); border: 1px solid var(--line-2); }
+        .q-chipst.sending { background: var(--amber-soft); color: var(--amber); border-color: var(--amber-line); }
+        .q-chipst.paiddone { background: var(--accent-soft); color: var(--accent-2); border-color: rgba(92, 168, 226, .3); }
+        .q-chipst.done { background: var(--green-soft); color: var(--green); border-color: var(--green-line); }
+        .q-text { color: var(--text-3); font-size: var(--fs-sm); margin: 8px 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .q-top + .q-bars { margin-top: 10px; }
+        .q-bars { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .q-bar-l { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0 8px; font-size: var(--fs-xs); color: var(--text-3); margin-bottom: 5px; }
+        .q-bar-l span { white-space: nowrap; }
+        .q-bar-l span:first-child { color: var(--text-2); }
+        .q-bar { height: 7px; border-radius: 4px; background: var(--inset); overflow: hidden; }
+        .q-bar i { display: block; height: 100%; background: var(--green); border-radius: 4px; transition: width .3s ease; }
+        .q-bar.free i { background: var(--accent-2); }
+
+        /* ---------- Website ---------- */
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 8px; }
+        .kpi { background: var(--inset); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 13px 15px; position: relative; overflow: hidden; }
+        .kpi::before { content: ""; position: absolute; left: 0; top: 0; right: 0; height: 2px; background: linear-gradient(90deg, var(--accent), transparent); opacity: .8; }
+        .kpi .l { color: var(--text-3); font-size: var(--fs-sm); line-height: 1.35; }
+        .kpi .v { font-size: var(--fs-2xl); font-weight: 750; line-height: 1.15; margin-top: 4px; letter-spacing: -.01em; }
+        .kpi .s { color: var(--text-3); font-size: var(--fs-xs); margin-top: 3px; line-height: 1.4; }
+        .funnel-row { display: grid; grid-template-columns: minmax(150px, 230px) 1fr minmax(120px, 170px); gap: 10px; align-items: center; margin: 8px 0; }
+        .funnel-row .fl { font-size: 13px; }
+        .funnel-row .fbar { background: var(--inset); border: 1px solid var(--line); border-radius: 6px; height: 20px; overflow: hidden; }
+        .funnel-row .fbar > div { height: 100%; border-radius: 5px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+        .funnel-row .fv { font-size: 13px; text-align: right; }
+        .funnel-row .fv span { color: var(--text-3); }
+        .spark { display: flex; align-items: flex-end; height: 90px; border-bottom: 1px solid var(--line-2); padding-bottom: 2px; }
+        .spark > div { flex: 1; min-width: 2px; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; height: 100%; }
+        .spark > div > div { background: var(--accent-2); border-radius: 2px 2px 0 0; opacity: .9; }
+        .web-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 22px; margin-top: 14px; }
+        .web-box-title { font-size: 13px; font-weight: 650; color: var(--text-2); margin-bottom: 2px; }
+        details { margin-bottom: 10px; }
+        details > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; -webkit-tap-highlight-color: transparent; }
+        details > summary::-webkit-details-marker { display: none; }
+        details > summary::before { content: ""; flex: none; width: 7px; height: 7px; border-right: 2px solid var(--text-3); border-bottom: 2px solid var(--text-3); transform: rotate(-45deg); transition: transform .15s; margin: 0 4px 0 2px; }
+        details[open] > summary::before { transform: rotate(45deg); }
+        details.explain { background: var(--inset); border: 1px solid var(--line); border-radius: var(--r-md); padding: 10px 14px; margin: 4px 0 14px; }
+        details.explain > summary { font-size: var(--fs-sm); font-weight: 600; color: var(--accent-2); }
+        details.explain .hint { margin-top: 10px; max-width: 940px; }
+
+        /* ---------- Accumulation + Activity ---------- */
+        .filters { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; align-items: end; margin-bottom: var(--s4); }
+        .filters label { display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-xs); font-weight: 550; color: var(--text-3); }
+        .filters select { width: 100%; height: 36px; font-size: var(--fs-sm); color: var(--text); }
+        .filters .meta { grid-column: 1 / -1; font-size: var(--fs-xs); color: var(--text-3); }
+        #accMapWrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .acc-row { cursor: pointer; }
+        .act-at { color: var(--text-3); display: inline-block; width: 150px; }
+
+        /* ---------- Referrals ---------- */
+        .ref-form { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+        .ref-form .grow-a { flex: 2 1 220px; }
+        .ref-form .grow-b { flex: 1 1 170px; }
+        .ref-form .pct { display: inline-flex; align-items: center; gap: 8px; color: var(--text-3); font-size: var(--fs-sm); }
+        .tile-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+        .tile { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); padding: 10px 14px; min-width: 130px; }
+        .tile .k { color: var(--text-3); font-size: var(--fs-xs); }
+        .tile .n { font-size: var(--fs-xl); font-weight: 750; line-height: 1.2; }
+        .tile .n small { font-size: var(--fs-sm); color: var(--text-3); font-weight: 500; }
+        .tile.owed .n { color: var(--amber); }
+        .books-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr)); gap: 22px; }
+        .books-grid .bt { font-weight: 650; margin-bottom: 6px; }
+        td.books-cell { background: var(--inset); padding: 14px 16px; }
+        .copy-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+        .copy-row input[type=text] { flex: 1; min-width: 140px; }
+
+        /* ---------- reduced motion ---------- */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+            .loading::before { animation: none; border-top-color: var(--line-2); border-right-color: var(--accent-2); }
+        }
+
+        /* =====================================================================
+           Phone (iPhone, 390 wide): one column, 44px targets, tables become cards.
+           ===================================================================== */
+        @media (max-width: 700px) {
+            .header { padding-top: calc(8px + var(--safe-t)); padding-bottom: 8px; gap: 10px; }
+            .brand-mark { width: 30px; height: 30px; border-radius: 9px; font-size: 14px; }
+            .header-subtitle { display: none; }
+            .jump-input { width: 92px; }
+            #notifIdInput { font-size: 16px; }
+            .tab { height: 46px; padding: 0 13px; }
+            .chat-area { padding: 12px max(12px, var(--safe-r)) calc(28px + var(--safe-b)) max(12px, var(--safe-l)); }
+            .settings-section { padding: 14px; margin-bottom: 12px; border-radius: 14px; }
+            .settings-section.flat { padding: 0; }
+            .settings-section-title { font-size: 16px; }
+            .settings-section-title.sub { margin-top: 24px; padding-top: 18px; font-size: 15px; }
+            .section-head .settings-section-title { flex: 1 1 100%; }
+            .section-head .meta { flex: 1 0 100%; }
+            .section-head select { flex: 1 1 120px; min-width: 0; }
+            .section-head .check { flex: 1 0 100%; }
+            .inline-flex-m { flex-wrap: wrap !important; }
+            .settings-section div[style*="display:flex"], .settings-section div[style*="display: flex"] { flex-wrap: wrap !important; }
+
+            select, textarea, input:not([type=checkbox]):not([type=radio]), .form-input { font-size: 16px !important; max-width: 100%; }
+            select, input:not([type=checkbox]):not([type=radio]) { height: 44px; }
+            .btn { height: 44px; }
+            .btn-sm { height: 36px; padding: 0 14px; font-size: 13px; }
+            .btn-block-m { width: 100%; }
+            .section-head select { height: 40px; }
+            .inp-xs { height: 36px; }
+            .filters { grid-template-columns: 1fr 1fr; }
+            .filters select { height: 40px; }
+            .danger-bar .btn { width: 100%; }
+
+            .message-bubble { max-width: 100%; }
+            .message-content { padding: 11px 12px 9px; }
+            .message-metadata { padding: 7px 12px; }
+            .refresh-indicator { top: auto; bottom: calc(14px + var(--safe-b)); right: auto; left: 50%; animation: pillInM .25s ease-out; transform: translateX(-50%); }
+            @keyframes pillInM { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+            .mon-grid { grid-template-columns: 1fr; }
+            .mon-banner { flex-wrap: wrap; padding: 13px 14px; gap: 8px 12px; font-size: 16px; }
+            .mon-banner .sub { margin-left: 0; text-align: left; flex: 1 0 100%; }
+            .mon-card { padding: 14px; }
+            .mon-tiles { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+            .mon-tile { padding: 8px 9px; }
+            .mon-tile .v { font-size: 14px; overflow-wrap: anywhere; }
+            .mon-tile .l { font-size: 9.5px; letter-spacing: .03em; }
+            .mon-stats { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+            .mon-stat, .q-chip { padding: 11px 13px; }
+            .mon-stat .v, .q-chip .v { font-size: 20px; }
+            .q-chips { gap: 8px; }
+            .q-row { padding: 12px; }
+            .kpi-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+            .kpi { padding: 11px 12px; }
+            .kpi .v { font-size: 24px; }
+            .funnel-row { grid-template-columns: 1fr auto; gap: 5px 10px; margin: 12px 0; }
+            .funnel-row .fbar { grid-column: 1 / -1; grid-row: 2; }
+            .funnel-row .fv { text-align: right; }
+            .web-two { gap: 18px; }
+            .act-at { display: block; width: auto; font-size: var(--fs-xs); }
+            .tile-row { gap: 8px; }
+            .tile { flex: 1 1 calc(50% - 8px); min-width: 0; }
+            .copy-row input[type=text] { flex: 1 0 100%; }
+            #accDetail div[style*="display:flex"] { flex-wrap: wrap !important; }
+
+            .modal-content { position: absolute; left: 0; right: 0; bottom: 0; margin: 0; width: auto; max-width: none; border-radius: 20px 20px 0 0; max-height: 90dvh; overflow-y: auto; padding: 20px 16px calc(20px + var(--safe-b)); }
+            .cb-toolbar { padding: 10px 12px; }
+            .cb-toolbar select, .cb-toolbar input[type=text] { height: 40px; flex: 1 1 130px; min-width: 0; }
+            .cb-status { margin-left: 0; text-align: left; flex: 1 0 100%; }
+            .cb-board { padding: 10px 12px calc(14px + var(--safe-b)); gap: 10px; }
+            .cb-col { flex-basis: min(84vw, 300px); }
+            .cb-card select { height: 36px; }
+
+            /* tables become compact cards: a lead line, then 'LABEL value' pairs flowing on shared lines, actions last */
+            th, td { padding: 9px 10px; }
+            .settings-section table:not(.m-stack), .chat-area table:not(.m-stack) { display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            table.m-stack, .settings-section table.m-stack, .chat-area table.m-stack { display: block; overflow: visible; width: 100%; margin-top: 4px; }
+            table.m-stack thead { display: none; }
+            table.m-stack tbody { display: block; }
+            table.m-stack tr {
+                display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px 16px;
+                padding: 11px 12px; margin: 0 0 8px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px;
+            }
+            table.m-stack tr:last-child { margin-bottom: 0; }
+            .settings-section table.m-stack tr:hover, table.m-stack tr:hover { background: var(--surface-2); }
+            .settings-section table.m-stack td, .chat-area table.m-stack td, table.m-stack td {
+                display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; padding: 0; border: 0; font-size: 13px; line-height: 1.4;
+                white-space: normal; overflow-wrap: anywhere; text-align: left !important; color: var(--text);
+            }
+            table.m-stack td::before { content: attr(data-label); font-size: 10px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); white-space: nowrap; }
+            table.m-stack td[data-label=""]::before, table.m-stack td.m-empty { display: none; }
+            table.m-stack td.m-lead { order: -1; flex: 1 0 100%; display: block; font-size: 15px; font-weight: 650; line-height: 1.35; }
+            table.m-stack td.m-lead::before { display: none; }
+            table.m-stack td.m-wide { flex: 1 0 100%; }
+            table.m-stack td.m-wide:not(.m-lead) { display: block; }
+            table.m-stack td.m-wide:not(.m-lead)::before { display: block; margin-bottom: 2px; }
+            table.m-stack td.m-wide[data-label=""]::before { display: none; }
+            table.m-stack td button { white-space: nowrap; }
+            table.m-stack td input[type=text], table.m-stack td textarea { width: 100% !important; }
+            table.m-stack td > div, table.m-stack td > span { min-width: 0; }
+            table.m-stack .row-actions { width: 100%; padding-top: 10px; margin-top: 4px; border-top: 1px solid var(--line); }
+            table.m-stack td.books-cell { background: transparent; flex: 1 0 100%; display: block; }
+            table.m-stack td.nw { white-space: normal; }
+            table.m-stack td.mono { font-size: 12px; }
+            tr.pipe-total { background: rgba(74, 222, 128, .08); border-color: var(--green-line); }
+            tr.pipe-total td { background: transparent; }
+            .pipe-wrap { padding: 8px; background: transparent; border: 0; }
+            table.m-stack td .pipe-note { margin-top: 3px; }
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <div style="flex:1">
-                <div class="header-title">GROUPCHAT Alerts</div>
-                <div class="header-subtitle">bot</div>
+        <header class="header">
+            <div class="brand">
+                <div class="brand-mark" aria-hidden="true">G</div>
+                <div class="brand-text">
+                    <div class="header-title">GROUPCHAT Alerts</div>
+                    <div class="header-subtitle">Owner dashboard</div>
+                </div>
             </div>
-            <div style="display:flex;gap:6px;align-items:center;">
-                <input id="notifIdInput" type="number" placeholder="Jump to ID..." style="width:130px;padding:5px 8px;background:#0e1621;border:1px solid #2b5278;border-radius:6px;color:#e8e9ea;font-size:13px;" onkeydown="if(event.key==='Enter')jumpToNotification()">
-                <button onclick="jumpToNotification()" style="padding:5px 12px;background:#2b5278;border:none;border-radius:6px;color:#e8e9ea;font-size:13px;cursor:pointer;">Go</button>
+            <div class="jump">
+                <input id="notifIdInput" class="jump-input" type="number" inputmode="numeric" placeholder="Jump to ID" aria-label="Jump to notification ID" onkeydown="if(event.key==='Enter')jumpToNotification()">
+                <button class="btn btn-secondary btn-sm" onclick="jumpToNotification()">Go</button>
             </div>
-        </div>
+        </header>
 
         <!-- Tabs -->
-        <div class="tabs">
-            <div class="tab active" onclick="switchTab('notifications')">Notifications</div>
-            <div class="tab" onclick="switchTab('queue')">Queue</div>
-            <div class="tab" onclick="switchTab('monitoring')">Monitoring<span class="mon-dot idle" id="monDot" title="App health"></span></div>
-            <div class="tab" onclick="switchTab('users')">Users</div>
-            <div class="tab" onclick="switchTab('accumulation')">Accumulation</div>
-            <div class="tab" onclick="switchTab('activity')">Site activity</div>
-            <div class="tab" onclick="switchTab('categories')">Categories</div>
-            <div class="tab" onclick="switchTab('payments')">Payments</div>
-            <div class="tab" onclick="switchTab('referrals')">Referrals</div>
-            <div class="tab" onclick="switchTab('website')">Website</div>
-            <div class="tab" onclick="switchTab('config')">Config</div>
-            <div class="tab" onclick="switchTab('settings')">Settings</div>
-        </div>
+        <div class="tabs-wrap"><div class="tabs" role="tablist">
+            <button type="button" class="tab active" role="tab" onclick="switchTab('notifications')">Notifications</button>
+            <button type="button" class="tab" role="tab" onclick="switchTab('queue')">Queue</button>
+            <button type="button" class="tab" role="tab" onclick="switchTab('monitoring')">Monitoring<span class="mon-dot idle" id="monDot" title="App health"></span></button>
+            <button type="button" class="tab" role="tab" onclick="switchTab('users')">Users</button>
+            <button type="button" class="tab" role="tab" onclick="switchTab('accumulation')">Accumulation</button>
+            <button type="button" class="tab" role="tab" onclick="switchTab('activity')">Site activity</button>
+            <button type="button" class="tab" role="tab" onclick="switchTab('categories')">Categories</button>
+            <button type="button" class="tab" role="tab" onclick="switchTab('payments')">Payments</button>
+            <button type="button" class="tab" role="tab" onclick="switchTab('referrals')">Referrals</button>
+            <button type="button" class="tab" role="tab" onclick="switchTab('website')">Website</button>
+            <button type="button" class="tab" role="tab" onclick="switchTab('config')">Config</button>
+            <button type="button" class="tab" role="tab" onclick="switchTab('settings')">Settings</button>
+        </div></div>
 
         <!-- Notifications Tab -->
         <div id="notifications-tab" class="tab-content active">
@@ -669,10 +685,10 @@
         <div id="queue-tab" class="tab-content">
             <div class="chat-area" style="overflow-y: auto;">
                 <div class="settings-container">
-                    <div class="settings-section">
-                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
-                            <div class="settings-section-title" style="margin-bottom:0;">What is being sent right now</div>
-                            <span id="qUpdated" style="color:#8a96a0;font-size:12px;"></span>
+                    <div class="settings-section flat">
+                        <div class="section-head">
+                            <div class="settings-section-title">What is being sent right now</div>
+                            <span id="qUpdated" class="meta"></span>
                         </div>
                         <div id="qBody"><div class="loading">Loading queue…</div></div>
                     </div>
@@ -684,11 +700,11 @@
         <div id="monitoring-tab" class="tab-content">
             <div class="chat-area" style="overflow-y: auto;">
                 <div class="settings-container">
-                    <div class="settings-section">
-                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
-                            <div class="settings-section-title" style="margin-bottom:0;">Is the app healthy?</div>
-                            <button onclick="loadMonitor()" class="btn btn-secondary" style="padding:6px 12px;font-size:13px;">Refresh</button>
-                            <span id="monUpdated" style="color:#8a96a0;font-size:12px;"></span>
+                    <div class="settings-section flat">
+                        <div class="section-head">
+                            <div class="settings-section-title">Is the app healthy?</div>
+                            <button onclick="loadMonitor()" class="btn btn-secondary btn-sm">Refresh</button>
+                            <span id="monUpdated" class="meta"></span>
                         </div>
                         <div id="monBody"><div class="loading">Loading monitoring…</div></div>
                     </div>
@@ -703,25 +719,25 @@
                     <!-- Message All Users Section -->
                     <div class="settings-section">
                         <div class="settings-section-title">Message All Users</div>
-                        <p style="color: #8a96a0; margin-bottom: 12px;">Send a plain text message to all active users</p>
+                        <p class="hint">Send a plain text message to all active users. You confirm once more before anything goes out.</p>
                         <div class="form-group">
                             <label class="form-label">Message</label>
                             <textarea id="broadcastMessageText" class="form-input" rows="4" placeholder="Enter your message to send to all users..."></textarea>
                         </div>
-                        <button class="btn btn-primary" onclick="showBroadcastConfirm()">Send to All Users</button>
+                        <button class="btn btn-primary btn-block-m" onclick="showBroadcastConfirm()">Send to All Users</button>
                     </div>
 
                     <!-- Active Users List Section -->
                     <div class="settings-section">
-                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
-                            <div class="settings-section-title" style="margin-bottom:0;">Active Users</div>
-                            <select id="usersBotFilter" onchange="renderUsersTable()" style="padding:6px 10px;background:#0e1621;border:1px solid #2b5278;border-radius:6px;color:#e8e9ea;font-size:13px;">
+                        <div class="section-head">
+                            <div class="settings-section-title">Active Users</div>
+                            <select id="usersBotFilter" onchange="renderUsersTable()">
                                 <option value="all">All bots</option>
                                 <option value="new">New bot only</option>
                                 <option value="old">Old bot only</option>
                             </select>
                         </div>
-                        <div id="userCountBadge" style="color: #8a96a0; margin-bottom: 12px;">Loading...</div>
+                        <div id="userCountBadge" class="hint" style="margin-bottom:8px;">Loading...</div>
                         <table id="usersTable">
                             <thead>
                                 <tr>
@@ -753,7 +769,7 @@
                 <div class="settings-container">
                     <div class="settings-section">
                         <div class="settings-section-title">Accumulation: tokens our traders keep coming back to</div>
-                        <div style="color:#8a96a0;font-size:13px;line-height:1.6;margin:4px 0 12px;max-width:940px">
+                        <details class="explain"><summary>How to read this page</summary><div class="hint">
                             A token bought only on launch day is mostly noise: bundles, snipers, quick flips. A token that <b>different tracked traders keep buying on different days</b>
                             has more conviction behind it. A day only counts when enough different traders bought that day (set below), so one wallet buying all week is not "days".<br>
                             <b>Days</b>: one bar per UTC day, taller = more different buyers that day. <b>Buyers / Sellers</b>: different traders over the window; the warning appears when one single trader made most of the buys (bot or DCA, not a crowd).
@@ -761,8 +777,8 @@
                             <b>Since 1st buy</b>: price now against the price at the first tracked buy <i>inside this window</i>, so it changes with the window, and it is hindsight, not a promise.
                             Age with "≥" means DexScreener has no date for the token, so it is at least as old as our first tracked buy. Wrapped coins, stablecoins and well-known majors are hidden.
                             Our own data: FOMO goes back months, pump.fun trades only since 19 Oct, so a 14 or 30 day window is mostly FOMO.
-                        </div>
-                        <div id="accFilters" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px;font-size:13px">
+                        </div></details>
+                        <div id="accFilters" class="filters">
                             <label>Window <select id="accDays" onchange="loadAccumulation()"><option value="3">3 days</option><option value="7" selected>7 days</option><option value="14">14 days</option><option value="30">30 days</option></select></label>
                             <label>Days counted at least <select id="accMinDays" onchange="loadAccumulation()"><option>1</option><option selected>2</option><option>3</option><option>4</option><option>5</option><option>7</option></select></label>
                             <label>Buyers needed in a day <select id="accPerDay" onchange="loadAccumulation()"><option>1</option><option selected>2</option><option>3</option><option>5</option></select></label>
@@ -771,7 +787,7 @@
                             <label>Token younger than <select id="accMaxAge" onchange="loadAccumulation()"><option value="0" selected>any age</option><option value="72">3 days</option><option value="168">7 days</option><option value="720">30 days</option><option value="2160">90 days</option></select></label>
                             <label>Chain <select id="accChain" onchange="loadAccumulation()"><option value="">all</option></select></label>
                             <label>Sort <select id="accSort" onchange="renderAccumulation()"><option value="days">most days</option><option value="buyers">most buyers</option><option value="today">most buyers today</option><option value="net">biggest net buying</option><option value="rise">biggest rise since 1st buy</option><option value="recent">latest buy</option></select></label>
-                            <span id="accUpdated" style="color:#8a96a0;font-size:12px"></span>
+                            <span id="accUpdated" class="meta"></span>
                         </div>
                         <div id="accMapWrap"></div>
                         <div id="accDetail"></div>
@@ -786,12 +802,12 @@
             <div class="chat-area" style="overflow-y: auto;">
                 <div class="settings-container">
                     <div class="settings-section">
-                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
-                            <div class="settings-section-title" style="margin-bottom:0;">Who uses the website (logged-in people)</div>
-                            <select id="actDays" onchange="loadActivity()" style="background:#101820;color:#e6edf3;border:1px solid #202a35;border-radius:6px;padding:4px 8px;">
+                        <div class="section-head">
+                            <div class="settings-section-title">Who uses the website (logged-in people)</div>
+                            <select id="actDays" onchange="loadActivity()">
                                 <option value="1">last 24 hours</option><option value="7" selected>last 7 days</option><option value="30">last 30 days</option><option value="90">last 90 days</option>
                             </select>
-                            <span id="actUpdated" style="color:#8a96a0;font-size:12px;"></span>
+                            <span id="actUpdated" class="meta"></span>
                         </div>
                         <div id="actBody"><div class="loading">Loading…</div></div>
                     </div>
@@ -808,8 +824,8 @@
                 </select>
                 <input type="text" id="cbSearch" placeholder="search handle..." oninput="renderCategoryBoard()">
                 <label><input type="checkbox" id="cbManualOnly" onchange="renderCategoryBoard()"> Moved by hand only</label>
-                <button class="btn btn-secondary" style="padding:6px 12px;font-size:13px;" onclick="loadCategoryBoard()">Refresh</button>
-                <button class="btn btn-primary" style="padding:6px 12px;font-size:13px;" id="cbRunBtn" onclick="runCategorizer()">Re-rate now</button>
+                <button class="btn btn-secondary btn-sm" onclick="loadCategoryBoard()">Refresh</button>
+                <button class="btn btn-primary btn-sm" id="cbRunBtn" onclick="runCategorizer()">Re-rate now</button>
                 <div class="cb-status" id="cbStatus"></div>
             </div>
             <div class="cb-board" id="cbBoard"><div class="loading">Loading...</div></div>
@@ -820,9 +836,9 @@
             <div class="chat-area" style="overflow-y: auto;">
                 <div class="settings-container">
                     <div class="settings-section">
-                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
-                            <div class="settings-section-title" style="margin-bottom:0;">Payment Records</div>
-                            <select id="paymentsFilter" onchange="renderPaymentsTable()" style="padding:6px 10px;background:#0e1621;border:1px solid #2b5278;border-radius:6px;color:#e8e9ea;font-size:13px;">
+                        <div class="section-head">
+                            <div class="settings-section-title">Payment Records</div>
+                            <select id="paymentsFilter" onchange="renderPaymentsTable()">
                                 <option value="all">All</option>
                                 <option value="pending">Pending</option>
                                 <option value="active">Active</option>
@@ -830,13 +846,16 @@
                                 <option value="expired_sub">Expired Sub</option>
                                 <option value="blocked">Blocked</option>
                             </select>
-                            <select id="paymentsBotFilter" onchange="renderPaymentsTable()" style="padding:6px 10px;background:#0e1621;border:1px solid #2b5278;border-radius:6px;color:#e8e9ea;font-size:13px;">
+                            <select id="paymentsBotFilter" onchange="renderPaymentsTable()">
                                 <option value="all">All bots</option>
                                 <option value="new">New bot only</option>
                                 <option value="old">Old bot only</option>
                             </select>
-                            <button onclick="loadPayments()" class="btn btn-secondary" style="padding:6px 12px;font-size:13px;">Refresh</button>
-                            <button onclick="sweepPayments()" class="btn btn-danger" style="padding:6px 12px;font-size:13px;">💸 Sweep All</button>
+                            <button onclick="loadPayments()" class="btn btn-secondary btn-sm">Refresh</button>
+                        </div>
+                        <div class="danger-bar">
+                            <span>Sweep All sends every confirmed payment wallet to the treasury. It moves real SOL, so it asks you to confirm first.</span>
+                            <button onclick="sweepPayments()" class="btn btn-danger btn-solid btn-sm">💸 Sweep All</button>
                         </div>
                         <table id="paymentsTable">
                             <thead>
@@ -865,53 +884,53 @@
             <div class="chat-area" style="overflow-y: auto;">
                 <div class="settings-container">
                     <div class="settings-section">
-                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;flex-wrap:wrap;">
-                            <div class="settings-section-title" style="margin-bottom:0;">How the website is doing</div>
-                            <select id="webDays" onchange="loadWebsite()" style="padding:6px 10px;background:#0e1621;border:1px solid #2b5278;border-radius:6px;color:#e8e9ea;font-size:13px;">
+                        <div class="section-head">
+                            <div class="settings-section-title">How the website is doing</div>
+                            <select id="webDays" onchange="loadWebsite()">
                                 <option value="1">Today</option>
                                 <option value="7" selected>Last 7 days</option>
                                 <option value="30">Last 30 days</option>
                                 <option value="90">Last 90 days</option>
                             </select>
-                            <button onclick="loadWebsite()" class="btn btn-secondary" style="padding:6px 12px;font-size:13px;">Refresh</button>
-                            <label style="font-size:13px;color:#c3ccd5;display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="webInternal" onchange="loadWebsite()"> include my own visits</label>
-                            <span id="webUpdated" style="color:#8a96a0;font-size:12px;"></span>
+                            <button onclick="loadWebsite()" class="btn btn-secondary btn-sm">Refresh</button>
+                            <label class="check"><input type="checkbox" id="webInternal" onchange="loadWebsite()"> include my own visits</label>
+                            <span id="webUpdated" class="meta"></span>
                         </div>
-                        <div style="color:#8a96a0;font-size:12px;margin-bottom:14px;">Cookie-less. A visitor is a hash that changes every day; IP addresses are kept 30 days and then blanked. Your own visits (open the site once with <b>?internal=1</b>, or from this server / Tailscale / WebInternalIps in Config) and bots are kept out unless you tick the box. A trial is counted when someone presses Start from a website button, and the visit it came from travels in the link, so each trial shows its country and device.</div>
-                        <div id="webKpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:8px;"></div>
-                        <div id="webNote" style="color:#8a96a0;font-size:12px;margin-bottom:22px;"></div>
+                        <div class="hint" style="margin-bottom:14px;">Cookie-less. A visitor is a hash that changes every day; IP addresses are kept 30 days and then blanked. Your own visits (open the site once with <b>?internal=1</b>, or from this server / Tailscale / WebInternalIps in Config) and bots are kept out unless you tick the box. A trial is counted when someone presses Start from a website button, and the visit it came from travels in the link, so each trial shows its country and device.</div>
+                        <div id="webKpis" class="kpi-grid"></div>
+                        <div id="webNote" class="hint"></div>
 
-                        <div class="settings-section-title" style="font-size:15px;">1. From visit to Telegram</div>
-                        <div style="color:#8a96a0;font-size:12px;margin:-2px 0 8px;">Counts: Home and the guide pages · visitors (people, once per day), then Telegram accounts</div>
-                        <div id="webFunnel" style="margin-bottom:14px;"></div>
-                        <div id="webDaily" style="margin-bottom:26px;"></div>
+                        <div class="settings-section-title sub">1. From visit to Telegram</div>
+                        <div class="hint">Counts: Home and the guide pages · visitors (people, once per day), then Telegram accounts</div>
+                        <div id="webFunnel" class="web-block"></div>
+                        <div id="webDaily" class="web-block"></div>
 
-                        <div class="settings-section-title" style="font-size:15px;">2. Which page does what, and where do people go next?</div>
-                        <div style="color:#8a96a0;font-size:12px;margin:-2px 0 8px;">Counts: every page, including Feed and Manage · visitors. “Went on” means they opened another page later in the same visit.</div>
-                        <div id="webPageTable" style="margin-bottom:26px;overflow-x:auto;"></div>
+                        <div class="settings-section-title sub">2. Which page does what, and where do people go next?</div>
+                        <div class="hint">Counts: every page, including Feed and Manage · visitors. “Went on” means they opened another page later in the same visit.</div>
+                        <div id="webPageTable" style="overflow-x:auto;"></div>
 
-                        <div class="settings-section-title" style="font-size:15px;">3. Which Telegram button gets clicked?</div>
-                        <div style="color:#8a96a0;font-size:12px;margin:-2px 0 8px;">Counts: clicks on the “open the Telegram bot” buttons, by the page the button is on · visitors</div>
-                        <div id="webCta" style="margin-bottom:26px;overflow-x:auto;"></div>
+                        <div class="settings-section-title sub">3. Which Telegram button gets clicked?</div>
+                        <div class="hint">Counts: clicks on the “open the Telegram bot” buttons, by the page the button is on · visitors</div>
+                        <div id="webCta" style="overflow-x:auto;"></div>
 
-                        <div class="settings-section-title" style="font-size:15px;">4. Who pressed Start in Telegram?</div>
-                        <div style="color:#8a96a0;font-size:12px;margin:-2px 0 8px;">Counts: Telegram accounts (not website visitors) that pressed Start after clicking a website button</div>
+                        <div class="settings-section-title sub">4. Who pressed Start in Telegram?</div>
+                        <div class="hint">Counts: Telegram accounts (not website visitors) that pressed Start after clicking a website button</div>
                         <div id="webTrials" style="margin-bottom:6px;overflow-x:auto;"></div>
-                        <div id="webStarts" style="margin-bottom:26px;"></div>
+                        <div id="webStarts" class="web-block"></div>
 
-                        <div class="settings-section-title" style="font-size:15px;">5. Are the people we already have using the app?</div>
-                        <div style="color:#8a96a0;font-size:12px;margin:-2px 0 8px;">Counts: the Feed and Manage pages (not the landing site) · logged-out visitors and users, as labelled</div>
-                        <div id="webApp" style="margin-bottom:26px;"></div>
+                        <div class="settings-section-title sub">5. Are the people we already have using the app?</div>
+                        <div class="hint">Counts: the Feed and Manage pages (not the landing site) · logged-out visitors and users, as labelled</div>
+                        <div id="webApp" class="web-block"></div>
 
-                        <div class="settings-section-title" style="font-size:15px;">6. Where do visitors come from, and what are they using?</div>
-                        <div id="webSources" style="margin-bottom:26px;"></div>
+                        <div class="settings-section-title sub">6. Where do visitors come from, and what are they using?</div>
+                        <div id="webSources" class="web-block"></div>
 
-                        <div class="settings-section-title" style="font-size:15px;">7. How far do they scroll?</div>
-                        <div style="color:#8a96a0;font-size:12px;margin:-2px 0 8px;">Counts: sections reached on each page · visitors</div>
-                        <div id="webSections" style="margin-bottom:26px;overflow-x:auto;"></div>
+                        <div class="settings-section-title sub">7. How far do they scroll?</div>
+                        <div class="hint">Counts: sections reached on each page · visitors</div>
+                        <div id="webSections" style="overflow-x:auto;"></div>
 
-                        <details style="margin-bottom:10px;">
-                            <summary class="settings-section-title" style="font-size:15px;cursor:pointer;">8. Latest visits, one row per person (click to open)</summary>
+                        <details>
+                            <summary class="settings-section-title sub">8. Latest visits, one row per person (click to open)</summary>
                             <div id="webRecent" style="margin-top:10px;overflow-x:auto;"></div>
                         </details>
                     </div>
@@ -925,18 +944,17 @@
                 <div class="settings-container">
                     <div class="settings-section">
                         <div class="settings-section-title">New referral code</div>
-                        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                            <input id="refLabel" type="text" maxlength="80" placeholder="Who is it for (label)" style="padding:8px 10px;background:#0e1621;border:1px solid #2b5278;border-radius:6px;color:#e8e9ea;font-size:13px;width:220px;">
-                            <input id="refCode" type="text" maxlength="16" placeholder="Code (blank = random)" style="padding:8px 10px;background:#0e1621;border:1px solid #2b5278;border-radius:6px;color:#e8e9ea;font-size:13px;width:170px;">
-                            <input id="refPct" type="number" min="0" max="90" value="25" title="First-month discount, percent" style="padding:8px 10px;background:#0e1621;border:1px solid #2b5278;border-radius:6px;color:#e8e9ea;font-size:13px;width:70px;">
-                            <span style="color:#7c8aa0;font-size:12px;">% off the first month</span>
-                            <button onclick="createReferral()" class="btn" style="padding:7px 14px;font-size:13px;">Create</button>
+                        <div class="ref-form">
+                            <input id="refLabel" class="grow-a" type="text" maxlength="80" placeholder="Who is it for (label)">
+                            <input id="refCode" class="grow-b" type="text" maxlength="16" placeholder="Code (blank = random)">
+                            <span class="pct"><input id="refPct" type="number" min="0" max="90" value="25" title="First-month discount, percent" style="width:72px;"> % off the first month</span>
+                            <button onclick="createReferral()" class="btn btn-primary">Create code</button>
                         </div>
                     </div>
                     <div class="settings-section">
-                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
-                            <div class="settings-section-title" style="margin-bottom:0;">Codes</div>
-                            <button onclick="loadReferrals()" class="btn btn-secondary" style="padding:6px 12px;font-size:13px;">Refresh</button>
+                        <div class="section-head">
+                            <div class="settings-section-title">Codes</div>
+                            <button onclick="loadReferrals()" class="btn btn-secondary btn-sm">Refresh</button>
                         </div>
                         <table id="referralsTable">
                             <thead>
@@ -958,7 +976,7 @@
                             </thead>
                             <tbody id="referralsTableBody"></tbody>
                         </table>
-                        <div style="color:#7c8aa0;font-size:12px;margin-top:10px;">Joined = people who started the bot with the code (link or /ref). Subscribed = of those, people with at least one confirmed payment made after the code reached them. SOL, commission and the books are only shown here: the referrer's own page shows counts only. The discount applies to the first payment only and is never mentioned to users. <b>Commission</b> is what you pay the referrer by hand: set the percent and whether renewals count, log each payout you make, and <b>Owed</b> is earned minus paid. Open <b>Books</b> for the month-by-month view and the list of paying customers.</div>
+                        <div class="hint" style="margin-top:12px;">Joined = people who started the bot with the code (link or /ref). Subscribed = of those, people with at least one confirmed payment made after the code reached them. SOL, commission and the books are only shown here: the referrer's own page shows counts only. The discount applies to the first payment only and is never mentioned to users. <b>Commission</b> is what you pay the referrer by hand: set the percent and whether renewals count, log each payout you make, and <b>Owed</b> is earned minus paid. Open <b>Books</b> for the month-by-month view and the list of paying customers.</div>
                     </div>
                 </div>
             </div>
@@ -970,7 +988,7 @@
                 <div class="settings-container">
                     <div class="settings-section">
                         <div class="settings-section-title">App Config</div>
-                        <p style="color:#8a96a0;margin-bottom:12px;">Key-value settings stored in the database. Changes take effect immediately.</p>
+                        <p class="hint">Key-value settings stored in the database. Changes take effect immediately.</p>
                         <table id="configTable">
                             <thead>
                                 <tr>
@@ -1001,7 +1019,7 @@
                             <label class="form-label">Trader Handles (one per line, @ optional)</label>
                             <textarea id="traderHandles" class="form-input" rows="5" placeholder="0xuberM&#10;frankdegods&#10;@trader123"></textarea>
                         </div>
-                        <button class="btn btn-primary" onclick="addTraders()">Add Traders</button>
+                        <button class="btn btn-primary btn-block-m" onclick="addTraders()">Add Traders</button>
                     </div>
 
                 </div>
@@ -1012,28 +1030,28 @@
     <!-- Send Message Modal -->
     <div id="sendMessageModal" class="modal">
         <div class="modal-content">
-            <span class="modal-close" onclick="closeSendMessageModal()">&times;</span>
+            <span class="modal-close" role="button" aria-label="Close" onclick="closeSendMessageModal()">&times;</span>
             <div class="modal-title">Send Message to User</div>
-            <p id="sendMessageUserInfo" style="color: #8a96a0; margin-bottom: 16px;"></p>
+            <p id="sendMessageUserInfo" class="hint" style="margin-bottom:16px;font-size:13px;"></p>
             <div class="form-group">
                 <label class="form-label">Message</label>
                 <textarea id="sendMessageText" class="form-input" rows="5" placeholder="Enter your message here..."></textarea>
             </div>
-            <button class="btn btn-primary" onclick="confirmSendMessage()">Send Message</button>
+            <button class="btn btn-primary btn-block-m" onclick="confirmSendMessage()">Send Message</button>
         </div>
     </div>
 
     <!-- Broadcast Message Confirmation Modal -->
     <div id="broadcastModal" class="modal">
         <div class="modal-content">
-            <span class="modal-close" onclick="closeBroadcastModal()">&times;</span>
+            <span class="modal-close" role="button" aria-label="Close" onclick="closeBroadcastModal()">&times;</span>
             <div class="modal-title">Confirm Broadcast to All Users</div>
-            <p id="broadcastUserCount" style="color: #8a96a0; margin-bottom: 16px;"></p>
-            <p style="color: #8a96a0; margin-bottom: 16px;">This will send the message to ALL active users. Type "broadcast" to confirm:</p>
+            <p id="broadcastUserCount" class="hint" style="margin-bottom:16px;font-size:13px;"></p>
+            <p class="hint" style="margin-bottom:16px;font-size:13px;">This will send the message to ALL active users. Type "broadcast" to confirm:</p>
             <div class="form-group">
                 <input type="text" id="broadcastConfirm" class="form-input" placeholder="Type 'broadcast'">
             </div>
-            <button class="btn btn-primary" onclick="confirmBroadcast()">Send Broadcast</button>
+            <button class="btn btn-danger btn-solid btn-block-m" onclick="confirmBroadcast()">Send Broadcast</button>
         </div>
     </div>
 
@@ -1047,7 +1065,7 @@
 
         // Chain enum to DEXScreener URL mapping (single source of truth)
         // The slugs are DexScreener's own chain ids (the same table as ChainInfo.cs; each one was read back from its token API).
-        const DEXSCREENER_SLUG = { SOL: 'solana', BNB: 'bsc', BASE: 'base', ETH: 'ethereum', ROBINHOOD: 'robinhood', ARC: 'arc', MONAD: 'monad', MEGAETH: 'megaeth', HYPEREVM: 'hyperevm', INK: 'ink' };
+        const DEXSCREENER_SLUG = { SOL: 'solana', BNB: 'bsc', BASE: 'base', ETH: 'ethereum', ROBINHOOD: 'robinhood', ARC: 'arc', MONAD: 'monad', MEGAETH: 'megaeth', HYPEREVM: 'hyperevm', INK: 'ink', ELYSIUM: 'elysium' };
         const CHAIN_TO_DEXSCREENER = Object.fromEntries(Object.entries(DEXSCREENER_SLUG).map(([chain, slug]) => [chain, (ca) => `https://dexscreener.com/${slug}/${ca}`]));
 
         function getDexScreenerUrl(chain, contractAddress) {
@@ -1168,15 +1186,12 @@
             if (notification.contractAddress) {
                 const dexScreenerUrl = getDexScreenerUrl(notification.chain, notification.contractAddress);
                 messageHtml += `
-                        <br>📝 Contract: \`${notification.contractAddress}\`
-                        <br>🔗 <a href="${dexScreenerUrl}" target="_blank" class="message-trader">DEXScreener</a>
+                    <div class="contract-row"><span class="contract-label">CA</span><code class="contract-address-text">${notification.contractAddress}</code></div>
+                    <a href="${dexScreenerUrl}" target="_blank" rel="noopener" class="dex-link">DEXScreener &#8599;</a>
                 `;
             }
 
             messageHtml += `
-                    <div class="message-meta">
-                        <span class="message-time">${formatTime(notification.sentAt)}</span>
-                    </div>
                 </div>
                 <div class="message-metadata">
                     <span class="recipients-tooltip-container" onmouseenter="loadRecipients(${notification.id})" data-notification-id="${notification.id}">
@@ -1187,6 +1202,7 @@
                             <div class="recipients-tooltip-arrow"></div>
                         </div>
                     </span>
+                    <span class="message-time">${formatTime(notification.sentAt)}</span>
                 </div>
             `;
 
@@ -1259,6 +1275,9 @@
                     `<a href="https://x.com/${trader}" target="_blank" class="message-trader">@${trader}</a>`);
             }
 
+            // Amounts: a market cap stays muted, a trade size is bold
+            formatted = formatted.replace(/\$[\d,]+(?:\.\d+)?[kKmMbB]?(?!\w)(\s*MC\b)?/g, (m, mc) => mc ? '<span class="mc">' + m + '</span>' : '<span class="amt">' + m + '</span>');
+
             // Highlight buy/sell/deposit
             formatted = formatted.replace(/\bbought\b/gi, '<span class="buy-indicator">bought</span>');
             formatted = formatted.replace(/\bsold\b/gi, '<span class="sell-indicator">sold</span>');
@@ -1302,8 +1321,8 @@
                         const ok = p.status >= 200 && p.status < 400;
                         return '<i class="' + (ok ? '' : 'bad') + '" style="height:' + (ok ? Math.min(100, 20 + p.ms / 12) : 100) + '%" title="' + new Date(p.at + (String(p.at).endsWith('Z') ? '' : 'Z')).toLocaleTimeString() + ' · ' + (p.status || 'ERR') + ' · ' + p.ms + 'ms"></i>';
                     }).join('') + '</div>' : '';
-                const info = Object.entries(c.info || {}).map(([k, v]) => '<span style="display:inline-block;margin:8px 8px 0 0;padding:3px 9px;background:#0e1621;border-radius:12px;font-size:12px;"><span style="color:#8a96a0;">' + monEsc(k) + '</span> ' + monEsc(v) + '</span>').join('');
-                return '<div class="mon-card"><div class="mon-head"><span class="mon-state-dot ' + c.state + '"></span>' + monEsc(c.label) + '<span class="st">' + MON_STATE[c.state] + '</span></div>' +
+                const info = Object.entries(c.info || {}).map(([k, v]) => '<span class="mon-chip"><span>' + monEsc(k) + '</span> ' + monEsc(v) + '</span>').join('');
+                return '<div class="mon-card"><div class="mon-head"><span class="mon-state-dot ' + c.state + '"></span>' + monEsc(c.label) + '<span class="st ' + c.state + '">' + MON_STATE[c.state] + '</span></div>' +
                     '<div class="mon-sum">' + monEsc(c.summary) + '</div><div class="mon-tiles">' + tiles + '</div>' + strip + info + '</div>';
             }).join('') + '</div>';
 
@@ -1313,22 +1332,21 @@
                 const f = v => v == null ? '—' : v < 1000 ? Math.round(v) + ' ms' : (v / 1000).toFixed(1) + ' s';
                 const off = pp.clockOffsetMs, offTxt = pp.clockCheckedAt ? (Math.abs(off) / 1000).toFixed(1) + ' s ' + (off >= 0 ? 'behind' : 'ahead of') + ' real time' : 'not measured yet';
                 h += '<div class="mon-h2">How fast alerts go out · last ' + pp.windowMin + ' min · ' + pp.pumpTrades + ' pump trades · live stream ' + pp.viaStream + ' / slow poll ' + pp.viaRest + '</div>';
-                h += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13.5px;">' +
-                    '<tr style="color:#8a96a0;text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.4px;"><th style="padding:6px 10px;">Step</th><th style="padding:6px 10px;text-align:right;">Alerts</th><th style="padding:6px 10px;text-align:right;">Typical</th><th style="padding:6px 10px;text-align:right;">Slowest 10%</th><th style="padding:6px 10px;text-align:right;">Worst</th></tr>' +
+                h += '<div class="pipe-wrap"><table><thead><tr><th>Step</th><th class="r">Alerts</th><th class="r">Typical</th><th class="r">Slowest 10%</th><th class="r">Worst</th></tr></thead><tbody>' +
                     pp.stages.map(s => {
                         const tot = s.label.startsWith('TOTAL');
-                        return '<tr style="border-top:1px solid #243447;' + (tot ? 'background:#14301f55;font-weight:600;' : '') + '"><td style="padding:8px 10px;">' + monEsc(s.label) + '<div style="color:#8a96a0;font-size:11.5px;font-weight:400;">' + monEsc(s.note) + '</div></td>' +
-                            '<td style="padding:8px 10px;text-align:right;color:#8a96a0;">' + s.n + '</td><td style="padding:8px 10px;text-align:right;">' + f(s.p50) + '</td><td style="padding:8px 10px;text-align:right;">' + f(s.p90) + '</td><td style="padding:8px 10px;text-align:right;color:#8a96a0;">' + f(s.max) + '</td></tr>';
-                    }).join('') + '</table></div>' +
-                    '<div style="color:#8a96a0;font-size:12px;margin-top:8px;">Steps 2 to 6 are timed on this PC with one clock, so they are exact. The TOTAL rows start from the time pump.fun says the trade happened (whole seconds, so ±0.5 s), moved onto real time using the PC clock offset, which is ' + monEsc(offTxt) + '. The live stream is the same feed pump.fun\'s own website receives.</div>';
+                        return '<tr' + (tot ? ' class="pipe-total"' : '') + '><td>' + monEsc(s.label) + '<div class="pipe-note">' + monEsc(s.note) + '</div></td>' +
+                            '<td class="r muted">' + s.n + '</td><td class="r">' + f(s.p50) + '</td><td class="r">' + f(s.p90) + '</td><td class="r muted">' + f(s.max) + '</td></tr>';
+                    }).join('') + '</tbody></table></div>' +
+                    '<div class="hint" style="margin-top:10px;">Steps 2 to 6 are timed on this PC with one clock, so they are exact. The TOTAL rows start from the time pump.fun says the trade happened (whole seconds, so ±0.5 s), moved onto real time using the PC clock offset, which is ' + monEsc(offTxt) + '. The live stream is the same feed pump.fun\'s own website receives.</div>';
             }
             const u = d.users, ty = d.alertsLastHour || [];
             h += '<div class="mon-h2">Alerts in the last hour (all, from the database)</div><div class="mon-stats">' +
-                (ty.length ? ty.map(x => '<div class="mon-stat"><div class="v">' + x.n + '</div><div class="l">' + (x.platform === 'Pump' ? '💊 Pump ' : '👀 FOMO ') + monEsc(x.type) + '</div></div>').join('') : '<div style="color:#8a96a0;font-size:13px;">none</div>') + '</div>';
+                (ty.length ? ty.map(x => '<div class="mon-stat"><div class="v">' + x.n + '</div><div class="l">' + (x.platform === 'Pump' ? '💊 Pump ' : '👀 FOMO ') + monEsc(x.type) + '</div></div>').join('') : '<div class="empty">none</div>') + '</div>';
             h += '<div class="mon-h2">People</div><div class="mon-stats">' +
                 [['Active users', u.active], ['RN4L', u.rn4l], ['Paying', u.paid], ['Trial', u.trial], ['Free', u.free], ['Pump transactions on', u.pumpTxOn], ['Pump callouts on', u.pumpCalloutsOn], ['FOMO transactions on', u.fomoTxOn]]
                     .map(([l, v]) => '<div class="mon-stat"><div class="v">' + v + '</div><div class="l">' + l + '</div></div>').join('') + '</div>';
-            h += '<div class="mon-h2">Rollout</div><div style="color:#c3ccd5;font-size:13.5px;">Pump transaction alerts: <b>' + monEsc(d.rollout.pumpTradeAlerts) + '</b> <span style="color:#8a96a0;">(off · owner = canary only · on = everyone with the setting)</span></div>';
+            h += '<div class="mon-h2">Rollout</div><div class="rollout">Pump transaction alerts: <b>' + monEsc(d.rollout.pumpTradeAlerts) + '</b> <span>(off · owner = canary only · on = everyone with the setting)</span></div>';
             document.getElementById('monBody').innerHTML = h;
             document.getElementById('monUpdated').textContent = 'updated ' + new Date().toLocaleTimeString() + ' · refreshes every 10 s while this tab is open';
         }
@@ -1392,13 +1410,13 @@
             rows.sort((a, b) => key(b) - key(a));
             accShown = rows;
             renderAccBubbleMap(rows);
-            if (!rows.length) { document.getElementById('accBody').innerHTML = '<div style="color:#8a96a0;font-size:13px">Nothing matches these filters. Try fewer days, fewer buyers or any age.</div>'; return; }
+            if (!rows.length) { document.getElementById('accBody').innerHTML = '<div class="empty">Nothing matches these filters. Try fewer days, fewer buyers or any age.</div>'; return; }
             document.getElementById('accBody').innerHTML = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13.5px"><thead><tr><th style="text-align:left">Token</th><th style="text-align:left">Age</th><th style="text-align:left">Days (' + accData.days + ')</th><th style="text-align:right">Buyers / Sellers</th><th style="text-align:right">Today / yest.</th><th style="text-align:right">Buys / Sells</th><th style="text-align:right">Net $</th><th style="text-align:right">Since 1st buy</th><th style="text-align:left">Last buy</th></tr></thead><tbody>' +
                 rows.map((r, idx) => {
                     const pct = r.pctSinceFirstBuy;
                     const pctTxt = pct == null ? '<span style="color:#8a96a0">-</span>' : '<span style="color:' + (pct >= 0 ? '#2ea043' : '#f85149') + '">' + (pct >= 0 ? '+' : '') + pct.toFixed(0) + '%</span>';
                     const warn = r.topBuyerPct >= 60 && r.buys >= 20 ? ' <span title="One single trader made ' + r.topBuyerPct + '% of the buys: probably a bot or a DCA, not a crowd" style="color:#d29922">⚠ ' + r.topBuyerPct + '%</span>' : '';
-                    return '<tr class="acc-row" onclick="openAccDetail(' + idx + ')" title="click for the chart of who bought it, when and at what market cap" style="cursor:pointer;border-top:1px solid #202a35"><td><b>' + monEsc(r.ticker) + '</b> <span style="color:#8a96a0">' + monEsc(r.chain) + '</span> <a href="#" style="color:#8a96a0;font-size:11px" title="copy the contract address" onclick="event.stopPropagation();navigator.clipboard.writeText(\'' + monEsc(r.address) + '\');return false">' + monEsc(r.address.slice(0, 4) + '…' + r.address.slice(-4)) + '</a></td><td>' + accAge(r) + '</td><td>' + accBars(r, accData.days) + ' <span style="color:#8a96a0">' + r.days + 'd</span></td><td style="text-align:right"><b>' + r.buyers + '</b> / ' + r.sellers + warn + '</td><td style="text-align:right">' + accTrend(r) + '</td><td style="text-align:right">' + r.buys + ' / ' + r.sells + '</td><td style="text-align:right;color:' + (r.netUsd >= 0 ? '#2ea043' : '#f85149') + '">' + accUsd(r.netUsd) + '</td><td style="text-align:right">' + pctTxt + '</td><td>' + accLast(r.lastBuyAt) + '</td></tr>';
+                    return '<tr class="acc-row" onclick="openAccDetail(' + idx + ')" title="click for the chart of who bought it, when and at what market cap" style="cursor:pointer"><td><b>' + monEsc(r.ticker) + '</b> <span style="color:#8a96a0">' + monEsc(r.chain) + '</span> <a href="#" style="color:#8a96a0;font-size:11px" title="copy the contract address" onclick="event.stopPropagation();navigator.clipboard.writeText(\'' + monEsc(r.address) + '\');return false">' + monEsc(r.address.slice(0, 4) + '…' + r.address.slice(-4)) + '</a></td><td>' + accAge(r) + '</td><td>' + accBars(r, accData.days) + ' <span style="color:#8a96a0">' + r.days + 'd</span></td><td style="text-align:right"><b>' + r.buyers + '</b> / ' + r.sellers + warn + '</td><td style="text-align:right">' + accTrend(r) + '</td><td style="text-align:right">' + r.buys + ' / ' + r.sells + '</td><td style="text-align:right;color:' + (r.netUsd >= 0 ? '#2ea043' : '#f85149') + '">' + accUsd(r.netUsd) + '</td><td style="text-align:right">' + pctTxt + '</td><td>' + accLast(r.lastBuyAt) + '</td></tr>';
                 }).join('') + '</tbody></table></div>';
         }
         async function loadAccumulation() {
@@ -1688,9 +1706,9 @@
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 const d = await res.json();
                 let h = '<div style="margin-bottom:12px"><b>On the feed now:</b> ' + (d.onFeedNow.length ? d.onFeedNow.map(x => actName(x.who) + ' (' + actPlan(x.who.plan) + ', ' + actDur(x.sinceSec) + ')').join(' · ') : '<span style="color:#8a96a0">nobody</span>') + '</div>';
-                if (!d.users.length) h += '<div style="color:#8a96a0;font-size:13px;">Nothing recorded yet. People show up here from the moment they use the feed or the manage page (it records from the start of this feature, not before).</div>';
+                if (!d.users.length) h += '<div class="empty">Nothing recorded yet. People show up here from the moment they use the feed or the manage page (it records from the start of this feature, not before).</div>';
                 else h += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13.5px;"><thead><tr><th style="text-align:left">Person</th><th style="text-align:left">Plan</th><th style="text-align:left">Last seen</th><th style="text-align:right">Feed visits</th><th style="text-align:right">Time on feed</th><th style="text-align:right">Manage visits</th><th style="text-align:right">Changes</th><th style="text-align:left">Last change</th></tr></thead><tbody>' +
-                    d.users.map(u => '<tr style="cursor:pointer;border-top:1px solid #202a35" onclick="loadUserActivity(' + u.who.chatId + ')"><td>' + actName(u.who) + '</td><td>' + actPlan(u.who.plan) + '</td><td>' + actAgo(u.lastSeen) + '</td><td style="text-align:right">' + u.feedOpens + '</td><td style="text-align:right">' + actDur(u.feedSeconds) + '</td><td style="text-align:right">' + u.manageOpens + '</td><td style="text-align:right">' + u.actions + '</td><td>' + (u.lastAction ? actKind({ kind: u.lastAction.kind, detail: u.lastAction.detail }) + ' <span style="color:#8a96a0">' + actAgo(u.lastAction.at) + '</span>' : '<span style="color:#8a96a0">-</span>') + '</td></tr>').join('') + '</tbody></table></div><div id="actDetail" style="margin-top:16px"></div>';
+                    d.users.map(u => '<tr style="cursor:pointer" onclick="loadUserActivity(' + u.who.chatId + ')"><td>' + actName(u.who) + '</td><td>' + actPlan(u.who.plan) + '</td><td>' + actAgo(u.lastSeen) + '</td><td style="text-align:right">' + u.feedOpens + '</td><td style="text-align:right">' + actDur(u.feedSeconds) + '</td><td style="text-align:right">' + u.manageOpens + '</td><td style="text-align:right">' + u.actions + '</td><td>' + (u.lastAction ? actKind({ kind: u.lastAction.kind, detail: u.lastAction.detail }) + ' <span style="color:#8a96a0">' + actAgo(u.lastAction.at) + '</span>' : '<span style="color:#8a96a0">-</span>') + '</td></tr>').join('') + '</tbody></table></div><div id="actDetail" style="margin-top:16px"></div>';
                 document.getElementById('actBody').innerHTML = h;
                 document.getElementById('actUpdated').textContent = 'click a person to see everything they did';
             } catch (e) {
@@ -1704,7 +1722,7 @@
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 const d = await res.json();
                 box.innerHTML = '<div class="settings-section-title">' + (d.who ? actName(d.who) + ' (' + actPlan(d.who.plan) + ')' : 'chat ' + chatId) + ' · last ' + d.rows.length + ' things</div>' +
-                    '<div style="font-size:13px;line-height:1.8">' + d.rows.map(r => '<div><span style="color:#8a96a0;display:inline-block;width:150px">' + monEsc(r.at) + ' UTC</span>' + actKind(r) + '</div>').join('') + '</div>';
+                    '<div style="font-size:13px;line-height:1.8">' + d.rows.map(r => '<div><span class="act-at">' + monEsc(r.at) + ' UTC</span>' + actKind(r) + '</div>').join('') + '</div>';
                 box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             } catch (e) { box.innerHTML = '<div style="color:#f85149">' + monEsc(e.message) + '</div>'; }
         }
@@ -1717,7 +1735,7 @@
                 '<div class="q-chip' + (d.pendingPaid ? ' hot' : '') + '"><div class="v">' + d.pendingPaid + '</div><div class="l">paying waiting</div></div>' +
                 '<div class="q-chip' + (d.pendingFree ? ' hot' : '') + '"><div class="v">' + d.pendingFree + '</div><div class="l">free waiting</div></div>' +
                 '</div>';
-            if (!d.alerts.length) h += '<div style="color:#8a96a0;font-size:13px;">Nothing sent since the backend started.</div>';
+            if (!d.alerts.length) h += '<div class="empty">Nothing sent since the backend started.</div>';
             h += d.alerts.slice(0, 30).map(a => {
                 const total = a.paid.total + a.free.total, doneN = a.paid.sent + a.paid.failed + a.free.sent + a.free.failed;
                 const finished = a.doneSec !== null || total === 0;
@@ -1859,27 +1877,27 @@
                 const displayName = user.username || user.firstName || 'Unknown';
                 const tradersTracking = `${user.trackingCount}/${user.totalTraders}`;
                 const isActiveDisplay = user.isActive
-                    ? '<span style="color: #4ade80;">✓ Active</span>'
-                    : '<span style="color: #f87171;">✗ Inactive</span>';
+                    ? '<span class="badge badge-green">Active</span>'
+                    : '<span class="badge badge-red">Inactive</span>';
                 const botDisplay = user.isOnNewBot
-                    ? '<span style="color: #4ade80;">New</span>'
-                    : '<span style="color: #8a96a0;">Old</span>';
-                const autoFollowCheckbox = `<input type="checkbox" ${user.autoFollowNewTraders ? 'checked' : ''} onchange="toggleAutoFollow(${user.chatId}, this.checked)" style="cursor: pointer; width: 18px; height: 18px;">`;
+                    ? '<span class="badge badge-blue plain">New</span>'
+                    : '<span class="badge badge-gray plain">Old</span>';
+                const autoFollowCheckbox = `<input type="checkbox" class="switch" aria-label="Auto-follow new traders" ${user.autoFollowNewTraders ? 'checked' : ''} onchange="toggleAutoFollow(${user.chatId}, this.checked)">`;
                 return `
                     <tr>
                         <td>${user.chatId}</td>
                         <td>${user.username || 'N/A'}</td>
                         <td>${user.firstName || 'N/A'}</td>
                         <td>${tradersTracking}</td>
-                        <td style="text-align: center;">${autoFollowCheckbox}</td>
+                        <td>${autoFollowCheckbox}</td>
                         <td>${isActiveDisplay}</td>
                         <td>${botDisplay}</td>
                         <td>${joinedDate}</td>
-                        <td style="display: flex; gap: 6px; flex-wrap: wrap;">
-                            <button class="btn btn-secondary" onclick="showSendMessageModal(${user.chatId}, '${displayName}')">Send Message</button>
-                            <button class="btn btn-primary" onclick="followAllPublicTraders(${user.chatId}, '${displayName}')">Follow All</button>
-                            <button class="btn btn-danger" onclick="unfollowAllTraders(${user.chatId}, '${displayName}')">Unfollow All</button>
-                        </td>
+                        <td><div class="row-actions">
+                            <button class="btn btn-secondary btn-sm" onclick="showSendMessageModal(${user.chatId}, '${displayName}')">Send Message</button>
+                            <button class="btn btn-primary btn-sm" onclick="followAllPublicTraders(${user.chatId}, '${displayName}')">Follow All</button>
+                            <button class="btn btn-danger btn-sm btn-push" onclick="unfollowAllTraders(${user.chatId}, '${displayName}')">Unfollow All</button>
+                        </div></td>
                     </tr>
                 `;
             }).join('');
@@ -2118,26 +2136,26 @@
                 tbody.innerHTML = rows.map(r => `<tr>
                     <td>${refEsc(r.label)}</td>
                     <td><code>${refEsc(r.code)}</code></td>
-                    <td><input type="number" min="0" max="90" value="${r.discountPercent}" onchange="setReferralDiscount(${r.id}, this.value)" style="width:56px;padding:4px 6px;background:#0e1621;border:1px solid #2b5278;border-radius:6px;color:#e8e9ea;font-size:13px;">%</td>
+                    <td><input type="number" min="0" max="90" value="${r.discountPercent}" class="inp-xs" onchange="setReferralDiscount(${r.id}, this.value)"> %</td>
                     <td>${r.signups}</td>
                     <td>${r.subscribed}</td>
                     <td>${solFmt(r.solCollected)}</td>
-                    <td style="white-space:nowrap;">
-                        <input type="number" min="0" max="100" step="0.5" value="${r.commissionPercent}" id="comm-${r.id}" onchange="saveCommission(${r.id})" style="width:60px;padding:4px 6px;background:#0e1621;border:1px solid #2b5278;border-radius:6px;color:#e8e9ea;font-size:13px;">%
-                        <label style="font-size:11px;color:#7c8aa0;margin-left:4px;" title="Count renewals (every payment after a person's first) toward the commission"><input type="checkbox" id="commren-${r.id}" ${r.commissionOnRenewals ? 'checked' : ''} onchange="saveCommission(${r.id})"> renewals</label>
+                    <td class="nw">
+                        <input type="number" min="0" max="100" step="0.5" value="${r.commissionPercent}" id="comm-${r.id}" class="inp-xs" onchange="saveCommission(${r.id})"> %
+                        <label class="check" style="font-size:11.5px;margin-left:8px;" title="Count renewals (every payment after a person's first) toward the commission"><input type="checkbox" id="commren-${r.id}" ${r.commissionOnRenewals ? 'checked' : ''} onchange="saveCommission(${r.id})"> renewals</label>
                     </td>
                     <td>${solFmt(r.earned)}</td>
                     <td>${solFmt(r.paid)}</td>
                     <td style="font-weight:700;color:${r.owed > 0.00005 ? '#e8ac3f' : '#7c8aa0'};">${solFmt(r.owed)}</td>
-                    <td style="white-space:nowrap;">
-                        <button class="btn btn-secondary" style="padding:4px 8px;font-size:12px;" onclick="copyText('${refEsc(r.botLink)}', this)">Telegram</button>
-                        <button class="btn btn-secondary" style="padding:4px 8px;font-size:12px;" onclick="copyText('${refEsc(r.siteLink)}', this)">Site</button>
-                        <button class="btn btn-secondary" style="padding:4px 8px;font-size:12px;" onclick="copyText('${refEsc(r.statsLink)}', this)">Stats page</button>
-                    </td>
-                    <td><button class="btn ${r.active ? 'btn-secondary' : 'btn-danger'}" style="padding:4px 10px;font-size:12px;" onclick="setReferralActive(${r.id}, ${!r.active})">${r.active ? 'Active' : 'Off'}</button></td>
-                    <td><button class="btn btn-secondary" style="padding:4px 10px;font-size:12px;" onclick="toggleBooks(${r.id})">Books</button></td>
+                    <td class="nw"><div class="row-actions">
+                        <button class="btn btn-secondary btn-sm" onclick="copyText('${refEsc(r.botLink)}', this)">Telegram</button>
+                        <button class="btn btn-secondary btn-sm" onclick="copyText('${refEsc(r.siteLink)}', this)">Site</button>
+                        <button class="btn btn-secondary btn-sm" onclick="copyText('${refEsc(r.statsLink)}', this)">Stats page</button>
+                    </div></td>
+                    <td><button class="btn btn-sm ${r.active ? 'btn-secondary' : 'btn-danger'}" onclick="setReferralActive(${r.id}, ${!r.active})">${r.active ? 'Active' : 'Off'}</button></td>
+                    <td><button class="btn btn-secondary btn-sm" onclick="toggleBooks(${r.id})">Books</button></td>
                 </tr>
-                <tr id="books-${r.id}" style="display:none"><td colspan="13" id="booksBody-${r.id}" style="background:#0e1621;padding:14px 16px;"></td></tr>`).join('');
+                <tr id="books-${r.id}" style="display:none"><td colspan="13" id="booksBody-${r.id}" class="books-cell"></td></tr>`).join('');
                 for (const id of refOpen) { const row = document.getElementById('books-' + id); if (row) { row.style.display = ''; renderBooks(id); } }
             } catch (err) {
                 console.error('Failed to load referrals', err);
@@ -2188,25 +2206,25 @@
             const data = await fetch('/api/dashboard/referrals/' + id + '/ledger').then(r => r.json()).catch(() => null);
             if (!data || !data.ledger) { box.textContent = 'Could not load the books.'; return; }
             const L = data.ledger;
-            const th = 'style="text-align:left;color:#7c8aa0;font-weight:600;padding:6px 8px;border-bottom:1px solid #2b5278;font-size:12px;"';
-            const td = 'style="padding:6px 8px;border-bottom:1px solid #1d2a3a;font-size:13px;"';
+            const th = 'class="bk"';
+            const td = 'class="bk"';
             const day = d => new Date(d).toISOString().slice(0, 10);
             const tiles = [['First payments', L.firstSol], ['Renewals', L.renewalSol], ['Earned (' + L.commissionPercent + '%' + (L.onRenewals ? ', renewals count' : ', first payment only') + ')', L.earned], ['Paid out', L.paid], ['Owed', L.owed]]
-                .map(([k, v], i) => `<div style="background:#17212b;border:1px solid #2b5278;border-radius:8px;padding:10px 14px;min-width:130px;"><div style="color:#7c8aa0;font-size:11px;">${refEsc(k)}</div><div style="font-size:20px;font-weight:700;${i === 4 && v > 0.00005 ? 'color:#e8ac3f;' : ''}">${solFmt(v)} <span style="font-size:12px;color:#7c8aa0;">SOL</span></div></div>`).join('');
+                .map(([k, v], i) => `<div class="tile${i === 4 && v > 0.00005 ? ' owed' : ''}"><div class="k">${refEsc(k)}</div><div class="n">${solFmt(v)} <small>SOL</small></div></div>`).join('');
             const months = L.months.length ? `<table style="width:100%;border-collapse:collapse;"><thead><tr><th ${th}>Month</th><th ${th}>New payers</th><th ${th}>First payments</th><th ${th}>Renewals</th><th ${th}>Commission</th></tr></thead><tbody>${L.months.map(m => `<tr><td ${td}>${m.month}</td><td ${td}>${m.newPayers}</td><td ${td}>${solFmt(m.firstSol)}</td><td ${td}>${solFmt(m.renewalSol)}</td><td ${td}>${solFmt(m.commission)}</td></tr>`).join('')}</tbody></table>` : '<div style="color:#7c8aa0;font-size:13px;">No payments yet.</div>';
             const customers = L.customers.length ? `<table style="width:100%;border-collapse:collapse;"><thead><tr><th ${th}>Customer</th><th ${th}>Chat ID</th><th ${th}>Came in</th><th ${th}>First paid</th><th ${th}>Payments</th><th ${th}>SOL</th></tr></thead><tbody>${L.customers.map(c => `<tr><td ${td}>${c.username ? '@' + refEsc(c.username) : refEsc(c.firstName || '—')}</td><td ${td}><code>${c.chatId}</code></td><td ${td}>${day(c.referredAt)}</td><td ${td}>${day(c.firstPaidAt)}</td><td ${td}>${c.payments}</td><td ${td}>${solFmt(c.sol)}</td></tr>`).join('')}</tbody></table>` : '<div style="color:#7c8aa0;font-size:13px;">Nobody has paid yet.</div>';
-            const payouts = L.payouts.length ? `<table style="width:100%;border-collapse:collapse;"><thead><tr><th ${th}>Date</th><th ${th}>SOL</th><th ${th}>Note</th><th ${th}></th></tr></thead><tbody>${L.payouts.map(p => `<tr><td ${td}>${day(p.at)}</td><td ${td}>${solFmt(p.amountSol)}</td><td ${td}>${refEsc(p.note)}</td><td ${td}><button class="btn btn-danger" style="padding:2px 8px;font-size:11px;" onclick="deletePayout(${id}, ${p.id})">Delete</button></td></tr>`).join('')}</tbody></table>` : '<div style="color:#7c8aa0;font-size:13px;">No payouts logged yet.</div>';
-            const inp = 'style="padding:6px 9px;background:#0e1621;border:1px solid #2b5278;border-radius:6px;color:#e8e9ea;font-size:13px;"';
+            const payouts = L.payouts.length ? `<table style="width:100%;border-collapse:collapse;"><thead><tr><th ${th}>Date</th><th ${th}>SOL</th><th ${th}>Note</th><th ${th}></th></tr></thead><tbody>${L.payouts.map(p => `<tr><td ${td}>${day(p.at)}</td><td ${td}>${solFmt(p.amountSol)}</td><td ${td}>${refEsc(p.note)}</td><td ${td}><button class="btn btn-danger btn-sm" onclick="deletePayout(${id}, ${p.id})">Delete</button></td></tr>`).join('')}</tbody></table>` : '<div style="color:#7c8aa0;font-size:13px;">No payouts logged yet.</div>';
+            const inp = '';
             box.innerHTML = `
-                <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">${tiles}</div>
-                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:22px;">
-                    <div><div style="font-weight:700;margin-bottom:6px;">By month</div>${months}</div>
-                    <div><div style="font-weight:700;margin-bottom:6px;">Paying customers</div>${customers}</div>
-                    <div><div style="font-weight:700;margin-bottom:6px;">Payouts you made</div>${payouts}
-                        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+                <div class="tile-row">${tiles}</div>
+                <div class="books-grid">
+                    <div><div class="bt">By month</div>${months}</div>
+                    <div><div class="bt">Paying customers</div>${customers}</div>
+                    <div><div class="bt">Payouts you made</div>${payouts}
+                        <div class="copy-row">
                             <input id="po-amt-${id}" type="number" step="0.01" min="0" placeholder="SOL paid" ${inp} style="width:100px;">
                             <input id="po-note-${id}" type="text" maxlength="200" placeholder="Note (tx, month…)" ${inp} style="flex:1;min-width:140px;">
-                            <button class="btn" style="padding:6px 12px;font-size:13px;" onclick="addPayout(${id})">Log payout</button>
+                            <button class="btn btn-primary btn-sm" onclick="addPayout(${id})">Log payout</button>
                         </div>
                     </div>
                 </div>`;
@@ -2259,11 +2277,11 @@
 
             const statusBadge = s => {
                 const map = {
-                    active: '<span style="background:#1a4a1a;color:#4db87a;padding:2px 8px;border-radius:10px;font-size:12px;">🟢 active</span>',
-                    pending: '<span style="background:#3d3010;color:#f0c040;padding:2px 8px;border-radius:10px;font-size:12px;">🟡 pending</span>',
-                    expired_request: '<span style="background:#4a1010;color:#e05a5a;padding:2px 8px;border-radius:10px;font-size:12px;">🔴 expired request</span>',
-                    expired_sub: '<span style="background:#4a1010;color:#e05a5a;padding:2px 8px;border-radius:10px;font-size:12px;">🔴 expired sub</span>',
-                    blocked: '<span style="background:#252525;color:#8a96a0;padding:2px 8px;border-radius:10px;font-size:12px;">⛔ blocked</span>',
+                    active: '<span class="badge badge-green">active</span>',
+                    pending: '<span class="badge badge-amber">pending</span>',
+                    expired_request: '<span class="badge badge-red">expired request</span>',
+                    expired_sub: '<span class="badge badge-red">expired sub</span>',
+                    blocked: '<span class="badge badge-gray">blocked</span>',
                 };
                 return map[s] || s;
             };
@@ -2272,23 +2290,23 @@
             const shortWallet = w => w ? w.slice(0, 6) + '...' + w.slice(-4) : '—';
 
             tbody.innerHTML = rows.map(p => {
-                const userDisplay = (p.username ? `@${p.username}` : p.firstName || '') + `<br><span style="color:#6c7883;font-size:11px;">${p.chatId}</span>`;
+                const userDisplay = (p.username ? `@${p.username}` : p.firstName || '') + `<br><span class="muted" style="font-size:11.5px;font-weight:450;">${p.chatId}</span>`;
                 const botDisplay = p.isOnNewBot
-                    ? '<span style="color: #4ade80;">New</span>'
-                    : '<span style="color: #8a96a0;">Old</span>';
+                    ? '<span class="badge badge-blue plain">New</span>'
+                    : '<span class="badge badge-gray plain">Old</span>';
                 return `<tr>
                     <td>${userDisplay}</td>
                     <td>${statusBadge(p.status)}</td>
                     <td>${botDisplay}</td>
-                    <td title="${p.wallet || ''}" style="font-family:monospace;font-size:12px;">${shortWallet(p.wallet)}</td>
+                    <td title="${p.wallet || ''}" class="mono">${shortWallet(p.wallet)}</td>
                     <td>${fmt(p.requestedAt)}</td>
                     <td>${fmt(p.paymentDate)}</td>
                     <td>${p.rnExpiresAt ? fmt(p.rnExpiresAt) : (p.expiresAt ? fmt(p.expiresAt) : '—')}</td>
                     <td>
-                        <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                            <button onclick="grantAccess(${p.chatId},false)" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;">Grant RN (30d)</button>
-                            <button onclick="grantAccess(${p.chatId},true)" class="btn btn-primary" style="padding:4px 8px;font-size:12px;">Grant RN4L</button>
-                            <button onclick="revokeAccess(${p.chatId})" class="btn btn-danger" style="padding:4px 8px;font-size:12px;">Revoke</button>
+                        <div class="row-actions">
+                            <button onclick="grantAccess(${p.chatId},false)" class="btn btn-secondary btn-sm">Grant RN (30d)</button>
+                            <button onclick="grantAccess(${p.chatId},true)" class="btn btn-primary btn-sm">Grant RN4L</button>
+                            <button onclick="revokeAccess(${p.chatId})" class="btn btn-danger btn-sm btn-push">Revoke</button>
                         </div>
                     </td>
                 </tr>`;
@@ -2325,12 +2343,12 @@
         const webEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         const webNum = n => Number(n || 0).toLocaleString();
         function webTable(cols, rows, empty) {
-            if (!rows.length) return '<div style="color:#8a96a0;font-size:13px;padding:8px 0;">' + (empty || 'Nothing yet') + '</div>';
-            return '<table style="width:100%;"><thead><tr>' + cols.map(c => '<th' + (c.r ? ' style="text-align:right"' : '') + '>' + c.h + '</th>').join('') + '</tr></thead><tbody>' +
-                rows.map(r => '<tr>' + r.map((v, i) => '<td' + (cols[i].r ? ' style="text-align:right"' : '') + '>' + v + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
+            if (!rows.length) return '<div class="empty" style="text-align:left;padding:8px 0;">' + (empty || 'Nothing yet') + '</div>';
+            return '<table style="width:100%;"><thead><tr>' + cols.map(c => '<th' + (c.r ? ' class="r"' : '') + '>' + c.h + '</th>').join('') + '</tr></thead><tbody>' +
+                rows.map(r => '<tr>' + r.map((v, i) => '<td' + (cols[i].r ? ' class="r"' : '') + '>' + v + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
         }
         function webKpi(label, value, sub) {
-            return '<div style="background:#0e1621;border:1px solid #2b5278;border-radius:8px;padding:12px 14px;"><div style="color:#8a96a0;font-size:12px;">' + label + '</div><div style="font-size:26px;font-weight:700;margin-top:2px;">' + value + '</div>' + (sub ? '<div style="color:#8a96a0;font-size:12px;margin-top:2px;">' + sub + '</div>' : '') + '</div>';
+            return '<div class="kpi"><div class="l">' + label + '</div><div class="v">' + value + '</div>' + (sub ? '<div class="s">' + sub + '</div>' : '') + '</div>';
         }
         const webFlag = c => '';   // Windows shows flag emoji as letters, so the two-letter country code is shown instead
         const webTime = t => { if (!t) return ''; const d = new Date(t.replace(' ', 'T') + 'Z'); return isNaN(d) ? t : d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); };
@@ -2346,9 +2364,9 @@
         const SECTION_NAMES = { speed: 'Speed section', compare: 'Comparison section', traders: 'Traders section', pricing: 'Pricing section', faq: 'FAQ' };
         const secName = s => SECTION_NAMES[s] || s;
         const webPct = (a, b) => (b > 0 ? Math.round(1000 * a / b) / 10 : 0) + '%';
-        const webSub = text => '<div style="color:#8a96a0;font-size:12px;margin:-2px 0 8px;">' + text + '</div>';
-        const webTwoCol = (a, b) => '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:22px;margin-top:14px;">' + a + b + '</div>';
-        const webBox = (title, html) => '<div><div class="settings-section-title" style="font-size:14px;">' + title + '</div>' + html + '</div>';
+        const webSub = text => '<div class="hint">' + text + '</div>';
+        const webTwoCol = (a, b) => '<div class="web-two">' + a + b + '</div>';
+        const webBox = (title, html) => '<div><div class="web-box-title">' + title + '</div>' + html + '</div>';
 
         // Section: the app pages (/feed, /manage)
         const WEB_EV = {
@@ -2362,7 +2380,7 @@
             f.events.forEach(e => { by[e.label] = e; });
             const n = l => (by[l] ? by[l].events : 0), v = l => (by[l] ? by[l].visitors : 0);
             const withPrefix = p => f.events.filter(e => e.label.indexOf(p) === 0);
-            if (!f.views && !a.manage.views) { box.innerHTML = '<div style="color:#8a96a0;font-size:13px;">No one has opened the Feed or Manage page in this period yet.</div>'; return; }
+            if (!f.views && !a.manage.views) { box.innerHTML = '<div class="empty">No one has opened the Feed or Manage page in this period yet.</div>'; return; }
             const opens = withPrefix('open:'), openTotal = opens.reduce((s, e) => s + e.events, 0);
             const tiers = [['demo', 'Not logged in (demo)'], ['free', 'Logged in, free or trial'], ['full', 'Logged in, paying']].map(t => [t[1], webNum(v('tier:' + t[0]))]);
             const kpis =
@@ -2375,7 +2393,7 @@
             const terms = opens.map(e => ['Opened in ' + e.label.slice(5), webNum(e.events), webNum(e.visitors)])
                 .concat(withPrefix('terminal:').map(e => ['Switched their default to ' + e.label.slice(9), webNum(e.events), webNum(e.visitors)]));
             box.innerHTML =
-                '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:6px;">' + kpis + '</div>' +
+                '<div class="kpi-grid">' + kpis + '</div>' +
                 webTwoCol(
                     webBox('Who opens the Feed', webSub('Feed page · people, by account type') + webTable([{ h: 'Account type' }, { h: 'People', r: 1 }], tiers)),
                     webBox('What they do on the Feed', webSub('Feed page · actions') + webTable([{ h: 'Action' }, { h: 'Times', r: 1 }, { h: 'People', r: 1 }], doing, 'Nothing yet'))) +
@@ -2404,8 +2422,8 @@
                     ' “Visitors” are people counted once per day.';
 
                 // 1. funnel
-                const step = (label, n, pct, w) => '<div style="display:grid;grid-template-columns:230px 1fr 160px;gap:10px;align-items:center;margin:6px 0;"><div style="font-size:13px;">' + label +
-                    '</div><div style="background:#0e1621;border-radius:4px;height:20px;"><div style="background:#2b7ad0;height:20px;border-radius:4px;width:' + Math.max(w, n > 0 ? 1.5 : 0) + '%;"></div></div><div style="font-size:13px;text-align:right;"><b>' + webNum(n) + '</b> <span style="color:#8a96a0;">' + pct + '</span></div></div>';
+                const step = (label, n, pct, w) => '<div class="funnel-row"><div class="fl">' + label +
+                    '</div><div class="fbar"><div style="width:' + Math.max(w, n > 0 ? 1.5 : 0) + '%;"></div></div><div class="fv"><b>' + webNum(n) + '</b> <span>' + pct + '</span></div></div>';
                 const top = Math.max(f.visitors, 1);
                 document.getElementById('webFunnel').innerHTML =
                     step('Visited the site', f.visitors, '', 100) +
@@ -2414,8 +2432,8 @@
                     step('Became paying', f.webPaid, f.startToPaidPct + ' of those who started', 100 * f.webPaid / top) +
                     '<div style="color:#8a96a0;font-size:12px;margin-top:6px;">Visitor to started: <b>' + f.visitorToStartPct + '%</b>. Bot starts that did not come from a website button: ' + webNum(d.allBotStarts - f.webStarts) + ' (found the bot another way).</div>';
                 const maxV = Math.max(1, ...d.series.map(x => x.visitors));
-                document.getElementById('webDaily').innerHTML = '<div style="display:flex;align-items:flex-end;gap:' + (d.series.length > 40 ? 2 : 6) + 'px;height:90px;border-bottom:1px solid #2b5278;padding-bottom:2px;">' +
-                    d.series.map(x => '<div title="' + x.day + ': ' + x.visitors + ' visitors, ' + x.clicks + ' clicks, ' + x.starts + ' starts" style="flex:1;min-width:2px;display:flex;flex-direction:column;justify-content:flex-end;align-items:stretch;height:100%;"><div style="background:#2b7ad0;height:' + (100 * x.visitors / maxV) + '%;min-height:' + (x.visitors ? 2 : 0) + 'px;border-radius:2px 2px 0 0;"></div></div>').join('') + '</div>' +
+                document.getElementById('webDaily').innerHTML = '<div class="spark" style="gap:' + (d.series.length > 40 ? 2 : 6) + 'px;">' +
+                    d.series.map(x => '<div title="' + x.day + ': ' + x.visitors + ' visitors, ' + x.clicks + ' clicks, ' + x.starts + ' starts" ><div style="height:' + (100 * x.visitors / maxV) + '%;min-height:' + (x.visitors ? 2 : 0) + 'px;"></div></div>').join('') + '</div>' +
                     '<div style="overflow-x:auto;margin-top:8px;">' + webTable(
                         [{ h: 'Day' }, { h: 'Visited', r: 1 }, { h: 'Page views', r: 1 }, { h: 'Clicked Telegram', r: 1 }, { h: 'Pressed Start', r: 1 }],
                         [...d.series].reverse().slice(0, 14).map(x => [x.day, webNum(x.visitors), webNum(x.views), webNum(x.clicks), webNum(x.starts)])) + '</div>';
@@ -2484,19 +2502,19 @@
 
                 tbody.innerHTML = data.configs.map(c => `
                     <tr id="config-row-${c.id}">
-                        <td style="font-family:monospace;font-size:13px;">${c.key}</td>
+                        <td class="mono">${c.key}</td>
                         <td>
                             <span id="config-val-${c.id}">${c.value || '<span style="color:#6c7883;">not set</span>'}</span>
                             <input id="config-input-${c.id}" type="text" value="${c.value || ''}"
-                                style="display:none;width:100%;padding:4px 8px;background:#0e1621;border:1px solid #2b5278;border-radius:4px;color:#e8e9ea;font-size:13px;">
+                                style="display:none;width:100%;">
                         </td>
                         <td style="color:#8a96a0;font-size:13px;">${c.description || '—'}</td>
                         <td style="font-size:12px;color:#6c7883;">${fmt(c.updatedAt)}</td>
                         <td>
-                            <div style="display:flex;gap:6px;">
-                                <button onclick="editConfig(${c.id},'${c.key}')" id="config-edit-btn-${c.id}" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;">Edit</button>
-                                <button onclick="saveConfig(${c.id},'${c.key}')" id="config-save-btn-${c.id}" class="btn btn-primary" style="display:none;padding:4px 8px;font-size:12px;">Save</button>
-                                <button onclick="cancelConfig(${c.id},'${c.value||''}')" id="config-cancel-btn-${c.id}" class="btn btn-secondary" style="display:none;padding:4px 8px;font-size:12px;">Cancel</button>
+                            <div class="row-actions">
+                                <button onclick="editConfig(${c.id},'${c.key}')" id="config-edit-btn-${c.id}" class="btn btn-secondary btn-sm">Edit</button>
+                                <button onclick="saveConfig(${c.id},'${c.key}')" id="config-save-btn-${c.id}" class="btn btn-primary btn-sm" style="display:none;">Save</button>
+                                <button onclick="cancelConfig(${c.id},'${c.value||''}')" id="config-cancel-btn-${c.id}" class="btn btn-secondary btn-sm" style="display:none;">Cancel</button>
                             </div>
                         </td>
                     </tr>`).join('');
@@ -2705,6 +2723,58 @@
             cbData.categorizer = { ...res.categorizer, running: true, phase: 'starting' };
             renderCategorizerStatus();
         }
+
+        // Phone layout for tables: each row becomes a small card, two columns of "LABEL / value", the labels read from the
+        // table's own header. Runs after every redraw of the page; it only adds classes and data-label attributes, the CSS
+        // (max-width 700px) does the rest, so the desktop look is not touched.
+        (function () {
+            // which column becomes the card's title line: the first of these that has something in it (default: the first column)
+            var LEAD = { usersTable: [1, 2, 0] };
+            function stackTables() {
+                document.querySelectorAll('table').forEach(function (t) {
+                    if (t.closest('#accChart')) return;
+                    var heads = Array.prototype.map.call(t.querySelectorAll('thead th'), function (h) { return h.textContent.trim(); });
+                    if (!heads.length) return;
+                    t.classList.add('m-stack');
+                    var lead = LEAD[t.id] || [0];
+                    t.querySelectorAll('tbody tr').forEach(function (tr) {
+                        if (tr.dataset.ms === String(tr.children.length)) return;
+                        tr.dataset.ms = String(tr.children.length);
+                        var plain = tr.children.length === heads.length, leadIdx = -1;
+                        if (plain) for (var k = 0; k < lead.length; k++) { var lt = tr.children[lead[k]].textContent.trim(); if (lt && !/^(—|-|–|N\/A|n\/a)$/.test(lt)) { leadIdx = lead[k]; break; } }
+                        Array.prototype.forEach.call(tr.children, function (td, i) {
+                            var txt = td.textContent.trim(), ctl = !!td.querySelector('button, select, input, textarea'), btns = td.querySelectorAll('button').length;
+                            td.setAttribute('data-label', plain && heads[i] && btns <= 1 ? heads[i] : '');
+                            td.classList.toggle('m-lead', i === leadIdx);
+                            td.classList.toggle('m-wide', btns > 1 || !!td.querySelector('input[type=text], textarea, select') || txt.length > 36);
+                            td.classList.toggle('m-empty', !ctl && !td.querySelector('img, svg') && /^(|—|-|–|N\/A|n\/a)$/.test(txt));
+                        });
+                    });
+                });
+            }
+            var pending = false;
+            function schedule() { if (pending) return; pending = true; requestAnimationFrame(function () { pending = false; stackTables(); }); }
+            new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });
+            schedule();
+        })();
+
+        // Tab bar: soft fades at the edges that still have tabs beyond them, and the tapped tab slides into view.
+        (function () {
+            var wrap = document.querySelector('.tabs-wrap'), bar = wrap && wrap.querySelector('.tabs');
+            if (!bar) return;
+            var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            function fade() {
+                wrap.classList.toggle('fade-l', bar.scrollLeft > 4);
+                wrap.classList.toggle('fade-r', bar.scrollLeft < bar.scrollWidth - bar.clientWidth - 4);
+            }
+            bar.addEventListener('scroll', fade, { passive: true });
+            window.addEventListener('resize', fade);
+            bar.addEventListener('click', function (e) {
+                var t = e.target.closest && e.target.closest('.tab');
+                if (t && t.scrollIntoView) t.scrollIntoView({ inline: 'center', block: 'nearest', behavior: calm ? 'auto' : 'smooth' });
+            });
+            fade();
+        })();
     </script>
 </body>
 </html>

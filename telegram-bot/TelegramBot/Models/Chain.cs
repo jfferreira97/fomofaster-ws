@@ -11,5 +11,6 @@ public enum Chain
     ARC,
     MEGAETH,
     HYPEREVM,
-    INK
+    INK,
+    ELYSIUM
 }

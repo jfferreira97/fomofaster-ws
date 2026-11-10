@@ -35,6 +35,10 @@ public static class ChainInfo
         // but its token had no DexScreener pair to read a slug from, so it is not added until there is something to confirm it with.
         [Chain.HYPEREVM]  = new(999,        "hyperevm",  ["hyperevm", "hyper"], AxiomChain: "hype"),
         [Chain.INK]       = new(57073,      "ink",       ["ink"],          AxiomChain: "ink"),
+        // Elysium: both feeds started sending it on 2026-11-09 (pump.fun chainId 99901 from 13:02 UTC, fomo networkId 99901 from 12:50 UTC), EVM addresses.
+        // The slug "elysium" is what DexScreener's token API returned for a 99901 token (VOID, 2026-11-09). Padre and Axiom support is
+        // unconfirmed: links stay off until someone checks the key in Axiom's chain selector.
+        [Chain.ELYSIUM]   = new(99901,      "elysium",   ["elysium"]),
     };
 
     private static readonly Dictionary<int, Chain> ByNetworkId =
