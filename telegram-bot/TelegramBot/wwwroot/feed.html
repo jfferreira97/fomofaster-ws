@@ -12,6 +12,7 @@
 <style>
 /* Flat tracker look: dense rows tinted by their side, a coloured stripe on the left, tabs on top, a table on desktop. */
 :root{
+  color-scheme:dark;   /* native bits (the terminal picker's list, number spinners) follow the dark page */
   --bg:#090b0f;--p:#0f1218;--p2:#141821;--line:#161b25;--tx:#e8ebf1;--mu:#808a9c;--fa:#586377;
   --buy:#2fd38a;--sell:#f0506e;--call:#e9ab43;--the:#5aa2ff;--fire:#f2c14e;--rep:#a98bf5;
   --s1:var(--p);--s2:var(--p2);--s3:#1c2530;--line2:#2a3243;--accent:var(--call);--accent-dim:#6b551f;--accent-soft:#e9ab431f;--r:7px;
@@ -72,8 +73,16 @@ input:focus,select:focus{border-color:var(--accent-dim)}
 .thead{display:none}
 
 /* ---------- list ---------- */
-#wrap{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;width:100%}
-#list{flex:1;min-height:0;width:100%;overflow-y:auto;overscroll-behavior:contain}
+#wrap{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;width:100%;position:relative}
+#list{flex:1;min-height:0;width:100%;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;overflow-anchor:none}   /* add() keeps a scrolled reader's place itself */
+#list::-webkit-scrollbar{display:none}
+/* Our own thin scrollbar, laid over the rows' right padding: no arrows, no track, hidden until the reader scrolls
+   (new alerts pushing the list do not show it), then fades out. It can be dragged while it shows. */
+.sbar{position:absolute;top:0;right:3px;width:5px;height:40px;border-radius:5px;background:rgba(232,235,241,.2);opacity:0;pointer-events:none;touch-action:none;
+  transition:opacity .45s ease,width .12s,right .12s,background-color .12s;will-change:transform,opacity}
+.sbar.show{opacity:1;pointer-events:auto;transition:opacity .1s,width .12s,right .12s,background-color .12s}
+.sbar.show:hover,.sbar.drag{width:7px;right:2px;background:rgba(232,235,241,.36)}
+.sbar[hidden]{display:none}
 /* every row carries a faint tint of its own colour, as the flat trackers do: green buys, red sells, amber calls... */
 .r{--c:var(--mu);position:relative;border-bottom:1px solid var(--line);cursor:pointer;background:color-mix(in srgb,var(--c) 4.5%,transparent);box-shadow:inset 3px 0 0 var(--c)}
 .r:hover{background:color-mix(in srgb,var(--c) 9%,transparent)}
@@ -114,26 +123,40 @@ a.nm:hover{text-decoration:underline}
 .tk .who{position:absolute;right:-5px;bottom:-5px;width:19px;height:19px;border:2px solid var(--bg);font-size:9px}
 .l1{display:flex;align-items:center;gap:7px;min-width:0}
 .l1 .sym{font-size:15px;line-height:1.15}
+/* the chain sits on the coin's line, as a small chip so it does not read as part of the market cap next to it */
+.l1 .ch,.c-tk .ch{flex:none;font:600 9.5px/1 var(--mono);letter-spacing:.05em;color:var(--mu);padding:3px 5px;border:1px solid var(--line2);border-radius:4px;white-space:nowrap}   /* at most 5 letters (CH_SHORT); the ticker gives way, never the chip */
 .l2{display:flex;align-items:center;gap:6px;margin-top:4px;font-size:12px;min-width:0;white-space:nowrap}
 .m{min-width:0}
 .v{display:flex;flex-direction:column;align-items:flex-end;text-align:right}
 .v .valbox{margin-bottom:9px}
 .v .valbox + .age{margin-top:2px}
 .v .age{margin-top:5px}
-.txt{grid-column:2 / 4;margin-top:8px;padding-left:9px;border-left:2px solid color-mix(in srgb,var(--c) 60%,transparent);font-size:13px;line-height:1.45;color:#b8c0ce;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+.txtw{grid-column:2 / 4;margin-top:8px;min-width:0}
+.txt{padding-left:9px;border-left:2px solid color-mix(in srgb,var(--c) 60%,transparent);font-size:13px;line-height:1.45;color:#b8c0ce;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+
+/* Calls, theses, replies and reposts are shown whole by default. The top bar's fold button (body.fold) cuts them all
+   back to the short preview, and back again. Phone: .txt.long / .txt.short. Desktop: a text too long for its cell is
+   shown whole under the row (.drop). */
+.ctx{font:500 11px var(--mono);color:var(--mu);margin-bottom:5px}
+.txt.long,.drop .full{display:block;-webkit-line-clamp:none;line-clamp:none;overflow:visible;white-space:pre-wrap;line-height:1.5;color:#c9d0dc}
+.drop .full{padding-left:9px;border-left:2px solid color-mix(in srgb,var(--c) 60%,transparent);font-size:13px;word-break:break-word}
+.txt.short,.fold .txtw .ctx,.fold .txt.long,.drop{display:none}
+.fold .txt.short{display:-webkit-box}
 
 .empty{padding:40px 24px;text-align:center;color:var(--mu);font-size:13px;line-height:1.6}
 .empty b{display:block;color:var(--tx);font-size:14px;margin-bottom:4px}
 
 @media(max-width:560px){.brand span,.openin span{display:none}.top{gap:8px}.mlink{padding:6px 9px}}
-@media(max-width:440px){.tier{display:none}}
+@media(max-width:440px){.tier{display:none}.tab{padding:9px 7px 10px;gap:5px}.l1{gap:5px}}   /* the five tabs still fit a 390px phone */
+@media(max-width:380px){.tabs{padding:0 5px}.tab{padding:9px 5px 10px;gap:4px}                 /* ...and a 360px one, */
+  .top{gap:5px;padding:10px 8px 8px}.mlink{padding:6px 7px}.openin select{padding:5px 4px}}    /* top bar included */
 
 /* ---------- desktop: one dense line per row, with a header, like a table ---------- */
 @media (min-width:760px){
   body{align-items:center}
   .top,.tabs,.banner,#filters,.thead,#wrap{width:100%;max-width:1040px}
   .mob{display:none}
-  .thead,.dsk{display:grid;grid-template-columns:54px 190px 230px minmax(0,1fr) 112px 92px;column-gap:14px;align-items:center;padding:0 22px 0 14px}
+  .thead,.dsk{display:grid;grid-template-columns:54px 190px 252px minmax(0,1fr) 112px 92px;column-gap:14px;align-items:center;padding:0 22px 0 14px}
   .thead{flex:none;height:30px;border-bottom:1px solid var(--line);font:600 11px var(--sans);color:var(--fa);letter-spacing:.02em}
   .thead span:nth-child(5),.thead span:nth-child(6){text-align:right}
   .dsk{height:40px}
@@ -143,7 +166,13 @@ a.nm:hover{text-decoration:underline}
   .dsk .c-tk{display:flex;align-items:center;gap:8px;min-width:0}
   .dsk .c-tk .coin{width:24px;height:24px;border-radius:6px;font-size:11px;flex:none}
   .dsk .c-tk .sym{font-size:13.5px}
-  .dsk .c-tx{font-size:13px;color:#aab3c2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .dsk .c-tx{display:flex;align-items:center;min-width:0}
+  .dsk .c-tx .q{font-size:13px;color:#aab3c2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  /* a text that does not fit its cell is shown whole under the row, lined up with the Trader column (not when folded) */
+  .r.more .drop{display:block;padding:2px 22px 12px 82px}
+  .r.more .dsk .c-tx .q{visibility:hidden}
+  .fold .r.more .drop{display:none}
+  .fold .r.more .dsk .c-tx .q{visibility:visible}
   .dsk .c-am{display:flex;justify-content:flex-end}
   .dsk .c-am .amt{font-size:13.5px}
   .dsk .c-mc{text-align:right;font:500 12.5px var(--mono);color:#c9d0dc}
@@ -163,6 +192,7 @@ a.nm:hover{text-decoration:underline}
   </select></label>
   <button class="ibtn" id="bSound" title="Sound"><svg viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
   <button class="ibtn" id="bNotif" title="Desktop notifications"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></button>
+  <button class="ibtn" id="bFold" title="Fold calls and theses"><svg viewBox="0 0 24 24"></svg></button>
   <button class="ibtn" id="bFilter" title="Filters"><svg viewBox="0 0 24 24"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg></button>
 </div>
 <div class="tabs" id="tabs"></div>
@@ -176,7 +206,7 @@ a.nm:hover{text-decoration:underline}
   </div>
   <div class="row"><span class="lbl">Muted traders (click to unmute)</span><span id="muted" class="row"></span></div>
 </section>
-<div class="thead"><span>Age</span><span>Trader</span><span>Token</span><span>Call</span><span>Amount</span><span>MC</span></div>
+<div class="thead"><span>Age</span><span>Trader</span><span>Token</span><span>Call/Thesis</span><span>Amount</span><span>MC</span></div>
 <div id="wrap"><main id="list"></main></div>
 
 <script>
@@ -204,7 +234,9 @@ a.nm:hover{text-decoration:underline}
   };
 
   // The tabs are the type filter. typeKey groups the alert types for the tabs and for the sound.
-  const TYPES = { buy: ['Buys', ['Buy']], sell: ['Sells', ['Sell']], call: ['Calls', ['Callout', 'Thesis', 'Repost', 'Reply']], fire: ['Trending', ['CUSTOM_Trending']] };
+  // "Calls/Thesis": FOMO only sends theses; pump.fun sends calls, and reposts and replies of calls, which land here too.
+  const TYPES = { buy: ['Buys', ['Buy']], sell: ['Sells', ['Sell']], call: ['Calls/Thesis', ['Callout', 'Thesis', 'Repost', 'Reply']], fire: ['Trending', ['CUSTOM_Trending']] };
+  const TAB_TIP = { call: 'pump.fun calls, with their reposts and replies, and FOMO theses' };
   const typeKey = (t) => Object.keys(TYPES).find((k) => TYPES[k][1].includes(t)) || 'other';
   const TABS = [['all', 'All'], ...Object.keys(TYPES).map((k) => [k, TYPES[k][0]])];
   const CALLISH = new Set(['Callout', 'Thesis', 'Repost', 'Reply']);
@@ -216,12 +248,13 @@ a.nm:hover{text-decoration:underline}
     sound: store.get('sound', false), notif: store.get('notif', false), term: store.get('term', 'axiom'),
     offPlat: new Set(store.get('offPlat', [])), offChain: new Set(store.get('offChain', [])),
     minMc: store.get('minMc', 0), minUsd: store.get('minUsd', 0),
-    muted: new Set(store.get('muted', [])), chains: new Set(store.get('chains', [])), tier: 'demo', tab: 'all'
+    muted: new Set(store.get('muted', [])), chains: new Set(store.get('chains', [])), tier: 'demo', tab: 'all',
+    fold: store.get('fold', false)   // calls / theses shown whole unless the reader folded them
   };
   const save = () => {
     store.set('sound', st.sound); store.set('notif', st.notif); store.set('term', st.term);
     store.set('offPlat', [...st.offPlat]); store.set('offChain', [...st.offChain]);
-    store.set('minMc', st.minMc); store.set('minUsd', st.minUsd); store.set('muted', [...st.muted]); store.set('chains', [...st.chains]);
+    store.set('minMc', st.minMc); store.set('minUsd', st.minUsd); store.set('muted', [...st.muted]); store.set('chains', [...st.chains]); store.set('fold', st.fold);
   };
 
   const money = (n) => n == null ? null : n >= 1e9 ? '$' + (n / 1e9).toFixed(2) + 'B' : n >= 1e6 ? '$' + (n / 1e6).toFixed(2) + 'M' : n >= 1e3 ? '$' + (n / 1e3).toFixed(n >= 1e5 ? 0 : 1) + 'K' : '$' + Math.round(n);
@@ -269,6 +302,18 @@ a.nm:hover{text-decoration:underline}
     const m = a.msg || '', parts = m.split(/\n\s*\n/);
     if (parts.length > 1) { const rest = parts.slice(1).filter((p) => !/^Current \$/.test(p.trim())); if (rest.length) return rest.join(' ').replace(/\s+/g, ' ').trim(); }
     return m.replace(/^.*?:\s*\([^)]*MC\)\s*/s, '').replace(/\s+/g, ' ').trim() || m;
+  }
+  // The same words for the drop-down, with the caller's own line breaks kept.
+  function fullQuote(a) {
+    const m = a.msg || '', parts = m.split(/\n\s*\n/);
+    if (parts.length > 1) { const rest = parts.slice(1).filter((p) => !/^Current \$/.test(p.trim())); if (rest.length) return rest.join('\n\n').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim(); }
+    return quote(a);
+  }
+  // What a reply or repost answers: "TICKER ($x MC) 💬 bob replied on alice's callout:" -> "replied on alice's callout".
+  function context(a) {
+    if (a.type !== 'Reply' && a.type !== 'Repost') return '';
+    const r = /\b(replied on|reposted)\s+(.+?)\s*:?\s*$/.exec(((a.msg || '').split(/\n\s*\n/)[0] || '').trim());
+    return r ? r[1] + ' ' + r[2] : '';
   }
   function trendText(a) {
     const parts = (a.msg || '').split('\n'), m = /\((\d+) traders\)/.exec(parts[0] || '');
@@ -320,6 +365,72 @@ a.nm:hover{text-decoration:underline}
   };
   const textOf = (a) => CALLISH.has(a.type) ? quote(a) : a.type === 'CUSTOM_Trending' ? trendText(a) : (a.type === 'Buy' || a.type === 'Sell') ? '' : (a.msg || '');
   const ageEl = (a) => { const x = el('div', 'age ago', ago(a.ts)); x.dataset.ts = a.ts; return x; };
+  // The chain chip, next to the coin. Long chain names are shortened so the ticker keeps its room; the full name is the tooltip.
+  const CH_SHORT = { ROBINHOOD: 'HOOD', HYPEREVM: 'HYPE', MEGAETH: 'MEGA', ELYSIUM: 'ELYS' };
+  const chainEl = (a) => { const c = el('span', 'ch', CH_SHORT[a.chain] || a.chain); c.title = a.chain; return c; };
+
+  /* ---------- once per frame: which call rows do not fit their desktop cell (shown whole under the row), and the scrollbar's size ---------- */
+  const fitQ = new Set(); let raf = 0;
+  function frame() { if (!raf) raf = requestAnimationFrame(onFrame); }
+  function overflows(r) {   // true / false, or null when the desktop cell is not laid out (phone layout): then left as it is
+    if (r._ctx) return true;   // a reply / repost always has more to show: what it answers
+    const q = r.querySelector('.dsk .q');
+    return q && q.clientWidth > 0 ? q.scrollWidth > q.clientWidth + 1 : null;   // .q keeps its layout (visibility) when hidden
+  }
+  function onFrame() {
+    raf = 0;
+    const rs = [...fitQ].filter((r) => r.isConnected); fitQ.clear();
+    const res = rs.map(overflows);                                                // all reads first...
+    rs.forEach((r, i) => { if (res[i] != null) r.classList.toggle('more', res[i]); });   // ...then the writes
+    placeBar();
+  }
+  // Re-measure every shown call row: after a resize, and once the web fonts arrive (the first pass may use the fallback font).
+  const refit = () => { list.querySelectorAll('.r').forEach((r) => { if (r._fit) fitQ.add(r); }); frame(); };
+  window.addEventListener('resize', refit);
+  if (document.fonts) { document.fonts.ready.then(refit).catch(() => {}); document.fonts.addEventListener?.('loadingdone', refit); }
+
+  /* ---------- the scrollbar: ours, thin, shown only while the reader scrolls ---------- */
+  const bar = el('div', 'sbar'); bar.hidden = true; $('wrap').append(bar);
+  let userAt = -1e9, hideT = 0, dragging = false, hovering = false;
+  function placeBar() {
+    const ch = list.clientHeight, sh = list.scrollHeight;
+    if (!ch || sh <= ch + 1) { bar.hidden = true; bar.classList.remove('show'); return; }
+    bar.hidden = false;
+    const h = Math.max(36, Math.round(ch * ch / sh)), y = (ch - h) * Math.min(1, Math.max(0, list.scrollTop / (sh - ch)));
+    bar.style.height = h + 'px'; bar.style.transform = 'translateY(' + y + 'px)';
+  }
+  function showBar() {
+    if (bar.hidden) return;
+    bar.classList.add('show'); clearTimeout(hideT);
+    hideT = setTimeout(function hide() { if (dragging || hovering) { hideT = setTimeout(hide, 500); return; } bar.classList.remove('show'); }, 1100);
+  }
+  // A scroll only counts as the reader's when it follows their own input (a wheel, a finger moving, a scroll key);
+  // the list moving for new alerts, a tab change or a tap does not show the bar.
+  const userInput = () => { userAt = performance.now(); };
+  for (const t of ['wheel', 'touchmove']) list.addEventListener(t, userInput, { passive: true });
+  const SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ']);
+  document.addEventListener('keydown', (e) => {
+    const t = e.target;
+    if (!SCROLL_KEYS.has(e.key) || /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName) || (e.key === ' ' && t.closest?.('button,a'))) return;
+    userInput();
+  });
+  list.addEventListener('scroll', () => { placeBar(); if (dragging || performance.now() - userAt < 1200) showBar(); }, { passive: true });
+  // The bar sits beside the list, not in it: a wheel over it is passed on to the list.
+  bar.addEventListener('wheel', (e) => { e.preventDefault(); userInput(); list.scrollTop += e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? list.clientHeight : 1); }, { passive: false });
+  bar.addEventListener('pointerenter', () => { hovering = true; });
+  bar.addEventListener('pointerleave', () => { hovering = false; });
+  bar.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault(); dragging = true; bar.classList.add('drag'); showBar();
+    try { bar.setPointerCapture(e.pointerId); } catch {}
+    let ly = e.clientY;
+    const move = (ev) => {   // relative steps (rows arriving mid-drag do not make the list jump), advanced only by what the list really moved
+      const k = (list.scrollHeight - list.clientHeight) / Math.max(1, list.clientHeight - bar.offsetHeight);
+      const t0 = list.scrollTop; list.scrollTop = t0 + (ev.clientY - ly) * k; ly += (list.scrollTop - t0) / k;
+    };
+    const end = () => { dragging = false; bar.classList.remove('drag'); bar.removeEventListener('pointermove', move); bar.removeEventListener('lostpointercapture', end); bar.removeEventListener('pointerup', end); showBar(); };
+    bar.addEventListener('pointermove', move); bar.addEventListener('lostpointercapture', end); bar.addEventListener('pointerup', end);
+  });
 
   function build(a, isNew) {
     const r = el('div', 'r ' + cls(a.type) + (isNew ? ' new' : '')); r.dataset.id = a.id;
@@ -329,26 +440,45 @@ a.nm:hover{text-decoration:underline}
     const mob = el('div', 'mob'), tk = el('div', 'tk'); tk.append(coinEl(a)); const w = whoEl(a); if (w) tk.append(w);
     const m = el('div', 'm'), l1 = el('div', 'l1'), l2 = el('div', 'l2');
     l1.append(el('span', 'tag', TAG[a.type] || a.type.toLowerCase()), symEl(a));
+    if (a.chain) l1.append(chainEl(a));    // next to the coin, not on the trader's line
     if (a.mc != null) l1.append(el('span', 'mc', money(a.mc)));
     const cp = copyEl(a); if (cp) l1.append(cp);
     if (a.type !== 'CUSTOM_Trending') l2.append(nameEl(a), el('span', 'pl ' + (a.platform === 'pump' ? 'pump' : 'fomo'), a.platform === 'pump' ? 'PUMP' : 'FOMO'));
-    if (a.chain) l2.append(el('span', 'ch', a.chain));
     const mu1 = muteEl(a); if (mu1) l2.append(mu1);
     m.append(l1, l2);
     const v = el('div', 'v'), am = amountEl(a); if (am) v.append(am); v.append(ageEl(a));
-    mob.append(tk, m, v); if (txt) mob.append(el('div', 'txt', txt));
+    mob.append(tk, m, v);
+    // A call / thesis / reply / repost is shown whole (with what it answers), or as the 2-line preview when folded.
+    const isCall = CALLISH.has(a.type) && !!txt, ctx = isCall ? context(a) : '', full = isCall ? fullQuote(a) : '';
+    if (txt) {
+      const tw = el('div', 'txtw');
+      if (isCall) { if (ctx) tw.append(el('div', 'ctx', '↳ ' + ctx)); tw.append(el('div', 'txt long', full), el('div', 'txt short', txt)); }
+      else tw.append(el('div', 'txt', txt));
+      mob.append(tw);
+    }
 
     // desktop: age | trader | token | call text | amount | mc
     const dsk = el('div', 'dsk');
     const cAge = el('div', 'c-age ago', ago(a.ts)); cAge.dataset.ts = a.ts;
     const cTr = el('div', 'c-tr'); const w2 = whoEl(a); if (w2) cTr.append(w2); cTr.append(nameEl(a)); const mu2 = muteEl(a); if (mu2) cTr.append(mu2);
-    const cTk = el('div', 'c-tk'); cTk.append(coinEl(a), el('span', 'tag', TAG[a.type] || a.type.toLowerCase()), symEl(a)); const cp2 = copyEl(a); if (cp2) cTk.append(cp2);
-    const cTx = el('div', 'c-tx', txt), cAm = el('div', 'c-am'); const am2 = amountEl(a); if (am2) cAm.append(am2);
+    const cTk = el('div', 'c-tk'); cTk.append(coinEl(a), el('span', 'tag', TAG[a.type] || a.type.toLowerCase()), symEl(a)); if (a.chain) cTk.append(chainEl(a)); const cp2 = copyEl(a); if (cp2) cTk.append(cp2);
+    const cTx = el('div', 'c-tx'); cTx.append(el('span', 'q', txt));
+    const cAm = el('div', 'c-am'); const am2 = amountEl(a); if (am2) cAm.append(am2);
     const cMc = el('div', 'c-mc', a.mc != null ? money(a.mc) : '');
     dsk.append(cAge, cTr, cTk, cTx, cAm, cMc);
 
     r.append(mob, dsk);
-    r.addEventListener('click', () => { const u = openUrl(a); if (u) { track('open:' + st.term, true); window.open(u, '_blank', 'noopener,noreferrer'); } });
+    if (isCall) {   // desktop: the whole text under the row when it does not fit its cell (the row gets "more")
+      const d = el('div', 'drop');
+      if (ctx) d.append(el('div', 'ctx', '↳ ' + ctx));
+      d.append(el('div', 'full', full));
+      r.append(d);
+      r._fit = true; if (ctx) r._ctx = true;
+    }
+    r.addEventListener('click', () => {
+      const s = window.getSelection?.(); if (s && !s.isCollapsed && r.contains(s.anchorNode)) return;   // selecting text to copy it is not a click on the coin
+      const u = openUrl(a); if (u) { track('open:' + st.term, true); window.open(u, '_blank', 'noopener,noreferrer'); }
+    });
     return r;
   }
 
@@ -356,7 +486,7 @@ a.nm:hover{text-decoration:underline}
     const box = $('tabs'); box.replaceChildren();
     for (const [id, label] of TABS) {
       const n = all.filter((a) => pass(a) && inTab(a, id)).length;
-      const b = el('button', 'tab' + (id === st.tab ? ' on' : ''), label); b.append(el('span', 'n', String(n)));
+      const b = el('button', 'tab' + (id === st.tab ? ' on' : ''), label); b.append(el('span', 'n', String(n))); if (TAB_TIP[id]) b.title = TAB_TIP[id];
       b.addEventListener('click', () => { st.tab = id; track('tab:' + id); renderTabs(); rerender(); }); box.append(b);
     }
   }
@@ -376,8 +506,13 @@ a.nm:hover{text-decoration:underline}
   }
   function rerender() {
     list.replaceChildren();
-    for (let i = all.length - 1; i >= 0; i--) { const a = all[i]; if (pass(a) && inTab(a, st.tab)) list.append(nodes.get(a.id) || build(a, false)); }   // newest on top
-    list.scrollTop = 0; toggleEmpty();
+    // newest on top, at most MAX rows (the history in `all` grows all day; a tab click must not rebuild all of it)
+    for (let i = all.length - 1, k = 0; i >= 0 && k < MAX; i--) {
+      const a = all[i]; if (!pass(a) || !inTab(a, st.tab)) continue;
+      let n = nodes.get(a.id); if (!n) { n = build(a, false); nodes.set(a.id, n); }
+      list.append(n); k++;
+    }
+    list.scrollTop = 0; toggleEmpty(); refit();
   }
   function add(a, live) {
     if (seen.has(a.id)) return; seen.add(a.id);
@@ -391,7 +526,9 @@ a.nm:hover{text-decoration:underline}
     const before = list.scrollHeight, shifted = list.scrollTop > 4;
     list.prepend(n);
     if (shifted) list.scrollTop += list.scrollHeight - before;     // a reader scrolled down keeps their place
-    const rs = rows(); for (let i = rs.length - 1; i >= MAX; i--) { nodes.delete(+rs[i].dataset.id); rs[i].remove(); }
+    const rs = rows(); for (let i = rs.length - 1; i >= MAX; i--) { nodes.delete(+rs[i].dataset.id); fitQ.delete(rs[i]); rs[i].remove(); }
+    if (n._fit) fitQ.add(n);
+    frame();   // the scrollbar's size follows the list, without showing it
     if (live) { ping(typeKey(a.type)); desktop(a); }
   }
   setInterval(() => list.querySelectorAll('.ago').forEach((x) => { x.textContent = ago(+x.dataset.ts); }), 1000);
@@ -444,7 +581,15 @@ a.nm:hover{text-decoration:underline}
     if (!st.muted.size) m.append(el('span', 'sub', 'none'));
     for (const t of st.muted) { const b = el('button', 'chip on', t + ' ✕'); b.addEventListener('click', () => { st.muted.delete(t); save(); renderMuted(); renderTabs(); rerender(); }); m.append(b); }
   }
-  const syncButtons = () => { $('bSound').classList.toggle('on', st.sound); $('bNotif').classList.toggle('on', st.notif); };
+  // One button folds every call / thesis to its 2-line preview, or shows them all whole again (the default).
+  const FOLD_ICON = '<path d="m7 20 5-5 5 5"/><path d="m7 4 5 5 5-5"/>', UNFOLD_ICON = '<path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/>';
+  const syncFold = () => {
+    document.body.classList.toggle('fold', st.fold);
+    const b = $('bFold'); b.querySelector('svg').innerHTML = st.fold ? UNFOLD_ICON : FOLD_ICON;
+    b.title = st.fold ? 'Show calls and theses in full' : 'Fold calls and theses'; b.setAttribute('aria-label', b.title); b.setAttribute('aria-pressed', String(st.fold));
+  };
+  const syncButtons = () => { $('bSound').classList.toggle('on', st.sound); $('bNotif').classList.toggle('on', st.notif); syncFold(); };
+  $('bFold').addEventListener('click', () => { st.fold = !st.fold; track('fold:' + (st.fold ? 'on' : 'off')); save(); syncFold(); frame(); });
 
   $('bFilter').addEventListener('click', () => { track('filters:open'); $('filters').classList.toggle('open'); $('bFilter').classList.toggle('on'); });
   $('bSound').addEventListener('click', () => { st.sound = !st.sound; track('sound:' + (st.sound ? 'on' : 'off')); if (st.sound) ping('buy'); save(); syncButtons(); });
