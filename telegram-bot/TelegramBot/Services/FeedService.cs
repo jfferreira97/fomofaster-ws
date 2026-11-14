@@ -41,7 +41,11 @@ public class FeedService
     // Pictures for the anonymous preview go through us: the real URLs give things away (FOMO coin image URLs contain the
     // contract address, pump profile image URLs contain the trader's user id), so the browser only ever sees an opaque id.
     private byte[] _imgSecret = System.Security.Cryptography.RandomNumberGenerator.GetBytes(32);
-    private readonly ConcurrentDictionary<string, string> _imgMap = new();
+    // id -> the picture's URL, a spare URL tried when the first fails, and when the id was last handed out (for trimming).
+    private readonly ConcurrentDictionary<string, (string Url, string? Alt, long Seq)> _imgMap = new();
+    private long _imgSeq;
+    private readonly object _imgTrimLock = new();
+    private const int ImgMapMax = 20_000;
     private readonly ConcurrentDictionary<string, (byte[] Data, string Type, DateTime At)> _imgCache = new();
     private readonly SemaphoreSlim _imgGate = new(6);
     private const int MaxImageBytes = 1_500_000;
@@ -296,15 +300,27 @@ public class FeedService
         catch (JsonException) { return null; }
     }
 
-    // Opaque, stable id for an upstream picture; the id -> URL map lives only here.
-    private string? ProxyUrl(string? url)
+    // Opaque, stable id for an upstream picture; the id -> URL map lives only here. `alt` is tried when `url` fails.
+    private string? ProxyUrl(string? url, string? alt = null)
     {
         if (url is null) return null;
         var hash = System.Security.Cryptography.HMACSHA256.HashData(_imgSecret, System.Text.Encoding.UTF8.GetBytes(url));
         var id = Convert.ToBase64String(hash, 0, 12).Replace('+', '-').Replace('/', '_');
-        if (_imgMap.Count > 6000) _imgMap.Clear();
-        _imgMap[id] = url;
+        _imgMap[id] = (url, alt == url ? null : alt, Interlocked.Increment(ref _imgSeq));
+        if (_imgMap.Count > ImgMapMax) TrimImgMap();
         return "/api/feed/img/" + id;
+    }
+
+    // Forgets the ids handed out longest ago, a fifth at a time. It used to clear the whole map at 6000, which broke the picture of
+    // every row already on people's screens (their ids were gone: a 404 and the "?" tile) until that coin alerted again.
+    private void TrimImgMap()
+    {
+        lock (_imgTrimLock)
+        {
+            if (_imgMap.Count <= ImgMapMax) return;
+            foreach (var k in _imgMap.OrderBy(x => x.Value.Seq).Take(_imgMap.Count - ImgMapMax + ImgMapMax / 5).Select(x => x.Key).ToList())
+                _imgMap.TryRemove(k, out _);
+        }
     }
 
     private static bool ImageHostOk(Uri u) =>
@@ -320,7 +336,7 @@ public class FeedService
     // be on the allow-list, redirects are followed by hand and re-checked, and only small real images are returned.
     public async Task<(byte[] Data, string Type)?> GetImageAsync(string id)
     {
-        if (!_imgMap.TryGetValue(id, out var url)) return null;
+        if (!_imgMap.TryGetValue(id, out var entry)) return null;
         if (_imgCache.TryGetValue(id, out var hit) && DateTime.UtcNow - hit.At < (hit.Data.Length == 0 ? TimeSpan.FromMinutes(2) : TimeSpan.FromHours(6)))
             return hit.Data.Length == 0 ? null : (hit.Data, hit.Type);
 
@@ -328,8 +344,13 @@ public class FeedService
         try
         {
             (byte[] Data, string Type)? got = null;
-            try { got = await FetchImageAsync(url); }
+            try { got = await FetchImageAsync(entry.Url); }
             catch (Exception ex) { _logger.LogDebug(ex, "Feed picture fetch failed"); }
+            if (got is null && entry.Alt is { } alt)   // the spare (pump.fun's own picture, or the alert's own link)
+            {
+                try { got = await FetchImageAsync(alt); }
+                catch (Exception ex) { _logger.LogDebug(ex, "Feed picture spare fetch failed"); }
+            }
             if (_imgCache.Count > 150) foreach (var k in _imgCache.OrderBy(x => x.Value.At).Take(50).Select(x => x.Key).ToList()) _imgCache.TryRemove(k, out _);
             _imgCache[id] = got is { } g ? (g.Data, g.Type, DateTime.UtcNow) : (Array.Empty<byte>(), "", DateTime.UtcNow);
             return got;
@@ -376,12 +397,23 @@ public class FeedService
     private static string? SafeImage(string? url)
     {
         if (string.IsNullOrWhiteSpace(url) || url.Length > 500) return null;
-        if (BareCid.Match(url.Trim()) is { Success: true } cid) url = "https://ipfs.io/ipfs/" + cid.Groups[1].Value;   // some launchpads send the bare CID
+        url = url.Trim();
+        if (BareCid.Match(url) is { Success: true } cid) url = IpfsGateway + cid.Groups[1].Value;   // some launchpads send the bare CID
+        else if (DeadIpfsPath.Match(url) is { Success: true } p) url = IpfsGateway + p.Groups[1].Value;
+        else if (DeadIpfsSubdomain.Match(url) is { Success: true } s) url = IpfsGateway + s.Groups[1].Value + s.Groups[2].Value;
         if (!Uri.TryCreate(url, UriKind.Absolute, out var u) || u.Scheme != Uri.UriSchemeHttps) return null;
         return HostAllowed(u.Host) ? u.AbsoluteUri : null;
     }
 
     private static readonly Regex BareCid = new(@"^(?:ipfs://(?:ipfs/)?)?(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[a-z0-9]{50,})$", RegexOptions.Compiled);
+    // The public IPFS gateways the alerts link to now refuse us (ipfs.io, dweb.link, w3s.link, nftstorage.link: 403), are gone
+    // (cf-ipfs.com, cloudflare-ipfs.com: no DNS; fast-ipfs.com: 404) or take 4-6 s (gateway.pinata.cloud), checked 2026-11-14.
+    // The same file comes through pump.fun's own Pinata gateway, which answered for every CID tried, pump.fun or not.
+    private const string IpfsGateway = "https://pump.mypinata.cloud/ipfs/";
+    private static readonly Regex DeadIpfsPath = new(@"^https://(?:ipfs\.io|dweb\.link|w3s\.link|nftstorage\.link|cf-ipfs\.com|cloudflare-ipfs\.com|fast-ipfs\.com|gateway\.pinata\.cloud)/ipfs/(.+)$",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex DeadIpfsSubdomain = new(@"^https://([a-z0-9]{40,})\.ipfs\.(?:dweb\.link|w3s\.link|nftstorage\.link|cf-ipfs\.com)(/[^?#]*)?$",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     // The picture DexScreener itself shows for a token: the last resort when the alert carried none (or one we do not trust).
     // pump.fun's own image host knows every coin it lists on any chain (an unknown mint gets its generic placeholder), so for the pump
@@ -422,9 +454,13 @@ public class FeedService
         // feeds the coin is hidden, and its image would give it away. The trader's picture is
         // not secret (the name is shown there too), with the intel file as the fallback for
         // FOMO traders whose live events carry none.
-        var coinImg = SafeImage(tokenImage)
-            ?? (!string.IsNullOrEmpty(ca) && _tokenImages.TryGetValue(ca, out var known) ? known : null)
-            ?? FallbackImage(chain, ca, pump: !isFomo);
+        // pump.fun alerts take pump.fun's own picture first: it is always there (its links to IPFS often are not) and it is
+        // a small resized copy (~17 KB against 90-150 KB originals). The alert's own picture is the spare, and the other way round.
+        var ownImg = SafeImage(tokenImage)
+            ?? (!string.IsNullOrEmpty(ca) && _tokenImages.TryGetValue(ca, out var known) ? known : null);
+        var platformImg = FallbackImage(chain, ca, pump: !isFomo);
+        var coinImg = !isFomo && platformImg != null ? platformImg : ownImg ?? platformImg;
+        var coinAlt = coinImg == platformImg ? ownImg : platformImg;
         var faceImg = SafeImage(traderImage)
             ?? (string.IsNullOrEmpty(n.Trader) ? null : SafeImage(_intel.Get(n.Platform, n.Trader)?.Avatar));
 
@@ -463,7 +499,7 @@ public class FeedService
             id, ts, type, platform = isFomo ? "fomo" : "pump", chain = chain?.ToString(),
             trader = n.Trader, profile, ticker = (string?)null, ca = (string?)null,
             mc, usd = n.Type is NotificationType.Buy or NotificationType.Sell ? (double?)null : usd, msg = freeMsg, links = (object?)null, locked = true,
-            img = ProxyUrl(coinImg), av = ProxyUrl(faceImg)
+            img = ProxyUrl(coinImg, coinAlt), av = ProxyUrl(faceImg)
         };
 
         return new Entry(id, ts, recipients, JsonSerializer.Serialize(fullObj, Json), JsonSerializer.Serialize(ratedObj, Json), JsonSerializer.Serialize(freeObj, Json));
