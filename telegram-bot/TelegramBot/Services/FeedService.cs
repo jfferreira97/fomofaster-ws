@@ -456,12 +456,13 @@ public class FeedService
         if (!string.IsNullOrEmpty(n.Ticker))
             freeMsg = Regex.Replace(freeMsg, @"(?<![A-Za-z0-9])" + Regex.Escape(n.Ticker) + @"(?![A-Za-z0-9])", "coin", RegexOptions.IgnoreCase);
         freeMsg = Regex.Replace(freeMsg, @"(?<=bought )\$[\d,]+\.?\d*", "****");
+        freeMsg = Regex.Replace(freeMsg, @"(?<=sold )\$[\d,]+\.?\d*", "****");   // the feed hides the size of sells too (the Telegram free tier still shows it)
 
         var freeObj = new
         {
             id, ts, type, platform = isFomo ? "fomo" : "pump", chain = chain?.ToString(),
             trader = n.Trader, profile, ticker = (string?)null, ca = (string?)null,
-            mc, usd = n.Type == NotificationType.Buy ? (double?)null : usd, msg = freeMsg, links = (object?)null, locked = true,
+            mc, usd = n.Type is NotificationType.Buy or NotificationType.Sell ? (double?)null : usd, msg = freeMsg, links = (object?)null, locked = true,
             img = ProxyUrl(coinImg), av = ProxyUrl(faceImg)
         };
 

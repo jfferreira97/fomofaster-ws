@@ -159,7 +159,7 @@ public class TelegramService : ITelegramService
         }
     }
 
-    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, string? contractAddress = null, Chain? chain = null, string? traderHandle = null, string? ticker = null, double? marketCap = null, NotificationType notificationType = NotificationType.Unknown, string? fomoWsTradeId = null, Platform platform = Platform.Fomo, double? usdAmount = null, string? tokenImage = null, string? traderImage = null, AlertTrace? trace = null)
+    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, string? contractAddress = null, Chain? chain = null, string? traderHandle = null, string? ticker = null, double? marketCap = null, NotificationType notificationType = NotificationType.Unknown, string? fomoWsTradeId = null, Platform platform = Platform.Fomo, double? usdAmount = null, string? tokenImage = null, string? traderImage = null, AlertTrace? trace = null, double? feedUsd = null)
     {
         if (_botClient == null)
         {
@@ -452,7 +452,8 @@ public class TelegramService : ITelegramService
             FK_WsEvent_WsId = fomoWsTradeId
         };
         // The web feed gets it now, ahead of the DB write and the Telegram fan-out.
-        _feed.Publish(notificationRecord, users.Select(u => u.ChatId), usdAmount, tokenImage, traderImage);
+        // feedUsd is only what the feed card shows (a repost/reply's bag size); usdAmount alone drives the per-user minimum above.
+        _feed.Publish(notificationRecord, users.Select(u => u.ChatId), feedUsd ?? usdAmount, tokenImage, traderImage);
         var publishedMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();   // stage stamp: the web feed has it
 
         dbContext.Notifications.Add(notificationRecord);

@@ -83,6 +83,44 @@ public class NotificationsController : ControllerBase
         }
     }
 
+    // What the trader still has in a coin, in dollars at what they paid (the same meaning as a callout's cost basis): the dollars
+    // they bought for, scaled by the share of those tokens they still hold, from the trades we have logged for them on that coin.
+    // Null when we have none, or they hold nothing now. Only as complete as our trade log, so a bag bought before we followed
+    // them is understated. Never throws: the alert must go out either way.
+    private async Task<double?> BagSizeUsdAsync(string? actorUserId, string coinMint)
+    {
+        if (string.IsNullOrEmpty(actorUserId) || string.IsNullOrEmpty(coinMint)) return null;
+        try
+        {
+            // Uses IX_PumpEvents_Actor_Coin (created at start-up in Program.cs): without it this is a scan of every trade (~700 ms).
+            var raws = await _dbContext.PumpEvents.AsNoTracking()
+                .Where(e => e.ActorUserId == actorUserId && e.CoinMint == coinMint && e.Kind == "trade")
+                .OrderBy(e => e.Id).Select(e => e.RawJson).Take(500).ToListAsync();
+            double bought = 0, sold = 0, boughtUsd = 0;
+            foreach (var raw in raws)
+            {
+                using var doc = JsonDocument.Parse(raw);
+                if (!doc.RootElement.TryGetProperty("trade", out var t)
+                    || !t.TryGetProperty("isBuy", out var isBuy)
+                    || !t.TryGetProperty("baseAmount", out var amt) || amt.ValueKind != JsonValueKind.Number) continue;
+                if (isBuy.ValueKind == JsonValueKind.True)
+                {
+                    bought += amt.GetDouble();
+                    if (t.TryGetProperty("amountUsd", out var usd) && usd.ValueKind == JsonValueKind.Number) boughtUsd += usd.GetDouble();
+                }
+                else if (isBuy.ValueKind == JsonValueKind.False) sold += amt.GetDouble();
+            }
+            var held = bought - sold;
+            if (bought <= 0 || held <= 0 || boughtUsd <= 0) return null;
+            return boughtUsd * Math.Min(1.0, held / bought);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Bag size for {Actor} on {Coin} could not be worked out", actorUserId, coinMint);
+            return null;
+        }
+    }
+
     // One string out of a stored raw event (the feed shows its pictures), null when absent or malformed.
     private static string? RawString(string? raw, params string[] path)
     {
@@ -334,6 +372,10 @@ public class NotificationsController : ControllerBase
 
             await _traderService.AddOrUpdateTraderAsync(req.ActorHandle, Platform.Pump);
 
+            // pump.fun sends the actor's position only on callouts. A repost or reply card shows the trader's bag in that coin,
+            // worked out from the trades we log; it goes to the feed only (it must not touch the per-user minimum-value filter).
+            var feedBag = req.Kind is "repost" or "reply" ? await BagSizeUsdAsync(req.ActorUserId, req.CoinMint) : null;
+
             await _telegramService.SendNotificationToAllUsersAsync(
                 new NotificationRequest { Message = message },
                 contractAddress: req.CoinMint,
@@ -346,7 +388,8 @@ public class NotificationsController : ControllerBase
                 usdAmount: req.PositionCostBasisUsd,
                 tokenImage: RawString(pumpEvent?.RawJson, "coinImage"),
                 traderImage: RawString(pumpEvent?.RawJson, "author", "profileImage"),
-                trace: new AlertTrace("callout", new DateTimeOffset(DateTime.SpecifyKind(req.CreatedAt, DateTimeKind.Utc)).ToUnixTimeMilliseconds(), null, arrivedMs)
+                trace: new AlertTrace("callout", new DateTimeOffset(DateTime.SpecifyKind(req.CreatedAt, DateTimeKind.Utc)).ToUnixTimeMilliseconds(), null, arrivedMs),
+                feedUsd: feedBag
             );
 
             // Non-blocking hand-off to confluence detection (TRENDING alerts) — callouts

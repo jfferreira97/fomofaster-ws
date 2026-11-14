@@ -112,6 +112,8 @@ using (var scope = app.Services.CreateScope())
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     dbContext.Database.Migrate();
     dbContext.Database.ExecuteSqlRaw("PRAGMA journal_mode=WAL;");
+    // Finds one trader's trades on one coin without reading every trade (the bag size on reply/repost cards). Raw SQL, outside EF migrations.
+    dbContext.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS \"IX_PumpEvents_Actor_Coin\" ON \"PumpEvents\" (\"ActorUserId\", \"CoinMint\")");
     await scope.ServiceProvider.GetRequiredService<WebAnalyticsService>().EnsureSchemaAsync(); // WebEvents + BotStarts (raw SQL, outside EF migrations)
     await scope.ServiceProvider.GetRequiredService<UserActivityService>().EnsureSchemaAsync(); // UserActivity (raw SQL, same way)
     await scope.ServiceProvider.GetRequiredService<TokenAgeService>().EnsureSchemaAsync(); // TokenAges (raw SQL, same way)
