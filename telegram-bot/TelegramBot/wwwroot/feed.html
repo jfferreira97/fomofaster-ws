@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script>/* iPhone / iPad: no zoom-in when a small input or select gets focus (iOS still lets the reader pinch-zoom) */ if (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) { const m = document.querySelector('meta[name=viewport]'); m.content += ', maximum-scale=1'; }</script>
 <title>GROUPCHAT Feed</title>
 <meta name="robots" content="noindex">
 <link rel="icon" href="/groupchat-logo.png">
@@ -25,7 +26,22 @@ body{background:var(--bg);color:var(--tx);font:500 14px/1.4 var(--sans);display:
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 
 /* ---------- top bar ---------- */
-.top{flex:none;display:flex;align-items:center;gap:10px;padding:10px 14px 8px;background:var(--bg)}
+.top{flex:none;display:flex;align-items:center;gap:10px;min-height:48px;padding:10px 14px 8px;background:var(--bg);border-bottom:1px solid var(--line)}
+/* The nav both pages share (Feed | Manage): same markup and the same rules in manage.html. */
+.gc-nav{display:flex;align-items:center;gap:2px;padding:2px;flex:none;background:#0f1218;border:1px solid #161b25;border-radius:8px}
+.gc-nav a{display:flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:6px;font:600 12.5px 'Manrope',system-ui,sans-serif;color:#808a9c;text-decoration:none;white-space:nowrap;transition:color .12s,background-color .12s}
+.gc-nav a:hover{color:#e8ebf1}
+.gc-nav a.on{color:#e8ebf1;background:#1a1f29;box-shadow:inset 0 0 0 1px #2a3243}
+.gc-nav svg{width:14px;height:14px;flex:none;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.gc-nav a.on svg{color:#e9ab43}
+@media(max-width:619px){.gc-nav a{padding:0 8px}.gc-nav a>span:not(.dot){display:none}}
+.gc-nav a{position:relative}
+.gc-nav .dot{position:absolute;top:4px;left:19px;width:6px;height:6px;border:1px solid #0f1218;box-sizing:content-box}   /* the live dot sits on the Feed icon's corner, so both pages' navs are the same width */
+.gc-nav .dot.live{box-shadow:0 0 0 2px rgba(47,211,138,.18)}
+@media(max-width:619px){.gc-nav .dot{left:17px}}
+@media(max-width:759px){.brand span,.openin span{display:none}}
+@media(max-width:919px){.tier{display:none}}   /* the plan reads in full, as on /manage, where there is room; narrower, the bar keeps to the tools */
+.brand,.brand img{flex:none}
 .brand{display:flex;align-items:center;gap:8px;font-weight:800;font-size:15px;letter-spacing:-.01em;min-width:0}
 .brand img{width:24px;height:24px;border-radius:6px}
 .sp{flex:1}
@@ -34,15 +50,18 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .dot.retry{background:var(--call)}
 .tier{flex:none;white-space:nowrap;font:700 10px var(--mono);letter-spacing:.08em;padding:3px 7px;border-radius:5px;text-transform:uppercase;border:1px solid var(--line);color:var(--mu)}
 .tier.full{color:var(--buy);border-color:rgba(47,211,138,.35);background:rgba(47,211,138,.08)}
-.tier.free{color:var(--call);border-color:rgba(233,171,67,.35);background:rgba(233,171,67,.08)}
+.tier.free,.tier.soon{color:var(--call);border-color:rgba(233,171,67,.35);background:rgba(233,171,67,.08)}
+.tier.none{color:var(--sell);border-color:rgba(240,80,110,.35);background:rgba(240,80,110,.08)}
+a.tier{text-decoration:none} a.tier:hover{filter:brightness(1.2)}
 .mlink{font:500 12.5px var(--sans);color:var(--mu);text-decoration:none;padding:6px 12px;border-radius:var(--r);border:1px solid var(--line);transition:border-color .12s,color .12s}
 .mlink:hover{border-color:var(--mu);color:var(--tx)}
 .ibtn{width:30px;height:30px;border-radius:var(--r);display:grid;place-items:center;color:var(--mu);border:1px solid transparent;transition:border-color .12s,color .12s;flex:none}
 .ibtn:hover{border-color:var(--line);color:var(--tx)}
 .ibtn.on{color:var(--accent);border-color:var(--accent-dim);background:var(--accent-soft)}
+.ibtn[hidden]{display:none}
 .ibtn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .openin{display:flex;align-items:center;gap:6px;font:500 12px var(--sans);color:var(--mu);flex:none}
-.openin select{width:auto;font:600 12px var(--sans);padding:5px 8px;cursor:pointer}
+.openin select{width:auto;font:600 12px var(--sans);cursor:pointer;-webkit-appearance:none;appearance:none;height:30px;padding:0 24px 0 9px;line-height:28px;background-image:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2710%27 height=%276%27%3E%3Cpath d=%27M0 0l5 6 5-6z%27 fill=%27%23808a9c%27/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 9px center}   /* drawn by us: Safari made the native one 39px tall */
 input[type=number],select{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--tx);border-radius:var(--r);padding:7px 10px;font:12px var(--mono);outline:0}
 input:focus,select:focus{border-color:var(--accent-dim)}
 
@@ -105,7 +124,10 @@ a.nm:hover{text-decoration:underline}
 .ch{flex:none;font:500 10.5px var(--mono);color:var(--fa)}
 .cp{flex:none;width:22px;height:22px;display:grid;place-items:center;border:1px solid var(--line);border-radius:6px;background:var(--p);color:var(--mu);cursor:pointer;padding:0}
 .cp svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.cp.ok{color:var(--buy);border-color:rgba(47,211,138,.4)}
+.cp{transition:color .1s,border-color .1s,background-color .1s,transform .06s}
+.cp:hover{color:var(--tx);border-color:var(--line2)}
+.cp:active{transform:scale(.86)}
+.cp.ok{color:var(--buy);border-color:rgba(47,211,138,.4);background:rgba(47,211,138,.1)}   /* a short tick, not a lingering state */
 .mute{flex:none;opacity:0;font:500 10px var(--mono);letter-spacing:.05em;color:var(--mu);padding:1px 6px;border:1px solid var(--line);border-radius:5px;background:var(--p2);transition:opacity .12s}
 .r:hover .mute{opacity:1}
 .mute:hover{color:var(--sell)}
@@ -134,27 +156,43 @@ a.nm:hover{text-decoration:underline}
 .txtw{grid-column:2 / 4;margin-top:8px;min-width:0}
 .txt{padding-left:9px;border-left:2px solid color-mix(in srgb,var(--c) 60%,transparent);font-size:13px;line-height:1.45;color:#b8c0ce;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
 
-/* Calls, theses, replies and reposts are shown whole by default. The top bar's fold button (body.fold) cuts them all
-   back to the short preview, and back again. Phone: .txt.long / .txt.short. Desktop: a text too long for its cell is
-   shown whole under the row (.drop). */
+/* Calls, theses, replies and reposts are shown whole (.r.x) by default. Each folds on its own with its button (it keeps
+   its place, open or folded), and the top bar's button folds or unfolds them all. A trending row opens (.r.x) into one line per trader.
+   Phone: .txt.long / .txt.short. Desktop: what does not fit its cell is shown under the row (.drop). */
+.txtw{display:flex;align-items:flex-start;gap:6px}   /* the fold button at the top right: open or folded, it does not move */
+.tb{flex:1;min-width:0}
 .ctx{font:500 11px var(--mono);color:var(--mu);margin-bottom:5px}
 .txt.long,.drop .full{display:block;-webkit-line-clamp:none;line-clamp:none;overflow:visible;white-space:pre-wrap;line-height:1.5;color:#c9d0dc}
 .drop .full{padding-left:9px;border-left:2px solid color-mix(in srgb,var(--c) 60%,transparent);font-size:13px;word-break:break-word}
-.txt.short,.fold .txtw .ctx,.fold .txt.long,.drop{display:none}
-.fold .txt.short{display:-webkit-box}
+.drop{display:none}
+.r.x .txt.short,.r:not(.x) .txt.long,.r:not(.x) .tb .ctx,.r:not(.x) .tl,.r.x .tsum{display:none}
+/* one row's fold / unfold button */
+.tg{flex:none;width:22px;height:22px;display:none;place-items:center;border-radius:6px;border:1px solid var(--line);background:var(--p);color:var(--mu);padding:0;cursor:pointer;transition:color .1s,border-color .1s}
+.tg svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;transition:transform .15s}
+.tg:hover{color:var(--tx);border-color:var(--line2)}
+.r.x .tg svg{transform:rotate(180deg)}
+.r.pmore .mob .tg{display:grid}
+/* a trending row, opened: one line per trader, with what they did, their size and their entry (or average entry) */
+.tl{display:grid;grid-template-columns:minmax(0,max-content) max-content max-content;column-gap:16px;row-gap:4px;padding-left:9px;border-left:2px solid color-mix(in srgb,var(--c) 60%,transparent);font-size:12.5px;align-items:baseline}
+.tl .tn{font-weight:600;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.tl .tn::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:7px;vertical-align:1px;background:var(--fa)}
+.tl .tn.b::before{background:var(--buy)} .tl .tn.s::before{background:var(--sell)} .tl .tn.p::before{background:#e8a04a}
+.tl .tu{font:600 12px var(--mono);color:#c9d0dc;text-align:right}
+.tl .te{font:500 11.5px var(--mono);color:var(--mu)}
 
 .empty{padding:40px 24px;text-align:center;color:var(--mu);font-size:13px;line-height:1.6}
 .empty b{display:block;color:var(--tx);font-size:14px;margin-bottom:4px}
 
 @media(max-width:560px){.brand span,.openin span{display:none}.top{gap:8px}.mlink{padding:6px 9px}}
-@media(max-width:440px){.tier{display:none}.tab{padding:9px 7px 10px;gap:5px}.l1{gap:5px}}   /* the five tabs still fit a 390px phone */
+@media(max-width:440px){.tier{display:none}.tab{padding:9px 7px 10px;gap:5px}.l1{gap:5px}.top{gap:6px;padding-left:10px;padding-right:10px}}   /* the five tabs still fit a 390px phone */
 @media(max-width:380px){.tabs{padding:0 5px}.tab{padding:9px 5px 10px;gap:4px}                 /* ...and a 360px one, */
   .top{gap:5px;padding:10px 8px 8px}.mlink{padding:6px 7px}.openin select{padding:5px 4px}}    /* top bar included */
 
 /* ---------- desktop: one dense line per row, with a header, like a table ---------- */
 @media (min-width:760px){
   body{align-items:center}
-  .top,.tabs,.banner,#filters,.thead,#wrap{width:100%;max-width:1040px}
+  .top{align-self:stretch}   /* the site bar spans the window, as on /manage; the feed itself stays a 1040px column */
+  .tabs,.banner,#filters,.thead,#wrap{width:100%;max-width:1040px}
   .mob{display:none}
   .thead,.dsk{display:grid;grid-template-columns:54px 190px 252px minmax(0,1fr) 112px 92px;column-gap:14px;align-items:center;padding:0 22px 0 14px}
   .thead{flex:none;height:30px;border-bottom:1px solid var(--line);font:600 11px var(--sans);color:var(--fa);letter-spacing:.02em}
@@ -166,26 +204,33 @@ a.nm:hover{text-decoration:underline}
   .dsk .c-tk{display:flex;align-items:center;gap:8px;min-width:0}
   .dsk .c-tk .coin{width:24px;height:24px;border-radius:6px;font-size:11px;flex:none}
   .dsk .c-tk .sym{font-size:13.5px}
-  .dsk .c-tx{display:flex;align-items:center;min-width:0}
+  .dsk .c-tx{display:flex;align-items:center;gap:6px;min-width:0}
   .dsk .c-tx .q{font-size:13px;color:#aab3c2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-  /* a text that does not fit its cell is shown whole under the row, lined up with the Trader column (not when folded) */
-  .r.more .drop{display:block;padding:2px 22px 12px 82px}
-  .r.more .dsk .c-tx .q{visibility:hidden}
-  .fold .r.more .drop{display:none}
-  .fold .r.more .dsk .c-tx .q{visibility:visible}
+  /* opened, a text too long for its cell (or a trending row's traders) is shown under the row, lined up with the Trader
+     column; folded, the cell shows the start of it. The fold button sits at the right end of the cell either way. */
+  .r.more.x .drop{display:block;padding:2px 22px 12px 82px}
+  .r.more.x .dsk .c-tx .q{visibility:hidden}
+  .r.more .dsk .c-tx .tg{display:grid;margin-left:auto}
   .dsk .c-am{display:flex;justify-content:flex-end}
   .dsk .c-am .amt{font-size:13.5px}
   .dsk .c-mc{text-align:right;font:500 12.5px var(--mono);color:#c9d0dc}
 }
+/* A pop-out window can be far narrower than a browser window: the bar and the tabs still fit at 300px. */
+@media(max-width:499px){#bPop{display:none}}
+@media(max-width:360px){.top{gap:4px;padding-left:6px;padding-right:6px}.ibtn{width:26px}.openin select{padding:0 20px 0 7px;background-position:right 7px center}}
+@media(max-width:340px){.tabs{padding:0 3px}.tab{padding:9px 3px 10px;font-size:12px;gap:3px}}
+@media(max-width:330px){.brand{display:none}.gc-nav a{padding:0 6px}.gc-nav .dot{left:15px}}
 </style>
 </head>
 <body>
 <div class="top">
-  <div class="brand"><img src="/groupchat-logo.png" alt=""><span>Live Feed</span></div>
-  <span class="dot" id="dot" title="connecting"></span>
-  <span class="tier" id="tier">&middot;&middot;&middot;</span>
+  <div class="brand"><img src="/groupchat-logo.png" alt=""><span>GROUPCHAT</span></div>
+  <nav class="gc-nav" aria-label="GROUPCHAT pages">
+    <a href="/feed" class="on" aria-current="page" title="Live feed" aria-label="Feed"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span>Feed</span><span class="dot" id="dot" title="connecting"></span></a>
+    <a href="/manage" title="Your alert settings" aria-label="Manage"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/></svg><span>Manage</span></a>
+  </nav>
+  <a class="tier" id="tier" href="/manage" title="Your plan">&middot;&middot;&middot;</a>
   <span class="sp"></span>
-  <a class="mlink" href="/manage" title="Your alert settings">Manage</a>
   <label class="openin" title="Where a row opens when you click it"><span>Open in</span><select id="term">
     <option value="axiom">Axiom</option><option value="padre">Terminal</option>
     <option value="gmgn">GMGN</option><option value="photon">Photon</option><option value="dex">Dexscreener</option>
@@ -193,6 +238,7 @@ a.nm:hover{text-decoration:underline}
   <button class="ibtn" id="bSound" title="Sound"><svg viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
   <button class="ibtn" id="bNotif" title="Desktop notifications"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></button>
   <button class="ibtn" id="bFold" title="Fold calls and theses"><svg viewBox="0 0 24 24"></svg></button>
+  <button class="ibtn" id="bPop" title="Pop out: a narrow window to keep beside your terminal" aria-label="Pop out" hidden><svg viewBox="0 0 24 24"><path d="M14 4h6v6"/><path d="M20 4l-8 8"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></button>
   <button class="ibtn" id="bFilter" title="Filters"><svg viewBox="0 0 24 24"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg></button>
 </div>
 <div class="tabs" id="tabs"></div>
@@ -260,6 +306,7 @@ a.nm:hover{text-decoration:underline}
   const money = (n) => n == null ? null : n >= 1e9 ? '$' + (n / 1e9).toFixed(2) + 'B' : n >= 1e6 ? '$' + (n / 1e6).toFixed(2) + 'M' : n >= 1e3 ? '$' + (n / 1e3).toFixed(n >= 1e5 ? 0 : 1) + 'K' : '$' + Math.round(n);
   const ago = (ts) => { const s = Math.max(0, Math.floor((Date.now() - ts) / 1000)); return s < 5 ? 'now' : s < 60 ? s + 's' : s < 3600 ? Math.floor(s / 60) + 'm' : s < 86400 ? Math.floor(s / 3600) + 'h' : Math.floor(s / 86400) + 'd'; };
   const hue = (s) => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
+  const TICK = '<svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>';
   const COPY = '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>';
 
   /* ---------- sound / desktop notifications ---------- */
@@ -342,8 +389,10 @@ a.nm:hover{text-decoration:underline}
   const symEl = (a) => el('span', 'sym' + (a.ticker ? '' : ' hid'), a.ticker || 'coin');
   const copyEl = (a) => {
     if (!a.ca) return null;
-    const b = el('button', 'cp'); b.innerHTML = COPY; b.title = 'Copy contract';
-    b.addEventListener('click', (e) => { e.stopPropagation(); track('copy', true); navigator.clipboard?.writeText(a.ca).then(() => { b.classList.add('ok'); setTimeout(() => b.classList.remove('ok'), 1100); }).catch(() => {}); });
+    // No title tooltip (it hung on after the click); a tick for half a second, then straight back.
+    const b = el('button', 'cp'); b.innerHTML = COPY; b.setAttribute('aria-label', 'Copy contract'); let t = 0;
+    b.addEventListener('click', (e) => { e.stopPropagation(); track('copy', true); navigator.clipboard?.writeText(a.ca).then(() => {
+      b.classList.add('ok'); b.innerHTML = TICK; clearTimeout(t); t = setTimeout(() => { b.classList.remove('ok'); b.innerHTML = COPY; }, 550); }).catch(() => {}); });
     return b;
   };
   const nameEl = (a) => {
@@ -372,16 +421,22 @@ a.nm:hover{text-decoration:underline}
   /* ---------- once per frame: which call rows do not fit their desktop cell (shown whole under the row), and the scrollbar's size ---------- */
   const fitQ = new Set(); let raf = 0;
   function frame() { if (!raf) raf = requestAnimationFrame(onFrame); }
-  function overflows(r) {   // true / false, or null when the desktop cell is not laid out (phone layout): then left as it is
-    if (r._ctx) return true;   // a reply / repost always has more to show: what it answers
-    const q = r.querySelector('.dsk .q');
-    return q && q.clientWidth > 0 ? q.scrollWidth > q.clientWidth + 1 : null;   // .q keeps its layout (visibility) when hidden
+  // Does the row have more to show than it shows folded? d: desktop (the text overflows its cell), p: phone (more than two
+  // lines). null when that layout is not on screen: left as it is.
+  function overflows(r) {
+    if (r._ctx) return { d: true, p: true };   // a reply / repost always has more to show: what it answers
+    const q = r.querySelector('.dsk .q'), lg = r.querySelector('.mob .txt.long'), sh = r.querySelector('.mob .txt.short');
+    const d = q && q.clientWidth > 0 ? q.scrollWidth > q.clientWidth + 1 : null;   // .q keeps its layout (visibility) when hidden
+    let p = null;
+    if (lg && lg.clientHeight > 0) p = lg.scrollHeight > 2.5 * parseFloat(getComputedStyle(lg).lineHeight);
+    else if (sh && sh.clientHeight > 0) p = sh.scrollHeight > sh.clientHeight + 1;
+    return { d, p };
   }
   function onFrame() {
     raf = 0;
     const rs = [...fitQ].filter((r) => r.isConnected); fitQ.clear();
     const res = rs.map(overflows);                                                // all reads first...
-    rs.forEach((r, i) => { if (res[i] != null) r.classList.toggle('more', res[i]); });   // ...then the writes
+    rs.forEach((r, i) => { const o = res[i]; if (o.d != null) r.classList.toggle('more', o.d); if (o.p != null) r.classList.toggle('pmore', o.p); });   // ...then the writes
     placeBar();
   }
   // Re-measure every shown call row: after a resize, and once the web fonts arrive (the first pass may use the fallback font).
@@ -411,8 +466,15 @@ a.nm:hover{text-decoration:underline}
   const SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ']);
   document.addEventListener('keydown', (e) => {
     const t = e.target;
-    if (!SCROLL_KEYS.has(e.key) || /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName) || (e.key === ' ' && t.closest?.('button,a'))) return;
+    if (!SCROLL_KEYS.has(e.key) || e.ctrlKey || e.metaKey || e.altKey || /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName) || (e.key === ' ' && t.closest?.('button,a'))) return;
     userInput();
+    // The list is an inner scroller and the page itself never scrolls, so the browser sends these keys nowhere: scroll the list.
+    if (t.closest?.('#filters')) return;
+    e.preventDefault();
+    const page = Math.max(40, list.clientHeight - 60), step = { ArrowDown: 48, ArrowUp: -48, PageDown: page, PageUp: -page, ' ': e.shiftKey ? -page : page }[e.key];
+    if (e.key === 'Home') list.scrollTo({ top: 0, behavior: 'smooth' });
+    else if (e.key === 'End') list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+    else list.scrollBy({ top: step, behavior: e.repeat ? 'auto' : 'smooth' });
   });
   list.addEventListener('scroll', () => { placeBar(); if (dragging || performance.now() - userAt < 1200) showBar(); }, { passive: true });
   // The bar sits beside the list, not in it: a wheel over it is passed on to the list.
@@ -432,6 +494,36 @@ a.nm:hover{text-decoration:underline}
     bar.addEventListener('pointermove', move); bar.addEventListener('lostpointercapture', end); bar.addEventListener('pointerup', end);
   });
 
+  // One row's fold / unfold button (calls and trending rows), and opening or folding one row.
+  const CHEV = '<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>';
+  const tgEl = (r) => { const b = el('button', 'tg'); b.innerHTML = CHEV;
+    b.addEventListener('click', (e) => { e.stopPropagation(); setOpen(r, !r.classList.contains('x')); track(r.classList.contains('x') ? 'row:open' : 'row:fold', true); }); return b; };
+  function setOpen(r, open) {
+    r.classList.toggle('x', open);
+    for (const b of r.querySelectorAll('.tg')) { const t = open ? 'Fold' : 'Show in full'; b.title = t; b.setAttribute('aria-label', t); b.setAttribute('aria-expanded', String(open)); }
+    if (r._fit) fitQ.add(r);
+    frame();
+  }
+  // A trending alert's second line, one trader each: "name \u{1F7E2} $2,222 @ $122.02k MC" (one buy), "@ avg $124k MC" (several),
+  // "name \u{1F48A} $1,701" (a pump.fun trader, no cap); green circle bought, red circle sold.
+  const TREND_SIDE = { '\u{1F7E2}': 'b', '\u{1F534}': 's', '\u{1F48A}': 'p' };
+  const TREND_RX = /^(\S+)\s*(\u{1F7E2}|\u{1F534}|\u{1F48A})?\s*(\$[\d,.]+[kKmMbB]?)?\s*(?:@\s*(avg\s+)?(\$[\d.,]+[kKmMbB]?)\s*MC)?/u;
+  function trendRows(a) {
+    const line = (a.msg || '').split('\n')[1] || '';
+    return line.split(' | ').map((x) => {
+      const m = TREND_RX.exec(x.trim());
+      return m && m[1] ? { name: m[1], side: TREND_SIDE[m[2]] || '', usd: m[3] || '', avg: !!m[4], mc: m[5] || '' } : null;
+    }).filter(Boolean);
+  }
+  const trendList = (rows) => {
+    const g = el('div', 'tl');
+    for (const t of rows) {
+      const n = el('span', 'tn' + (t.side ? ' ' + t.side : ''), t.name); n.title = { b: 'bought', s: 'sold', p: 'pump.fun' }[t.side] || '';
+      g.append(n, el('span', 'tu', t.usd), el('span', 'te', t.mc ? (t.avg ? 'avg ' : '@ ') + t.mc + ' MC' : ''));
+    }
+    return g;
+  };
+
   function build(a, isNew) {
     const r = el('div', 'r ' + cls(a.type) + (isNew ? ' new' : '')); r.dataset.id = a.id;
     const txt = textOf(a);
@@ -449,11 +541,15 @@ a.nm:hover{text-decoration:underline}
     const v = el('div', 'v'), am = amountEl(a); if (am) v.append(am); v.append(ageEl(a));
     mob.append(tk, m, v);
     // A call / thesis / reply / repost is shown whole (with what it answers), or as the 2-line preview when folded.
+    // A trending row shows "N traders: a · b · c", and opens into one line per trader.
     const isCall = CALLISH.has(a.type) && !!txt, ctx = isCall ? context(a) : '', full = isCall ? fullQuote(a) : '';
+    const trend = a.type === 'CUSTOM_Trending' ? trendRows(a) : [], canOpen = isCall || trend.length > 0;
     if (txt) {
-      const tw = el('div', 'txtw');
-      if (isCall) { if (ctx) tw.append(el('div', 'ctx', '↳ ' + ctx)); tw.append(el('div', 'txt long', full), el('div', 'txt short', txt)); }
-      else tw.append(el('div', 'txt', txt));
+      const tw = el('div', 'txtw'), tb = el('div', 'tb');
+      if (isCall) { if (ctx) tb.append(el('div', 'ctx', '↳ ' + ctx)); tb.append(el('div', 'txt long', full), el('div', 'txt short', txt)); }
+      else if (trend.length) tb.append(el('div', 'txt tsum', txt), trendList(trend));
+      else tb.append(el('div', 'txt', txt));
+      tw.append(tb); if (canOpen) tw.append(tgEl(r));
       mob.append(tw);
     }
 
@@ -462,18 +558,20 @@ a.nm:hover{text-decoration:underline}
     const cAge = el('div', 'c-age ago', ago(a.ts)); cAge.dataset.ts = a.ts;
     const cTr = el('div', 'c-tr'); const w2 = whoEl(a); if (w2) cTr.append(w2); cTr.append(nameEl(a)); const mu2 = muteEl(a); if (mu2) cTr.append(mu2);
     const cTk = el('div', 'c-tk'); cTk.append(coinEl(a), el('span', 'tag', TAG[a.type] || a.type.toLowerCase()), symEl(a)); if (a.chain) cTk.append(chainEl(a)); const cp2 = copyEl(a); if (cp2) cTk.append(cp2);
-    const cTx = el('div', 'c-tx'); cTx.append(el('span', 'q', txt));
+    const cTx = el('div', 'c-tx'); cTx.append(el('span', 'q', txt)); if (canOpen) cTx.append(tgEl(r));
     const cAm = el('div', 'c-am'); const am2 = amountEl(a); if (am2) cAm.append(am2);
     const cMc = el('div', 'c-mc', a.mc != null ? money(a.mc) : '');
     dsk.append(cAge, cTr, cTk, cTx, cAm, cMc);
 
     r.append(mob, dsk);
-    if (isCall) {   // desktop: the whole text under the row when it does not fit its cell (the row gets "more")
-      const d = el('div', 'drop');
-      if (ctx) d.append(el('div', 'ctx', '↳ ' + ctx));
-      d.append(el('div', 'full', full));
-      r.append(d);
-      r._fit = true; if (ctx) r._ctx = true;
+    if (canOpen) {   // desktop: what does not fit the cell, under the row (the row gets "more"), with its fold button
+      const d = el('div', 'drop'), tb = el('div', 'tb');
+      if (isCall) { if (ctx) tb.append(el('div', 'ctx', '↳ ' + ctx)); tb.append(el('div', 'full', full)); }
+      else tb.append(trendList(trend));
+      d.append(tb); r.append(d);
+      if (isCall) { r._fit = true; if (ctx) r._ctx = true; }
+      else r.classList.add('more', 'pmore');   // a trending row always has more: each trader's size and entry
+      setOpen(r, isCall && !st.fold);         // calls open unless the reader folded them all; trending rows start closed
     }
     r.addEventListener('click', () => {
       const s = window.getSelection?.(); if (s && !s.isCollapsed && r.contains(s.anchorNode)) return;   // selecting text to copy it is not a click on the coin
@@ -535,9 +633,33 @@ a.nm:hover{text-decoration:underline}
 
   /* ---------- stream ---------- */
   const dot = $('dot');
+  // The plan, worded exactly as /manage words it, from the same data (it used to say "live · full", a feed-only label).
+  function leftText(ms) {   // = timeLeftText in manage.html
+    const mins = Math.max(0, Math.floor(ms / 60000)), d = Math.floor(mins / 1440), h = Math.floor((mins % 1440) / 60), m = mins % 60;
+    if (d >= 2) return d + ' days left';
+    if (d === 1) return '1 day ' + h + 'h left';
+    return h > 0 ? h + 'h ' + m + 'm left' : m + 'm left';
+  }
+  let planShown = null;   // kept across stream reconnects, so the badge does not flash back to a placeholder
+  async function loadPlan() {
+    try {
+      const s = await fetch('/api/manage/subscription', { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : null));
+      if (!s || st.tier === 'demo') return;
+      const now = Date.now(); let text, cls;
+      if (s.lifetime) { text = 'Lifetime'; cls = 'full'; }
+      else if (s.activeUntil && Date.parse(s.activeUntil) > now) { const left = Date.parse(s.activeUntil) - now; text = 'Full access · ' + leftText(left); cls = left <= 3 * 864e5 ? 'soon' : 'full'; }
+      else if (s.trialEndsAt && Date.parse(s.trialEndsAt) > now) { text = 'Free trial · ' + leftText(Date.parse(s.trialEndsAt) - now); cls = 'soon'; }
+      else { text = s.trialEndsAt ? 'Trial ended' : 'No active plan'; cls = 'none'; }
+      planShown = { text, cls };
+      const e = $('tier'); e.className = 'tier ' + cls; e.textContent = text;
+    } catch {}
+  }
   function setTier(t, delay) {
     st.tier = t; window.__delay = delay || 90;
-    const e = $('tier'); e.className = 'tier ' + t; e.textContent = t === 'demo' ? 'demo' : t === 'full' ? 'live · full' : 'live · free';
+    const e = $('tier');
+    if (t !== 'demo' && planShown) { e.className = 'tier ' + planShown.cls; e.textContent = planShown.text; }
+    else { e.className = 'tier ' + t; e.textContent = t === 'demo' ? 'demo' : t === 'full' ? 'full access' : 'free'; }
+    if (t !== 'demo') loadPlan();   // then the exact words /manage shows: Lifetime, Full access · 17 days left, Free trial · ...
     const b = $('banner');
     if (t === 'demo') {
       b.hidden = false;
@@ -589,8 +711,21 @@ a.nm:hover{text-decoration:underline}
     b.title = st.fold ? 'Show calls and theses in full' : 'Fold calls and theses'; b.setAttribute('aria-label', b.title); b.setAttribute('aria-pressed', String(st.fold));
   };
   const syncButtons = () => { $('bSound').classList.toggle('on', st.sound); $('bNotif').classList.toggle('on', st.notif); syncFold(); };
-  $('bFold').addEventListener('click', () => { st.fold = !st.fold; track('fold:' + (st.fold ? 'on' : 'off')); save(); syncFold(); frame(); });
+  $('bFold').addEventListener('click', () => {
+    st.fold = !st.fold; track('fold:' + (st.fold ? 'on' : 'off')); save(); syncFold();
+    for (const r of nodes.values()) if (r._fit) setOpen(r, !st.fold);   // every call / thesis, also any opened or folded on its own
+    frame();
+  });
 
+  // Pop out. A browser window will not go much narrower than ~500px; a popup window (no tabs, no toolbar) will, so the feed
+  // can sit in a thin strip beside the trading terminal. Offered on computers, and not inside the popup itself.
+  const POP = 'gcfeed-pop';
+  if (window.name !== POP && matchMedia('(pointer: fine)').matches) $('bPop').hidden = false;
+  $('bPop').addEventListener('click', () => {
+    track('popout', true);
+    const w = 380, h = Math.min(screen.availHeight || 900, 1200), left = (screen.availLeft || 0) + (screen.availWidth || w) - w, top = screen.availTop || 0;
+    window.open('/feed', POP, 'popup=yes,width=' + w + ',height=' + h + ',left=' + left + ',top=' + top)?.focus();
+  });
   $('bFilter').addEventListener('click', () => { track('filters:open'); $('filters').classList.toggle('open'); $('bFilter').classList.toggle('on'); });
   $('bSound').addEventListener('click', () => { st.sound = !st.sound; track('sound:' + (st.sound ? 'on' : 'off')); if (st.sound) ping('buy'); save(); syncButtons(); });
   $('bNotif').addEventListener('click', async () => {
