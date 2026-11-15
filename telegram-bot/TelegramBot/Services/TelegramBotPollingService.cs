@@ -30,7 +30,6 @@ public class TelegramBotPollingService : BackgroundService
     private readonly bool _isNewBotInstance;
     private int _offset = 0;
     private long _ownerChatId;
-    private string? _ownerUsername;
 
     // ChatId -> chain currently awaiting a typed min-market-cap reply (via /chains' $ button,
     // which sends a ForceReply prompt since Telegram buttons can't accept text input directly).
@@ -91,8 +90,7 @@ public class TelegramBotPollingService : BackgroundService
             if (owner != null)
             {
                 _ownerChatId = owner.ChatId;
-                _ownerUsername = owner.Username;
-                _logger.LogInformation("Owner resolved: @{Username} ({ChatId})", _ownerUsername, _ownerChatId);
+                _logger.LogInformation("Owner resolved: @{Username} ({ChatId})", owner.Username, _ownerChatId);
             }
         }
         catch (Exception ex)
@@ -137,7 +135,7 @@ public class TelegramBotPollingService : BackgroundService
         {
             var chatId = update.Message?.Chat.Id ?? update.CallbackQuery?.Message?.Chat.Id;
             if (chatId.HasValue)
-                await TouchLastActiveAsync(chatId.Value);
+                await TouchLastActiveAsync(chatId.Value, update.Message?.From ?? update.CallbackQuery?.From);
 
             if (update.Message is { } message)
             {
@@ -157,12 +155,28 @@ public class TelegramBotPollingService : BackgroundService
     // No-op if the user doesn't exist yet (e.g. their very first /start, before the User row
     // is created) — that's fine, JoinedAt already covers "brand new" and their next message
     // picks LastActiveAt up from here on.
-    private async Task TouchLastActiveAsync(long chatId)
+    private async Task TouchLastActiveAsync(long chatId, Telegram.Bot.Types.User? from)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Users.Where(u => u.ChatId == chatId)
             .ExecuteUpdateAsync(s => s.SetProperty(u => u.LastActiveAt, DateTime.UtcNow));
+
+        // Keep @username and first name current on every message or button press, not only on /start,
+        // so a rename on Telegram shows up everywhere. Private chats only (sender id == chat id), so a
+        // group member's name never lands on a group row. Writes only when something changed.
+        if (from == null || from.Id != chatId) return;
+        var current = await db.Users.AsNoTracking()
+            .Where(u => u.ChatId == chatId)
+            .Select(u => new { u.Username, u.FirstName })
+            .FirstOrDefaultAsync();
+        if (current == null || (current.Username == from.Username && current.FirstName == from.FirstName)) return;
+
+        await db.Users.Where(u => u.ChatId == chatId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(u => u.Username, from.Username)
+                .SetProperty(u => u.FirstName, from.FirstName));
+        _logger.LogInformation("User profile refreshed: ChatId={ChatId}, Username={Username}", chatId, from.Username);
     }
 
     private async Task HandleMessageAsync(Message message)
@@ -283,9 +297,17 @@ public class TelegramBotPollingService : BackgroundService
         var text = message.Text ?? "";
         var username = message.From?.Username ?? message.From?.FirstName ?? "unknown";
 
+        // Read the owner's @ from the DB each time (they can rename on Telegram; HandleUpdateAsync keeps it current).
+        using var scope = _serviceProvider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var ownerUsername = await dbContext.Users.AsNoTracking()
+            .Where(u => u.Id == _settings.OwnerUserId)
+            .Select(u => u.Username)
+            .FirstOrDefaultAsync();
+
         // Auto-reply to the user
-        var supportText = !string.IsNullOrEmpty(_ownerUsername)
-            ? $"I'm a bot and can't chat, but your message was passed on to the developer. Try /subscribe, /manage or /help. Anything else: @{_ownerUsername}"
+        var supportText = !string.IsNullOrEmpty(ownerUsername)
+            ? $"I'm a bot and can't chat, but your message was passed on to the developer. Try /subscribe, /manage or /help. Anything else: @{ownerUsername}"
             : "I'm a bot and can't chat. Try /subscribe, /manage or /help.";
 
         await _botClient.SendTextMessageAsync(
