@@ -7,6 +7,8 @@ REM Start the backend (start-telegram-bot.bat) FIRST — this posts to it on :80
 set "PATH=C:\Program Files\nodejs;%PATH%"
 set "PROFILE_DIR=./chromium-profile-2"
 set "ACCOUNT_NAME=account-2"
+REM The backend asks this account to follow the traders users add on /manage (127.0.0.1 only, see src\control.ts).
+set "CONTROL_PORT=8141"
 cd /d "%~dp0..\fomo-ws-sidecar"
 REM Compile, then run node directly: npm start would keep an npm process alive next to the sidecar for nothing.
 call npm run build

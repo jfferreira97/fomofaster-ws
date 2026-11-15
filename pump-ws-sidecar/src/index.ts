@@ -6,8 +6,13 @@ import { logTiming } from './timingLog';
 import { startAlertStream, type AlertStream, type StreamEvent } from './stream';
 import { startNatsMirror, type NatsMirror } from './natsMirror';
 import { logPumpTrade, tradeFromEvent, tradeFromItem, type PumpTradeRecord } from './tradeLog';
+import { startControlServer } from './control';
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
+
+// Follows on request (control.ts) go through the page that is current right now; null while there is none.
+const CONTROL_PORT = process.env.CONTROL_PORT === undefined ? 8142 : Number(process.env.CONTROL_PORT) || 0;
+let livePage: import('playwright').Page | null = null;
 
 const ts = () => { const d = new Date(); return `[${new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().replace('T', ' ').slice(0, 19)}]`; };
 
@@ -225,6 +230,7 @@ async function session(firstRun: boolean): Promise<void> {
       }
       console.log(`${ts()} [main] ✅ logged in, session persisted to ${PROFILE_DIR}`);
     }
+    livePage = page;
     stream.begin();
     if (MIRROR_CONNECTIONS > 0) {
       mirror = startNatsMirror({
@@ -503,7 +509,8 @@ async function session(firstRun: boolean): Promise<void> {
         await sleep(5_000);                        // a few more seconds of both at once
         const o = overlap, onlyOld = [...o.old].filter((id) => !o.neu.has(id)).length, onlyNew = [...o.neu].filter((id) => !o.old.has(id)).length;
         page = fresh; stream = freshStream;        // from here on, the new page is the one that counts
-        pumpUrl = url;                             // and its address is the one later rotations and recoveries use
+        livePage = page;
+        pumpUrl = url;                            // and its address is the one later rotations and recoveries use
         oldStream?.stop();
         await old.close().catch(() => { /* already gone */ });
         console.log(`${ts()} [rotate] done: old page closed. During the overlap the old page saw ${o.old.size} events, the new ${o.neu.size}, only-old ${onlyOld}, only-new ${onlyNew}`);
@@ -560,6 +567,7 @@ async function session(firstRun: boolean): Promise<void> {
     const reason = await sessionEnded;
     console.warn(`${ts()} [main] session ended: ${reason}`);
   } finally {
+    livePage = null;
     if (hbInterval) clearInterval(hbInterval);
     if (refreshTimer) clearTimeout(refreshTimer);
     if (triggerInterval) clearInterval(triggerInterval);
@@ -574,6 +582,7 @@ async function session(firstRun: boolean): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  if (CONTROL_PORT) startControlServer(CONTROL_PORT, () => livePage, (m) => console.log(`${ts()} ${m}`));
   let firstRun = true;
   for (;;) {
     try {

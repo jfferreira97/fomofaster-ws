@@ -3,6 +3,7 @@ import { attachWsInterceptor } from './ws-intercept';
 import { existsSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { postStructured, heartbeat } from './client';
+import { startControlServer } from './control';
 
 const ts = () => { const d = new Date(); return `[${new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().replace('T', ' ').slice(0, 19)}] [${ACCOUNT_NAME}]`; };
 
@@ -24,6 +25,9 @@ const PROBE_FAILURES_BEFORE_RELOAD = 3;
 // A trade received by both pages is posted once (transformFrame's dedup by trade id).
 const PAGE_REFRESH_MS = (Number(process.env.PAGE_REFRESH_HOURS) || 12) * 60 * 60_000;
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+// Follows on request (control.ts) go through the page that is current right now; null while there is none.
+const CONTROL_PORT = Number(process.env.CONTROL_PORT) || 0;
+let livePage: import('playwright').Page | null = null;
 
 // One browser session; returns when a full relaunch is needed (main() handles that)
 async function session(firstRun: boolean): Promise<void> {
@@ -90,6 +94,7 @@ async function session(firstRun: boolean): Promise<void> {
 
     console.log(`${ts()} [main] navigating to`, FOMO_URL);
     await gotoFeed();
+    livePage = page;
 
     if (firstRun) {
       // On first run the session won't exist — give the user time to log in manually.
@@ -202,6 +207,7 @@ async function session(firstRun: boolean): Promise<void> {
         if (freshTaps === 0) throw new Error('the new page lost its connection during the overlap, the old page stays');
         const onlyOld = [...o.old].filter((id) => !o.neu.has(id)).length, onlyNew = [...o.neu].filter((id) => !o.old.has(id)).length;
         page = fresh;                              // from here on, the new page is the one that counts
+        livePage = page;
         await old.close().catch(() => { /* already gone */ });
         console.log(`${ts()} [rotate] done: old page closed. During the overlap the old page saw ${o.old.size} trades, the new ${o.neu.size}, only-old ${onlyOld}, only-new ${onlyNew}`);
         return true;
@@ -237,6 +243,7 @@ async function session(firstRun: boolean): Promise<void> {
     const reason = await sessionEnded;
     console.warn(`${ts()} [main] session ended: ${reason}`);
   } finally {
+    livePage = null;
     if (hbInterval) clearInterval(hbInterval);
     if (probeInterval) clearInterval(probeInterval);
     if (refreshTimer) clearTimeout(refreshTimer);
@@ -247,6 +254,7 @@ async function session(firstRun: boolean): Promise<void> {
 
 // Keep the sidecar alive forever — failed launches (e.g. locked profile) just retry
 async function main(): Promise<void> {
+  if (CONTROL_PORT) startControlServer(CONTROL_PORT, () => livePage, (m) => console.log(`${ts()} ${m}`));
   let firstRun = true;
   for (;;) {
     try {
