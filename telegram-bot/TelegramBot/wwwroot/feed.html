@@ -289,6 +289,7 @@ a.nm:hover{text-decoration:underline}
   <label class="openin" title="Where a row opens when you click it"><span>Open in</span><select id="term">
     <option value="axiom">Axiom</option><option value="padre">Terminal</option>
     <option value="gmgn">GMGN</option><option value="photon">Photon</option><option value="dex">Dexscreener</option>
+    <option value="fomo">FOMO</option><option value="pump">pump.fun</option>
   </select></label>
   <button class="ibtn" id="bSound" title="Sound"><svg viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
   <button class="ibtn" id="bNotif" title="Desktop notifications"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></button>
@@ -425,7 +426,14 @@ a.nm:hover{text-decoration:underline}
 
   const all = [], seen = new Set();      // oldest first
   const nodes = new Map();
-  const openUrl = (a) => { const l = a.links; return l ? (l[st.term] || l.dex || l.axiom || l.padre || null) : null; };
+  // FOMO's and pump.fun's own coin pages, built here from the contract. FOMO's route is /tokens/<chain>/<address> with its own chain
+  // names (its routes and chain map, read from fomo.family's bundle 2026-11-15); pump.fun's is /coin/<address> on every chain. A chain
+  // FOMO doesn't list falls back as any missing link does (Dexscreener first).
+  const FOMO_CHAIN = { SOL: 'solana', BNB: 'bnb', BASE: 'base', ETH: 'ethereum', ROBINHOOD: 'robinhood', ELYSIUM: 'elysium', ARC: 'arc', MONAD: 'monad' };
+  const ownPage = (a) => !a.ca ? null
+    : st.term === 'fomo' ? (FOMO_CHAIN[a.chain] ? 'https://fomo.family/tokens/' + FOMO_CHAIN[a.chain] + '/' + encodeURIComponent(a.ca) : null)
+    : st.term === 'pump' ? 'https://pump.fun/coin/' + encodeURIComponent(a.ca) : null;
+  const openUrl = (a) => { const l = a.links; return l ? (ownPage(a) || l[st.term] || l.dex || l.axiom || l.padre || null) : null; };
 
   // pieces shared by the phone and the desktop layout (each call makes a fresh element)
   const coinEl = (a) => {
@@ -847,6 +855,7 @@ a.nm:hover{text-decoration:underline}
     track('notify:' + (st.notif ? 'on' : 'off')); save(); syncButtons();
   });
   $('term').value = st.term;
+  if ($('term').value !== st.term) { st.term = 'axiom'; $('term').value = st.term; }   // a choice that is no longer offered
   $('term').addEventListener('change', (e) => { st.term = e.target.value; track('terminal:' + st.term); save(); });
   $('minMc').value = st.minMc || ''; $('minUsd').value = st.minUsd || '';
   $('minMc').addEventListener('input', (e) => { track('filter:mc'); st.minMc = +e.target.value || 0; save(); renderTabs(); rerender(); });
