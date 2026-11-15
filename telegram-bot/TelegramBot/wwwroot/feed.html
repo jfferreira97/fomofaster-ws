@@ -367,11 +367,28 @@ a.nm:hover{text-decoration:underline}
 
   /* ---------- sound / desktop notifications ---------- */
   let actx;
+  // A padlock snapping shut, for lock alerts: the shackle's light click, then the latch's louder clack with a short metallic
+  // ring and a little body. Short bursts of noise through a narrow filter make the clicks; a few detuned sines the ring.
+  function padlock(ctx, t) {
+    const sr = ctx.sampleRate, buf = ctx.createBuffer(1, Math.floor(sr * 0.06), sr), d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const env = (node, at, peak, dur) => { const g = ctx.createGain(); g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(peak, at + 0.0015);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + dur); node.connect(g).connect(ctx.destination); return g; };
+    const click = (at, freq, peak, dur) => { const s = ctx.createBufferSource(), f = ctx.createBiquadFilter(); s.buffer = buf;
+      f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = 6; s.connect(f); env(f, at, peak, dur); s.start(at); s.stop(at + dur + 0.01); };
+    const tone = (at, freq, peak, dur, type = 'sine') => { const o = ctx.createOscillator(); o.type = type; o.frequency.value = freq; env(o, at, peak, dur); o.start(at); o.stop(at + dur + 0.01); };
+    click(t, 3400, 0.5, 0.025);                                                   // the shackle touches
+    const c = t + 0.085;
+    click(c, 2300, 1.1, 0.045);                                                   // the latch snaps
+    tone(c, 170, 0.16, 0.07);                                                     // its body
+    [2680, 4120, 6030].forEach((f, i) => tone(c, f, [0.035, 0.022, 0.012][i], 0.2)); // a short metallic ring
+  }
   function ping(kind) {
     if (!st.sound) return;
     try {
       actx = actx || new (window.AudioContext || window.webkitAudioContext)();
       const now = actx.currentTime;
+      if (kind === 'lock') { padlock(actx, now); return; }
       const notes = kind === 'sell' ? [440, 330] : kind === 'fire' ? [660, 880, 1100] : [660, 990];
       notes.forEach((f, i) => {
         const o = actx.createOscillator(), g = actx.createGain();
