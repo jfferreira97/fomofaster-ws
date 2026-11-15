@@ -495,7 +495,9 @@ public class FeedService
         // a small resized copy (~17 KB against 90-150 KB originals). The alert's own picture is the spare, and the other way round.
         var ownImg = SafeImage(tokenImage)
             ?? (!string.IsNullOrEmpty(ca) && _tokenImages.TryGetValue(ca, out var known) ? known : null);
-        var platformImg = FallbackImage(chain, ca, pump: !isFomo);
+        // A lock alert's only picture is DexScreener's, which a coin without a DexScreener profile doesn't have (a 404: half of the
+        // locks on 2026-11-15), and which is not kept across a restart. pump.fun's picture host had all of them, pump.fun coins or not.
+        var platformImg = FallbackImage(chain, ca, pump: !isFomo || n.Type == NotificationType.CUSTOM_Lock);
         var coinImg = !isFomo && platformImg != null ? platformImg : ownImg ?? platformImg;
         var coinAlt = coinImg == platformImg ? ownImg : platformImg;
         var faceImg = SafeImage(traderImage)

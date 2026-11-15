@@ -193,6 +193,8 @@ a.nm:hover{text-decoration:underline}
 .ld .sep{color:var(--fa)}
 .ld .lt{font:500 12px var(--mono);color:var(--tx)}
 .ld a{color:var(--c);font-weight:600;text-decoration:none} .ld a:hover{text-decoration:underline}
+.ld .lw{display:inline-flex;align-items:center;gap:7px;vertical-align:middle}
+.ld .cp{width:20px;height:20px} .ld .cp svg{width:11px;height:11px}
 .r:not(.x) .ld{display:none}
 
 .empty{padding:40px 24px;text-align:center;color:var(--mu);font-size:13px;line-height:1.6}
@@ -402,14 +404,14 @@ a.nm:hover{text-decoration:underline}
     const i = el('img', 'who'); i.src = a.av; i.alt = ''; i.loading = 'lazy'; i.decoding = 'async'; i.referrerPolicy = 'no-referrer'; i.addEventListener('error', () => i.replaceWith(badge()), { once: true }); return i;
   };
   const symEl = (a) => el('span', 'sym' + (a.ticker ? '' : ' hid'), a.ticker || 'coin');
-  const copyEl = (a) => {
-    if (!a.ca) return null;
-    // No title tooltip (it hung on after the click); a tick for half a second, then straight back.
-    const b = el('button', 'cp'); b.innerHTML = COPY; b.setAttribute('aria-label', 'Copy contract'); let t = 0;
-    b.addEventListener('click', (e) => { e.stopPropagation(); track('copy', true); navigator.clipboard?.writeText(a.ca).then(() => {
+  // A copy button. No title tooltip (it hung on after the click); a tick for half a second, then straight back.
+  const copyBtn = (text, label, what) => {
+    const b = el('button', 'cp'); b.innerHTML = COPY; b.setAttribute('aria-label', label); let t = 0;
+    b.addEventListener('click', (e) => { e.stopPropagation(); track(what, true); navigator.clipboard?.writeText(text).then(() => {
       b.classList.add('ok'); b.innerHTML = TICK; clearTimeout(t); t = setTimeout(() => { b.classList.remove('ok'); b.innerHTML = COPY; }, 550); }).catch(() => {}); });
     return b;
   };
+  const copyEl = (a) => a.ca ? copyBtn(a.ca, 'Copy contract', 'copy') : null;
   const nameEl = (a) => {
     if (a.type === 'CUSTOM_Lock') return el('span', 'nm', '🔒 Streamflow');
     if (!a.trader) return el('span', 'nm hid', a.type === 'CUSTOM_Trending' ? '' : 'trader hidden');
@@ -443,12 +445,12 @@ a.nm:hover{text-decoration:underline}
     return parts.filter(Boolean).join(' · ') || l1.replace(/^🔒\s*/u, '');
   }
   // A lock row, opened (a.lk, from the lock itself): how much, when it unlocks (and is fully vested, when that is later), when it
-  // was locked, by which wallet, and the Streamflow / Solscan links. Times in UTC, as the bot's alert. The free feed's a.lk has
-  // no tokens, wallet or links.
+  // was locked, by which wallet (with a copy button), and the Streamflow / Solscan links. Times in the reader's own time zone (the
+  // bot's alert says UTC; the tooltip does too). The free feed's a.lk has no tokens, wallet or links.
   const B58 = /^[1-9A-HJ-NP-Za-km-z]{32,90}$/;
   const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const utc = (ms) => { const d = new Date(ms), p = (n) => String(n).padStart(2, '0');
-    return MON[d.getUTCMonth()] + ' ' + d.getUTCDate() + (d.getUTCFullYear() !== new Date().getUTCFullYear() ? ', ' + d.getUTCFullYear() : '') + ' ' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()) + ' UTC'; };
+  const local = (ms) => { const d = new Date(ms), p = (n) => String(n).padStart(2, '0');
+    return MON[d.getMonth()] + ' ' + d.getDate() + (d.getFullYear() !== new Date().getFullYear() ? ', ' + d.getFullYear() : '') + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()); };
   function span(ms) {   // the bot's wording (OldTimeUntil): 12mo 4d · 16d · 2d 4h · 5h 20m · 45m
     const m = Math.max(0, Math.round(ms / 60000)), d = Math.floor(m / 1440);
     if (d >= 60) { const mo = Math.floor(d / 30), r = d % 30; return mo + 'mo' + (r ? ' ' + r + 'd' : ''); }
@@ -463,7 +465,7 @@ a.nm:hover{text-decoration:underline}
       for (const p of parts.filter(Boolean)) { if (v.childNodes.length) v.append(el('span', 'sep', ' · ')); v.append(typeof p === 'string' ? document.createTextNode(p) : p); }
       if (v.childNodes.length) g.append(el('span', 'lb', label), v);
     };
-    const when = (ms) => el('span', 'lt', utc(ms));
+    const when = (ms) => { const x = el('span', 'lt', local(ms)); x.title = new Date(ms).toUTCString(); return x; };
     const soon = (ms) => ms > now ? 'in ' + span(ms - now) : 'already open';
     const link = (text, href) => { const x = el('a', null, text); x.href = href; x.target = '_blank'; x.rel = 'noopener noreferrer'; x.addEventListener('click', (e) => e.stopPropagation()); return x; };
     row('Locked', k.tokens != null ? tokFmt.format(k.tokens) + ' tokens' : '', k.pct != null ? (+k.pct).toFixed(2) + '% of supply' : '', a.usd != null ? money(a.usd) : '');
@@ -472,7 +474,7 @@ a.nm:hover{text-decoration:underline}
     else row('Unlocks', 'on price targets, see Streamflow');
     if (unlock && k.end && k.end - unlock > 36e5) row('Fully vested', when(k.end), soon(k.end));
     if (k.at) row('Locked at', when(k.at), a.mc != null ? money(a.mc) + ' MC' : '', k.born && k.at > k.born ? 'token ' + span(k.at - k.born) + ' old' : '');
-    if (k.by && B58.test(k.by)) row('Locked by', link(k.by.slice(0, 4) + '…' + k.by.slice(-4), 'https://solscan.io/account/' + k.by));
+    if (k.by && B58.test(k.by)) { const w = el('span', 'lw'); w.append(link(k.by.slice(0, 4) + '…' + k.by.slice(-4), 'https://solscan.io/account/' + k.by), copyBtn(k.by, 'Copy wallet', 'copy:wallet')); row('Locked by', w); }
     row('Links', k.sf && B58.test(k.sf) ? link('Streamflow ↗', 'https://app.streamflow.finance/contract/solana/mainnet/' + k.sf) : null,
       k.tx && B58.test(k.tx) ? link('Solscan ↗', 'https://solscan.io/tx/' + k.tx) : null);
     return g;
