@@ -894,6 +894,42 @@
     .style-badge.hourly { color: #a98bf5; background: rgba(169,139,245,.15); }
     .style-badge.holder { color: #e8a04a; background: rgba(232,160,74,.15); }
     .style-badge.noise { background: rgba(240,80,110,.15); }
+
+/* ---------- Add a trader: accounts found as you type ---------- */
+.sg-drop { grid-column: 1 / -1; margin: 2px 0 0; border: 1px solid var(--border); border-radius: var(--radius);
+           background: var(--surface-2); max-height: 236px; overflow-y: auto; overscroll-behavior: contain; }
+.sg-drop[hidden] { display: none; }
+.sg-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; background: none; border: 0;
+           border-bottom: 1px solid var(--border); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.sg-item:last-child { border-bottom: 0; }
+.sg-item:hover, .sg-item.is-hl { background: rgba(255,255,255,.05); }
+.sg-av { width: 26px; height: 26px; border-radius: 50%; flex: none; object-fit: cover; background: var(--surface);
+         display: grid; place-items: center; font-size: 11px; font-weight: 700; color: var(--text-dim); overflow: hidden; }
+.sg-who { min-width: 0; flex: 1; display: flex; flex-direction: column; line-height: 1.25; }
+.sg-h { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sg-n { font-size: 11.5px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sg-side { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 11px; color: var(--text-dim); }
+.sg-tag { font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 1px 6px; border-radius: 4px;
+          border: 1px solid var(--border); color: var(--text-dim); }
+.sg-tag.on { color: var(--good); border-color: rgba(46,204,140,.4); }
+.sg-msg.dim { color: var(--text-faint); }
+.sg-link { color: var(--text); text-decoration: underline; text-decoration-color: rgba(255,255,255,.3); text-underline-offset: 2px; white-space: nowrap; }
+.sg-link:hover { text-decoration-color: currentColor; }
+.sg-result a.sg-link { font-weight: 700; }
+.sg-row.is-found .sg-handle { border-color: rgba(46,204,140,.55); }
+.sg-row.is-missing .sg-handle { border-color: rgba(240,80,110,.55); }
+#suggestRows .sg-row { grid-template-columns: 1fr auto; }
+#suggestRows .sg-del { display: none; }
+.sg-result { display: flex; gap: 10px; align-items: flex-start; margin: 14px 0 0; padding: 10px 12px; border-radius: var(--radius);
+             font-size: 13px; line-height: 1.45; border: 1px solid; animation: sgIn .18s ease-out; }
+.sg-result[hidden] { display: none; }
+.sg-result.ok  { color: var(--good); border-color: rgba(56,201,143,.45); background: rgba(56,201,143,.08); }
+.sg-result.err { color: var(--bad);  border-color: rgba(234,90,110,.45); background: rgba(234,90,110,.08); }
+.sg-result .sg-ri { flex: none; font-weight: 800; }
+.sg-result b { color: var(--text); font-weight: 700; }
+.sg-result .sg-rs { display: block; color: var(--text-dim); font-size: 12px; margin-top: 2px; }
+@keyframes sgIn { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .sg-result { animation: none; } }
 </style>
 </head>
 <body>
@@ -1039,7 +1075,7 @@
                         <div class="panel-desc">Click a category to filter. Tap its 🔔 to get alerts from everyone in it, now and later. Or tick traders one by one; set a $ floor to skip small buys.</div>
                     </div>
                     <div class="head-actions">
-                        <button class="ghost-btn" id="suggestTraderBtn" type="button">＋ Suggest a trader</button>
+                        <button class="ghost-btn" id="suggestTraderBtn" type="button">＋ Add a trader</button>
                     </div>
                 </div>
                 <div class="panel-body">
@@ -1096,26 +1132,13 @@
 <div class="modal-overlay" id="suggestModal" style="display:none;">
     <div class="modal-card">
         <div id="suggestFormPane">
-            <div class="modal-title">Suggest traders</div>
-            <div class="modal-desc">Not tracking someone yet? Send a request straight to the team.</div>
+            <div class="modal-title">Add a trader</div>
+            <div class="modal-desc">Not tracking someone yet? Add them here: we start tracking them right away and you follow them.</div>
             <div id="suggestRows"></div>
-            <div class="sg-foot">
-                <button class="sg-add" id="suggestAddRow" type="button">＋ Add another</button>
-                <span class="sg-quota" id="suggestQuota"></span>
-            </div>
+            <div class="sg-result" id="suggestResult" role="status" aria-live="polite" hidden></div>
             <div class="modal-actions">
-                <button class="logout-btn" id="suggestCancelBtn" type="button">Cancel</button>
-                <button class="ghost-btn" id="suggestSubmitBtn" type="button">Send</button>
-            </div>
-        </div>
-        <div id="suggestDonePane" style="display:none;">
-            <div class="modal-title" id="suggestDoneTitle">Suggestion sent</div>
-            <div class="modal-desc">The team has your request for <span id="suggestDoneList"></span>.</div>
-            <div class="modal-note">
-                ✅ As soon as they're added, you'll be following them automatically — regardless of your auto-follow setting.
-            </div>
-            <div class="modal-actions">
-                <button class="ghost-btn" id="suggestDoneBtn" type="button">Got it</button>
+                <button class="logout-btn" id="suggestCancelBtn" type="button">Close</button>
+                <button class="ghost-btn" id="suggestSubmitBtn" type="button">Add</button>
             </div>
         </div>
     </div>
@@ -1985,8 +2008,8 @@ function renderTraders() {
             : query
                 ? `<tr><td colspan="11"><div class="empty-state">
                        <div class="empty-title">Nobody here called <q>${escapeHtml(query)}</q></div>
-                       <div class="empty-sub">Suggest this trader and it will be added to our tracking list ASAP, you will be following them automatically as soon as they land.</div>
-                       <button class="ghost-btn" type="button" data-suggest>＋ Suggest a trader</button>
+                       <div class="empty-sub">Add this trader: we start tracking them right away and you follow them.</div>
+                       <button class="ghost-btn" type="button" data-suggest>＋ Add a trader</button>
                    </div></td></tr>`
                 : '<tr><td colspan="11"><div class="empty-state">No traders match this filter.</div></td></tr>';
 
@@ -2368,7 +2391,6 @@ document.getElementById('logoutLink').addEventListener('click', async () => {
 
 /* ---------- Suggest traders ---------- */
 
-const SUGGEST_MAX_ROWS = 25;                    // mirrors MaxSuggestionsPerSubmission
 const SUGGEST_PLATFORM_KEY = 'gc_suggest_platform';
 
 // Remembered so a run of suggestions for the same platform isn't a run of dropdown taps.
@@ -2390,27 +2412,20 @@ function setRowMsg(row, text, kind) {
     el.className = 'sg-msg' + (kind ? ' ' + kind : '');
 }
 
-function refreshSuggestChrome() {
-    const rows = suggestRows();
-    rows.forEach(r => r.classList.toggle('is-only', rows.length === 1));
-    const add = document.getElementById('suggestAddRow');
-    add.disabled = rows.length >= SUGGEST_MAX_ROWS;
-    document.getElementById('suggestQuota').textContent =
-        rows.length >= SUGGEST_MAX_ROWS ? `${SUGGEST_MAX_ROWS} max` : 'all of these send as one request';
-}
 
 function addSuggestRow(platform) {
     const row = document.createElement('div');
     row.className = 'sg-row';
     const plat = platform || lastSuggestPlatform();
     row.innerHTML = `
-        <input type="text" class="search-input sg-handle" placeholder="trader handle...">
+        <input type="text" class="search-input sg-handle" placeholder="handle or profile link" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go">
         <div class="seg" data-plat="${plat}">
             <span class="seg-thumb"></span>
             <button type="button" class="seg-opt ${plat === 'Fomo' ? 'is-on' : ''}" data-opt="Fomo">FOMO</button>
             <button type="button" class="seg-opt ${plat === 'Pump' ? 'is-on' : ''}" data-opt="Pump">Pump</button>
         </div>
         <button type="button" class="sg-del" aria-label="Remove this row">×</button>
+        <div class="sg-drop" role="listbox" hidden></div>
         <div class="sg-msg"></div>`;
 
     const seg = row.querySelector('.seg');
@@ -2423,53 +2438,168 @@ function addSuggestRow(platform) {
         });
     });
 
-    row.querySelector('.sg-del').addEventListener('click', () => {
-        if (suggestRows().length === 1) return;
-        row.remove();
-        refreshSuggestChrome();
-    });
 
     const input = row.querySelector('.sg-handle');
-    input.addEventListener('input', () => checkSuggestRow(row));
+    input.addEventListener('input', () => { checkSuggestRow(row); showResult(null); });
+    input.addEventListener('focus', () => { if (row._users?.length && !row.classList.contains('is-found')) showDrop(row, true); });
+    input.addEventListener('blur', () => setTimeout(() => showDrop(row, false), 120));
     input.addEventListener('keydown', (e) => {
+        if (dropKey(row, e)) return;
         if (e.key === 'Escape') { closeSuggestModal(); return; }
         if (e.key !== 'Enter') return;
-        // Enter fills the next row rather than submitting — the whole point is entering several.
-        const rows = suggestRows();
-        const next = rows[rows.indexOf(row) + 1];
-        if (next) next.querySelector('.sg-handle').focus();
-        else if (rows.length < SUGGEST_MAX_ROWS) addSuggestRow()?.querySelector('.sg-handle').focus();
-        else submitSuggestion();
+        e.preventDefault();
+        submitSuggestion();
     });
 
     document.getElementById('suggestRows').appendChild(row);
-    refreshSuggestChrome();
     return row;
 }
 
 // Checked against the trader list already loaded client-side — instant, no round trip.
 // The server re-checks every row at submit time regardless, in case this list is stale.
 function checkSuggestRow(row) {
-    const handle = row.querySelector('.sg-handle').value.trim().replace(/^@/, '').toLowerCase();
+    const handle = cleanTyped(row.querySelector('.sg-handle').value).toLowerCase();
     const platform = row.querySelector('.seg').dataset.plat;
+    lookupRow(row);
     if (!handle) { setRowMsg(row, '', ''); return; }
 
     const existing = allTraders.find(t => t.handle.toLowerCase() === handle && t.platform === platform);
     if (existing) {
         setRowMsg(row, existing.isFollowing
             ? 'Already tracked — you already follow them.'
-            : 'Already tracked — follow them from the list instead.', 'err');
+            : 'Already tracked — adding them follows them.', '');
     } else {
         setRowMsg(row, '', '');
     }
 }
 
+/* As the user types: does that account exist? FOMO has a user search (several matches); pump.fun only an exact handle
+   check, plus the tracked traders starting with it. Asked 350 ms after the last key, answers cached a minute server-side. */
+const LOOKUP_DEBOUNCE_MS = 350;
+const PLATFORM_NAME = { Fomo: 'FOMO', Pump: 'pump.fun' };
+
+function cleanTyped(v) {
+    let t = (v || '').trim();
+    const at = t.toLowerCase().indexOf('/profile/');
+    if (at >= 0) t = t.slice(at + 9);
+    return t.split(/[?#/]/)[0].replace(/^@/, '').trim();
+}
+
+function fmtFollowers(n) {
+    if (n == null) return '';
+    const v = n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'k' : String(Math.round(n));
+    return v + (n === 1 ? ' follower' : ' followers');
+}
+
+function setRowState(row, state) {
+    row.classList.toggle('is-found', state === 'found');
+    row.classList.toggle('is-missing', state === 'missing');
+    row.dataset.state = state || '';
+}
+
+function lookupRow(row) {
+    clearTimeout(row._lt);
+    const seq = row._seq = (row._seq || 0) + 1;
+    const q = cleanTyped(row.querySelector('.sg-handle').value);
+    const platform = row.querySelector('.seg').dataset.plat;
+    setRowState(row, '');
+    if (q.length < 2 || !/^[A-Za-z0-9_.-]+$/.test(q)) { row._users = []; renderDrop(row, [], q); return; }
+    row._lt = setTimeout(async () => {
+        setRowMsg(row, 'Checking ' + PLATFORM_NAME[platform] + '…', 'dim');
+        const data = await fetch(`${API}/api/manage/trader-lookup?platform=${platform}&q=${encodeURIComponent(q)}`)
+            .then(r => (r.ok ? r.json() : null)).catch(() => null);
+        if (seq !== row._seq) return;   // the user typed on: a newer lookup owns the row
+        const users = data?.users || [];
+        row._users = users;
+        const exact = users.find(u => u.handle.toLowerCase() === q.toLowerCase());
+        if (exact) markFound(row, exact, platform);
+        else if (data?.checkedLive && (data.exact || !users.length)) {
+            setRowState(row, 'missing');
+            setRowMsg(row, data.exact
+                ? `No ${PLATFORM_NAME[platform]} user called “${q}”.`
+                : `No ${PLATFORM_NAME[platform]} user matches “${q}”.`, 'err');
+        } else if (!data?.checkedLive) setRowMsg(row, `Couldn't check ${PLATFORM_NAME[platform]} right now — you can still add it.`, 'dim');
+        else setRowMsg(row, 'Pick one below, or keep typing.', 'dim');
+        renderDrop(row, users, q);
+        showDrop(row, document.activeElement === row.querySelector('.sg-handle') && !(exact && users.length === 1));
+    }, LOOKUP_DEBOUNCE_MS);
+}
+
+function markFound(row, u, platform) {
+    setRowState(row, 'found');
+    const f = fmtFollowers(u.followers);
+    setRowMsg(row, u.following ? '✓ Already tracked — you already follow them.'
+        : u.tracked ? '✓ Already tracked — adding them follows them.'
+        : `✓ On ${PLATFORM_NAME[platform]}${f ? ' · ' + f : ''}`, 'ok');
+    // the platform's own profile page, to check it is the right person before adding (opens in a new tab)
+    const a = document.createElement('a');
+    a.className = 'sg-link';
+    a.href = traderProfileUrl({ handle: u.handle, platform });
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.textContent = 'View profile ↗';
+    row.querySelector('.sg-msg').append(' · ', a);
+}
+
+function renderDrop(row, users, q) {
+    const drop = row.querySelector('.sg-drop');
+    drop.innerHTML = '';
+    row._hl = -1;
+    users.forEach((u, i) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'sg-item';
+        b.setAttribute('role', 'option');
+        const initial = escapeHtml((u.handle[0] || '?').toUpperCase());
+        const av = u.pic ? `<img class="sg-av" src="${escapeHtml(u.pic)}" alt="" referrerpolicy="no-referrer" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'sg-av',textContent:'${initial}'}))">`
+                         : `<span class="sg-av">${initial}</span>`;
+        const tag = u.following ? '<span class="sg-tag on">Following</span>' : u.tracked ? '<span class="sg-tag">Tracked</span>' : '';
+        b.innerHTML = `${av}<span class="sg-who"><span class="sg-h">@${escapeHtml(u.handle)}${u.verified ? ' ✓' : ''}</span>`
+            + (u.name ? `<span class="sg-n">${escapeHtml(u.name)}</span>` : '') + '</span>'
+            + `<span class="sg-side">${tag}<span>${escapeHtml(fmtFollowers(u.followers))}</span></span>`;
+        b.addEventListener('pointerdown', (e) => e.preventDefault());   // keep the input focused (and the keyboard up) on phones
+        b.addEventListener('click', () => pickUser(row, i));
+        drop.appendChild(b);
+    });
+}
+
+function showDrop(row, show) {
+    const drop = row.querySelector('.sg-drop');
+    drop.hidden = !(show && drop.children.length);
+}
+
+function pickUser(row, i) {
+    const u = row._users?.[i];
+    if (!u) return;
+    const input = row.querySelector('.sg-handle');
+    input.value = u.handle;
+    clearTimeout(row._lt);
+    row._seq = (row._seq || 0) + 1;    // any lookup still in flight is for older text
+    markFound(row, u, row.querySelector('.seg').dataset.plat);
+    showDrop(row, false);
+}
+
+// Arrow keys move through the list, Enter picks, Escape closes it. True when the key was the list's.
+function dropKey(row, e) {
+    const drop = row.querySelector('.sg-drop');
+    if (drop.hidden || !drop.children.length) return false;
+    const items = [...drop.children];
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        row._hl = (row._hl + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+        items.forEach((it, j) => it.classList.toggle('is-hl', j === row._hl));
+        items[row._hl].scrollIntoView({ block: 'nearest' });
+        return true;
+    }
+    if (e.key === 'Enter' && row._hl >= 0) { e.preventDefault(); pickUser(row, row._hl); return true; }
+    if (e.key === 'Escape') { e.preventDefault(); showDrop(row, false); return true; }
+    return false;
+}
+
 function openSuggestModal() {
     document.getElementById('suggestModal').style.display = 'flex';
-    // Reopening always lands back on the form, never on a previous send's confirmation.
-    document.getElementById('suggestFormPane').style.display = '';
-    document.getElementById('suggestDonePane').style.display = 'none';
     document.getElementById('suggestRows').innerHTML = '';
+    showResult(null);
     document.getElementById('suggestSubmitBtn').disabled = false;
     addSuggestRow().querySelector('.sg-handle').focus();
 }
@@ -2480,89 +2610,77 @@ function closeSuggestModal() {
 
 document.getElementById('suggestTraderBtn').addEventListener('click', openSuggestModal);
 document.getElementById('suggestCancelBtn').addEventListener('click', closeSuggestModal);
-document.getElementById('suggestDoneBtn').addEventListener('click', closeSuggestModal);
 document.getElementById('suggestSubmitBtn').addEventListener('click', submitSuggestion);
-document.getElementById('suggestAddRow').addEventListener('click', () => {
-    addSuggestRow().querySelector('.sg-handle').focus();
-});
 document.getElementById('suggestModal').addEventListener('click', (e) => {
     if (e.target.id === 'suggestModal') closeSuggestModal();
 });
 
-async function submitSuggestion() {
-    const rows = suggestRows();
-    const filled = rows
-        .map(row => ({ row, handle: row.querySelector('.sg-handle').value.trim(), platform: row.querySelector('.seg').dataset.plat }))
-        .filter(e => e.handle);
-
-    if (!filled.length) { showToast('Enter a handle first'); return; }
-
-    const btn = document.getElementById('suggestSubmitBtn');
-    btn.disabled = true;
-
-    const res = await fetch(`${API}/api/manage/suggest-trader`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: filled.map(e => ({ handle: e.handle, platform: e.platform })) })
-    }).catch(() => null);
-
-    if (!res) { showToast('Failed to send'); btn.disabled = false; return; }
-
-    const body = await res.json().catch(() => null);
-
-    if (res.status === 429) {
-        showToast(body?.message || 'Daily limit reached — try again later', 4500);
-        btn.disabled = false;
-        return;
-    }
-    if (!res.ok) {
-        showToast(body?.message || 'Failed to send');
-        btn.disabled = false;
-        return;
-    }
-
-    // Annotate each row from the server's per-item verdict, then drop the ones that landed so
-    // only the rows still needing attention remain on screen.
-    (body?.results || []).forEach(r => {
-        const entry = filled[r.index];
-        if (entry) setRowMsg(entry.row, r.ok ? 'Sent' : (r.message || 'Rejected'), r.ok ? 'ok' : 'err');
-    });
-
-    const sent = (body?.results || []).filter(r => r.ok);
-    if (sent.length === filled.length) {
-        showSuggestDone(sent.map(r => ({ handle: r.handle, platform: filled[r.index].platform })));
-        return;
-    }
-
-    if (sent.length) {
-        sent.forEach(r => filled[r.index]?.row.remove());
-        if (!suggestRows().length) addSuggestRow();
-        refreshSuggestChrome();
-        showToast(`${sent.length} sent — fix the rest below`, 4000);
-    }
-    btn.disabled = false;
+// The answer to the last add, under the form: green when they were added, red when not and why. null hides it.
+function showResult(kind, html) {
+    const el = document.getElementById('suggestResult');
+    if (!kind) { el.hidden = true; el.innerHTML = ''; return; }
+    el.className = 'sg-result ' + kind;
+    el.innerHTML = `<span class="sg-ri">${kind === 'ok' ? '✓' : '✕'}</span><span>${html}</span>`;
+    el.hidden = false;
 }
 
-// Swap to the confirmation in place rather than closing behind a toast — the auto-follow
-// guarantee is the one thing the user needs to read, and a 3s toast is the wrong surface.
-function showSuggestDone(sent) {
-    document.getElementById('suggestDoneTitle').textContent =
-        sent.length === 1 ? 'Suggestion sent' : `${sent.length} suggestions sent`;
+let adding = false;
+async function submitSuggestion() {
+    if (adding) return;
+    const row = suggestRows()[0];
+    const input = row.querySelector('.sg-handle');
+    const handle = cleanTyped(input.value);
+    const platform = row.querySelector('.seg').dataset.plat;
+    const where = PLATFORM_NAME[platform];
+    if (!handle) { showResult('err', 'Type a handle first.'); input.focus(); return; }
+    // the platform already said there is nobody by that name: no follow request for nobody
+    if (row.dataset.state === 'missing') {
+        showResult('err', `<b>@${escapeHtml(handle)}</b> doesn't exist on ${where}.<span class="sg-rs">Check the spelling, or pick one from the list as you type.</span>`);
+        return;
+    }
 
-    const list = document.getElementById('suggestDoneList');
-    list.innerHTML = '';
-    sent.forEach((s, i) => {
-        if (i) list.append(', ');
-        const a = document.createElement('a');
-        a.className = 'modal-link';
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        a.textContent = `@${s.handle.replace(/^@/, '')}`;     // textContent: whatever they typed
-        a.href = traderProfileUrl({ handle: s.handle.replace(/^@/, ''), platform: s.platform });
-        list.appendChild(a);
-    });
+    adding = true;
+    const btn = document.getElementById('suggestSubmitBtn');
+    btn.disabled = true;
+    btn.textContent = 'Adding…';   // our account follows them on FOMO / pump.fun first: a second or two
+    showDrop(row, false);
+    clearTimeout(row._lt);
+    row._seq = (row._seq || 0) + 1;
 
-    document.getElementById('suggestFormPane').style.display = 'none';
-    document.getElementById('suggestDonePane').style.display = '';
+    const res = await fetch(`${API}/api/manage/add-trader`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: [{ handle, platform }] })
+    }).catch(() => null);
+    const body = res ? await res.json().catch(() => null) : null;
+    adding = false;
+    btn.disabled = false;
+    btn.textContent = 'Add';
+
+    if (!res) { showResult('err', `Couldn't reach GROUPCHAT — check your connection and try again.`); return; }
+    if (res.status === 429 || !res.ok) { showResult('err', escapeHtml(body?.message || 'Something went wrong — try again.')); return; }
+
+    const r = (body?.results || [])[0];
+    const who = `<b>@${escapeHtml(r?.handle || handle)}</b>`;
+    const whoLink = `<a class="sg-link" href="${escapeHtml(traderProfileUrl({ handle: r?.handle || handle, platform }))}" target="_blank" rel="noopener noreferrer">@${escapeHtml(r?.handle || handle)}</a>`;
+    if (r?.ok) {
+        showResult('ok', r.code === 'following'
+            ? `${whoLink} was already tracked — you follow them now.`
+            : `${whoLink} added on ${where} — you follow them now.<span class="sg-rs">Their alerts start with their next trade or call.</span>`);
+        input.value = '';                 // ready for the next one
+        setRowState(row, '');
+        setRowMsg(row, '', '');
+        row._users = [];
+        renderDrop(row, [], '');
+        input.focus();
+        loadTraders();                    // they show up in the list, followed
+        return;
+    }
+    const why = {
+        not_found: `${who} doesn't exist on ${where}.<span class="sg-rs">Check the spelling, or pick one from the list as you type.</span>`,
+        duplicate: `${who} is already being added.`,
+    }[r?.code] || `${who} was not added: ${escapeHtml(r?.message || 'something went wrong — try again.')}`;
+    showResult('err', why);
+    if (r?.code === 'not_found') { setRowState(row, 'missing'); setRowMsg(row, '', ''); }
 }
 
 

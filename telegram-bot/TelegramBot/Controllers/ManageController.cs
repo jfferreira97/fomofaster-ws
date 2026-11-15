@@ -30,8 +30,9 @@ public class ManageController : ControllerBase
     private readonly SubscriptionService _subscriptions;
     private readonly ReferralService _referrals;
     private readonly AppConfigService _appConfig;
+    private readonly SidecarFollowClient _sidecarFollow;
 
-    // Budget is per SUBMISSION, not per handle — see SuggestTrader.
+    // Budget is per SUBMISSION, not per handle — see AddTrader.
     private const int SubmissionRateLimit = 24;
     private const int MaxSuggestionsPerSubmission = 25;
     private static readonly TimeSpan SuggestionWindow = TimeSpan.FromHours(24);
@@ -47,8 +48,10 @@ public class ManageController : ControllerBase
         ActiveUserCache activeUsers,
         SubscriptionService subscriptions,
         ReferralService referrals,
-        AppConfigService appConfig)
+        AppConfigService appConfig,
+        SidecarFollowClient sidecarFollow)
     {
+        _sidecarFollow = sidecarFollow;
         _activeUsers = activeUsers;
         _subscriptions = subscriptions;
         _referrals = referrals;
@@ -520,11 +523,13 @@ public class ManageController : ControllerBase
         return Ok(new { status = "success" });
     }
 
-    // One submission may carry many handles and costs a single unit of the daily budget,
-    // so filling twenty rows at once is not twenty times more expensive than filling one.
-    // Rows are judged individually: bad ones come back annotated, good ones still land.
+    // Add traders: our own logged-in account on that platform (the FOMO and pump.fun sidecars) follows each one right away,
+    // the trader is created, and the user follows them. No more suggestions waiting for someone to follow them by hand.
+    // One submission may carry many handles and costs a single unit of the daily budget. Rows are judged individually: bad
+    // ones come back annotated, good ones still land. "suggest-trader" stays as an alias for pages opened before the change.
+    [HttpPost("add-trader")]
     [HttpPost("suggest-trader")]
-    public async Task<IActionResult> SuggestTrader([FromBody] SuggestTraderRequest request)
+    public async Task<IActionResult> AddTrader([FromBody] SuggestTraderRequest request, CancellationToken ct)
     {
         var (user, error) = await ResolveSubscriberAsync();
         if (user == null) return error!;
@@ -542,10 +547,9 @@ public class ManageController : ControllerBase
             .Distinct()
             .CountAsync();
         if (recentSubmissions >= SubmissionRateLimit)
-            return StatusCode(429, new { status = "error", code = "rate_limited", message = $"You can send up to {SubmissionRateLimit} suggestion batches per day — try again later." });
+            return StatusCode(429, new { status = "error", code = "rate_limited", message = $"You can add traders up to {SubmissionRateLimit} times per day — try again later." });
 
         var batchId = Guid.NewGuid();
-        var now = DateTime.UtcNow;
         var results = new List<object>();
         var accepted = new List<(string Handle, Platform Platform)>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -553,14 +557,14 @@ public class ManageController : ControllerBase
         for (var i = 0; i < items.Count; i++)
         {
             var item = items[i];
-            var handle = item.Handle?.Trim().TrimStart('@');
+            var handle = CleanHandle(item.Handle);
 
             if (!Enum.IsDefined(item.Platform))
             {
                 results.Add(new { index = i, handle, ok = false, code = "invalid_platform", message = "Unknown platform." });
                 continue;
             }
-            if (string.IsNullOrWhiteSpace(handle) || handle.Length > 100)
+            if (string.IsNullOrWhiteSpace(handle) || handle.Length > 64 || !handle.All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '.' or '-'))
             {
                 results.Add(new { index = i, handle, ok = false, code = "invalid", message = "Not a valid handle." });
                 continue;
@@ -570,30 +574,52 @@ public class ManageController : ControllerBase
                 results.Add(new { index = i, handle, ok = false, code = "duplicate", message = "Listed twice in this batch." });
                 continue;
             }
-            if (await _traderService.GetTraderByHandleIgnoreCaseAsync(handle, item.Platform) != null)
+
+            var tracked = await _traderService.GetTraderByHandleIgnoreCaseAsync(handle, item.Platform);
+            // Tracked or not, our account follows them (a no-op when it already does): a tracked trader the account dropped
+            // would otherwise stay silent with nothing to show for it.
+            var follow = await _sidecarFollow.FollowAsync(item.Platform, tracked?.Handle ?? handle, ct);
+            if (tracked != null)
             {
-                results.Add(new { index = i, handle, ok = false, code = "already_tracked", message = "Already tracked — follow them from the list instead." });
+                await _traderService.FollowTraderAsync(user.Id, tracked.Id);
+                results.Add(new { index = i, handle = tracked.Handle, ok = true, code = "following", message = "Already tracked — you follow them now." });
+                continue;
+            }
+            if (!follow.Ok)
+            {
+                var platformName = item.Platform == Platform.Pump ? "pump.fun" : "FOMO";
+                var message = follow.Code switch
+                {
+                    "not_found" => $"No {platformName} user with that handle.",
+                    "invalid" => follow.Message == "that account has no pump.fun username" ? "That pump.fun account has no username, so it can't be tracked." : $"That {platformName} account can't be added.",
+                    "rate_limited" => $"{platformName} is busy — try again in a minute.",
+                    _ => $"Couldn't reach {platformName} right now — try again in a few minutes.",
+                };
+                results.Add(new { index = i, handle, ok = false, code = follow.Code, message });
                 continue;
             }
 
+            // The platform's own spelling of the handle, the one their alerts will carry.
+            var canonical = string.IsNullOrWhiteSpace(follow.Handle) ? handle : follow.Handle;
             _dbContext.SuggestedTraders.Add(new SuggestedTrader
             {
                 UserId = user.Id,
-                Handle = handle,
+                Handle = canonical,
                 Platform = item.Platform,
-                CreatedAt = now,
+                CreatedAt = DateTime.UtcNow,
                 BatchId = batchId
             });
-            accepted.Add((handle, item.Platform));
-            results.Add(new { index = i, handle, ok = true, code = "sent", message = (string?)null });
+            await _dbContext.SaveChangesAsync();
+            await _traderService.RegisterAddedTraderAsync(canonical, item.Platform);   // creates them and follows everyone who asked
+            accepted.Add((canonical, item.Platform));
+            results.Add(new { index = i, handle = canonical, ok = true, code = "added", message = (string?)null });
         }
 
-        // Nothing usable means nothing was stored, so the budget is untouched — a batch of
+        // Nothing added means nothing was stored, so the budget is untouched — a batch of
         // typos shouldn't burn one of the day's submissions.
         if (accepted.Count == 0)
             return Ok(new { status = "success", accepted = 0, remaining = SubmissionRateLimit - recentSubmissions, results });
 
-        await _dbContext.SaveChangesAsync();
         await NotifyOwnerOfSuggestionsAsync(user, accepted);
 
         return Ok(new
@@ -605,9 +631,74 @@ public class ManageController : ControllerBase
         });
     }
 
-    // Reuses the same admin-bot DM channel HandleFreeTextAsync already forwards non-command
-    // messages through — one place the owner checks, not a second notification surface.
-    // One DM per submission, not per handle — a 20-row batch used to mean 20 messages.
+    // As-you-type check for the add form: which accounts exist on that platform for what the user typed, asked through the
+    // logged-in sidecar (FOMO: the app's own fuzzy user search; pump.fun has no user search, so the exact handle check there),
+    // plus the tracked traders whose handle starts with it. Read-only. checkedLive=false means the platform could not be asked.
+    [HttpGet("trader-lookup")]
+    public async Task<IActionResult> TraderLookup([FromQuery] Platform platform, [FromQuery] string? q, CancellationToken ct)
+    {
+        var (user, error) = await ResolveSubscriberAsync();
+        if (user == null) return error!;
+
+        var query = CleanHandle(q);
+        if (!Enum.IsDefined(platform) || query.Length < 2 || query.Length > 64 || !query.All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '.' or '-'))
+            return Ok(new { checkedLive = false, users = Array.Empty<object>() });
+
+        var live = await _sidecarFollow.LookupAsync(platform, query, ct);
+        var liveUsers = live.Ok ? live.Users ?? new() : new();
+        var lower = query.ToLowerInvariant();
+        var liveLower = liveUsers.Select(u => u.Handle.ToLower()).ToList();
+        var tracked = await _dbContext.Traders
+            .Where(t => t.Platform == platform && (t.Handle.ToLower().StartsWith(lower) || liveLower.Contains(t.Handle.ToLower())))
+            .OrderBy(t => t.Handle.Length)
+            .Take(30)
+            .Select(t => new { t.Id, t.Handle })
+            .ToListAsync(ct);
+        var trackedIds = tracked.Select(t => t.Id).ToList();
+        var following = (await _dbContext.UserTraders
+            .Where(ut => ut.UserId == user.Id && trackedIds.Contains(ut.TraderId))
+            .Select(ut => ut.TraderId)
+            .ToListAsync(ct)).ToHashSet();
+        var trackedByHandle = tracked.GroupBy(t => t.Handle.ToLower()).ToDictionary(g => g.Key, g => g.First().Id);
+
+        var users = new List<object>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        void Add(string handle, string? name, string? pic, double? followers, bool verified)
+        {
+            if (users.Count >= 8 || !seen.Add(handle)) return;
+            int? id = trackedByHandle.TryGetValue(handle.ToLower(), out var tid) ? tid : null;
+            users.Add(new { handle, name, pic = SafePic(pic), followers, verified, tracked = id != null, following = id != null && following.Contains(id.Value) });
+        }
+        // the exact match first, then what the platform found, then tracked traders starting with it
+        foreach (var u in liveUsers.OrderBy(u => u.Handle.Equals(query, StringComparison.OrdinalIgnoreCase) ? 0 : 1))
+            Add(u.Handle, u.Name, u.Pic, u.Followers, u.Verified);
+        foreach (var t in tracked.Where(t => t.Handle.ToLower().StartsWith(lower)))
+            Add(t.Handle, null, null, null, false);
+
+        return Ok(new { checkedLive = live.Ok, exact = platform == Platform.Pump, users });
+    }
+
+    // A profile picture the page can show as is: https only, dead IPFS gateways swapped for pump.fun's own.
+    private static string? SafePic(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url) || url.Length > 500) return null;
+        var at = url.IndexOf("/ipfs/", StringComparison.OrdinalIgnoreCase);
+        if (at >= 0) url = "https://pump.mypinata.cloud" + url[at..];
+        return Uri.TryCreate(url, UriKind.Absolute, out var u) && u.Scheme == Uri.UriSchemeHttps ? u.ToString() : null;
+    }
+
+    // "@x", "x", or a pasted profile link (fomo.family/profile/x, pump.fun/profile/x) -> "x".
+    private static string CleanHandle(string? input)
+    {
+        var s = (input ?? "").Trim();
+        var at = s.IndexOf("/profile/", StringComparison.OrdinalIgnoreCase);
+        if (at >= 0) s = s[(at + "/profile/".Length)..];
+        s = s.Split('?', '#', '/')[0];
+        return s.Trim().TrimStart('@');
+    }
+
+    // For the owner's information only (nothing to do any more): who added which traders. Same admin-bot DM channel
+    // HandleFreeTextAsync forwards non-command messages through. One DM per submission, not per handle.
     private async Task NotifyOwnerOfSuggestionsAsync(Models.User user, List<(string Handle, Platform Platform)> suggestions)
     {
         if (string.IsNullOrEmpty(_telegramSettings.AdminBotToken))
@@ -634,8 +725,8 @@ public class ManageController : ControllerBase
 
         var lines = suggestions.Select(s =>
             $"• <a href=\"{Esc(ProfileUrl(s.Handle, s.Platform))}\">{Esc(s.Handle)}</a> on <b>{s.Platform}</b>");
-        var heading = suggestions.Count == 1 ? "Trader suggestion" : $"Trader suggestions ({suggestions.Count})";
-        var text = $"📬 <b>{Esc(heading)}</b>\n\nfrom {requester}\n\n{string.Join("\n", lines)}";
+        var heading = suggestions.Count == 1 ? "Trader added" : $"Traders added ({suggestions.Count})";
+        var text = $"➕ <b>{Esc(heading)}</b>\n\nby {requester}, our accounts follow them now\n\n{string.Join("\n", lines)}";
 
         try
         {

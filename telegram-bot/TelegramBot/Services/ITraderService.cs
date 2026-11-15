@@ -9,6 +9,10 @@ public interface ITraderService
     Task<List<Trader>> GetAllTradersAsync();
     Task<List<Trader>> GetTradersByUserIdAsync(int userId);
     Task<Trader> AddOrUpdateTraderAsync(string handle, Platform platform = Platform.Fomo);
+
+    // A trader a user added on /manage after our account on that platform followed them: created now if new, the users who
+    // asked for them (SuggestedTraders rows) followed, the new-trader announcement sent in the background.
+    Task<Trader> RegisterAddedTraderAsync(string handle, Platform platform);
     Task<BulkRegisterResult> BulkRegisterTradersAsync(IEnumerable<TraderSeedEntry> traders, Platform platform);
     Task<bool> FollowTraderAsync(int userId, int traderId);
     Task<bool> FollowTraderByHandleAsync(int userId, string handle, Platform platform = Platform.Fomo);

@@ -67,6 +67,8 @@ builder.Services.AddScoped<UserActivityFilter>();
 builder.Services.AddSingleton<TraderIntelService>(); // per-trader intel for /manage: live rating + offline public-profile data
 builder.Services.AddSingleton<CandleClient>();
 builder.Services.AddSingleton<PumpProfileClient>();
+builder.Services.AddSingleton<SidecarFollowClient>(); // /manage "add a trader": the logged-in sidecars follow them on FOMO / pump.fun
+builder.Services.AddHttpClient(SidecarFollowClient.HttpClientName);
 builder.Services.AddHttpClient(PumpProfileClient.HttpClientName).RemoveAllLoggers();
 builder.Services.AddHttpClient(CandleClient.HttpClientName).RemoveAllLoggers(); // a backfill is tens of thousands of requests; per-request logs would bury everything else
 builder.Services.AddSingleton<TraderCategorizerService>();

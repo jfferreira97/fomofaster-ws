@@ -121,6 +121,58 @@ public class TraderService : ITraderService
         return trader;
     }
 
+    // A trader a user added on /manage, once our own account on that platform follows them: created now (no waiting for their
+    // first trade), everyone who asked for them followed, and the new-trader announcement sent in the background so the page
+    // does not wait on a Telegram send per active user. If their first trade created them in the meantime, that row is used.
+    public async Task<Trader> RegisterAddedTraderAsync(string handle, Platform platform)
+    {
+        var trader = await GetTraderByHandleIgnoreCaseAsync(handle, platform);
+        if (trader != null)
+        {
+            await FollowSuggestionRequestersAsync(trader);
+            return trader;
+        }
+
+        trader = new Trader { Handle = handle, Platform = platform, FirstSeenAt = DateTime.UtcNow, LastSeenAt = DateTime.UtcNow };
+        _dbContext.Traders.Add(trader);
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            // created a moment ago by their first trade (unique handle per platform): use that one
+            _dbContext.Entry(trader).State = EntityState.Detached;
+            var existing = await GetTraderByHandleIgnoreCaseAsync(handle, platform)
+                ?? throw new InvalidOperationException($"trader {handle} ({platform}) could not be created");
+            await FollowSuggestionRequestersAsync(existing);
+            return existing;
+        }
+        _logger.LogInformation("New trader added from /manage: Handle={Handle} Platform={Platform}", handle, platform);
+
+        var requesterIds = await FollowSuggestionRequestersAsync(trader);
+        if (_botClient != null)
+        {
+            var traderId = trader.Id;
+            var scopes = _serviceProvider.GetRequiredService<IServiceScopeFactory>();
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    using var scope = scopes.CreateScope();
+                    var svc = (TraderService)scope.ServiceProvider.GetRequiredService<ITraderService>();
+                    var created = await svc.GetTraderByIdAsync(traderId);
+                    if (created != null) await svc.BroadcastNewTraderMessageAsync(created, requesterIds);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "New-trader announcement failed for trader {TraderId}", traderId);
+                }
+            });
+        }
+        return trader;
+    }
+
     // A /manage suggestion is a standing request for one specific trader, which is a stronger
     // signal than a blanket auto-follow preference — so whoever asked gets followed the moment
     // the trader lands, whatever their settings say. FollowTraderAsync rather than
@@ -233,7 +285,7 @@ public class TraderService : ITraderService
                 {
                     message = $@"🔔 A new sharp {platformLabel} trader, [{escapedHandle}]({profileLink}), was just added to our services!
 
-✅ You suggested this trader, so you're following them automatically — regardless of your auto-follow setting.
+✅ You added this trader, so you're following them — regardless of your auto-follow setting.
 
 Use /unfollow {escapedHandle} or /unfollow {trader.Id} if you've changed your mind.
 Use /settings to manage auto-follow and notification preferences.";
