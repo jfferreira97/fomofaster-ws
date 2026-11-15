@@ -780,7 +780,8 @@
     #loginScreen, #subscribeScreen { padding-top: 62px; }
     body { -webkit-font-smoothing: antialiased; }                                 /* as the feed */
     @media (max-width: 759px) { .brand-name { display: none; } }
-    @media (max-width: 560px) { .topbar { gap: 8px; } }
+    @media (max-width: 679px) { .topbar { gap: 8px; } }
+    @media (max-width: 560px) { .topbar { gap: 6px; } }   /* the feed's gaps, so the logo, nav and plan sit in the same place */
     @media (max-width: 440px) { .topbar { gap: 6px; padding-left: 10px; padding-right: 10px; } }   /* the feed's phone spacing, so the */
     @media (max-width: 380px) { .topbar { gap: 5px; padding-left: 8px; padding-right: 8px; } }     /* logo and nav sit in the same place */
     /* The desktop page is shown at 80% (html zoom below): the bar is scaled back to 100% so it is the feed's size exactly. */
@@ -853,7 +854,11 @@
     .cat-strip .cat-chip.filtered .cat-body .n { color: #808a9c; opacity: 1; }
     .cat-strip { justify-content: safe center; }   /* on a phone the first category was cut off and could not be scrolled to */
 
-    /* The plan is the feed's tier badge ("live · full"), and like it stays off the phone's bar. */
+    /* The plan is the feed's badge, in the same place (right after the nav) with the same words: in full where there is room,
+       short on a narrower bar ("17d left"). */
+    .plan-pill { flex: none; }
+    .plan-pill .pl-s { display: none; }
+    @media (max-width: 919px) { .plan-pill .pl-l { display: none; } .plan-pill .pl-s { display: inline; } }
     .plan-pill { font: 700 10px 'IBM Plex Mono', monospace; letter-spacing: .08em; text-transform: uppercase; padding: 3px 7px; border-radius: 5px; background: transparent; border-color: #161b25; color: #808a9c; }
     .plan-pill::before { display: none; }
     .plan-pill.full { color: #2fd38a; border-color: rgba(47,211,138,.35); background: rgba(47,211,138,.08); }
@@ -984,9 +989,9 @@
             <a href="/feed" title="Live feed" aria-label="Feed"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span>Feed</span></a>
             <a href="/manage" class="on" aria-current="page" title="Your alert settings" aria-label="Manage"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/></svg><span>Manage</span></a>
         </nav>
+        <button class="plan-pill" id="planPill" style="display:none" title=""></button>
         <span class="topbar-sp"></span>
         <div class="topbar-right">
-            <button class="plan-pill" id="planPill" style="display:none" title=""></button>
             <button class="sub-btn" id="subBtn" style="display:none">Subscribe</button>
             <span class="whoami" id="whoami"></span>
             <button class="logout-btn" id="logoutLink">Log out</button>
@@ -1036,6 +1041,51 @@
                                 </div>
                                 <input type="text" id="minAgeInput" placeholder="e.g. 18h" autocomplete="off" maxlength="12" style="width:92px">
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-head">
+                        <div class="panel-title">🔒 Lock Alerts</div>
+                    </div>
+                    <div class="panel-body general" style="margin-top:0;border-top:none">
+                        <div class="field-hint" style="margin-bottom:10px">A new <b>Streamflow</b> lock on a Solana token: how much of the supply, for how long, at what market cap. Only tokens that trade. Paid plans get the full alert.</div>
+                        <div class="chip-grid" id="lockGrid"></div>
+                        <div class="field-row">
+                            <div>
+                                <div class="field-label">Min % of supply locked</div>
+                                <div class="field-hint">Empty = any amount</div>
+                            </div>
+                            <input type="number" id="lockMinPct" min="0" max="100" step="0.1" placeholder="any" inputmode="decimal" style="width:110px">
+                        </div>
+                        <div class="field-row">
+                            <div>
+                                <div class="field-label">Locked for at least (days)</div>
+                                <div class="field-hint">Until fully unlocked. Empty = any</div>
+                            </div>
+                            <input type="number" id="lockMinDays" min="0" step="1" placeholder="any" inputmode="decimal" style="width:110px">
+                        </div>
+                        <div class="field-row">
+                            <div>
+                                <div class="field-label">Min market cap ($)</div>
+                                <div class="field-hint">Empty = no minimum</div>
+                            </div>
+                            <input type="number" id="lockMinMc" min="0" step="1000" placeholder="none" inputmode="decimal" style="width:110px">
+                        </div>
+                        <div class="field-row">
+                            <div>
+                                <div class="field-label">Max market cap ($)</div>
+                                <div class="field-hint">Empty = no maximum</div>
+                            </div>
+                            <input type="number" id="lockMaxMc" min="0" step="1000" placeholder="none" inputmode="decimal" style="width:110px">
+                        </div>
+                        <div class="field-row">
+                            <div>
+                                <div class="field-label">Token at most (hours old)</div>
+                                <div class="field-hint">Empty = any age</div>
+                            </div>
+                            <input type="number" id="lockMaxAge" min="0" step="1" placeholder="any" inputmode="decimal" style="width:110px">
                         </div>
                     </div>
                 </div>
@@ -1252,6 +1302,8 @@ function showApp(me) {
     renderFilters();
 
     currentSettings = me.settings;
+    lockSettings = me.locks || {};
+    renderLockFields();
     document.getElementById('repeatWindowInput').value = currentSettings.repeatWindowMinutes;
     showMinAge();
     renderSettings();
@@ -1276,22 +1328,29 @@ function timeLeftText(ms) {
     if (d === 1) return '1 day ' + h + 'h left';
     return h > 0 ? h + 'h ' + m + 'm left' : m + 'm left';
 }
+function shortLeft(ms) {   // = shortLeft in feed.html: the same, for a narrow bar
+    const mins = Math.max(0, Math.floor(ms / 60000)), d = Math.floor(mins / 1440), h = Math.floor(mins / 60);
+    return d >= 1 ? d + 'd' : h >= 1 ? h + 'h' : mins + 'm';
+}
 function renderPlan() {
     const s = plan.s, pill = document.getElementById('planPill');
     if (!s || !pill) return;
     const fmt = iso => new Date(iso).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     const now = Date.now();
-    let text, cls = '', title;
-    if (s.lifetime) { text = 'Lifetime'; cls = 'full'; title = 'Lifetime access: nothing to renew'; }
+    let text, short, cls = '', title;
+    if (s.lifetime) { text = short = 'Lifetime'; cls = 'full'; title = 'Lifetime access: nothing to renew'; }
     else if (s.activeUntil && new Date(s.activeUntil).getTime() > now) {
         const left = new Date(s.activeUntil).getTime() - now;
-        text = 'Full access · ' + timeLeftText(left); cls = left <= 3 * 864e5 ? 'soon' : 'full'; title = 'Full access until ' + fmt(s.activeUntil);
+        text = 'Full access · ' + timeLeftText(left); short = shortLeft(left) + ' left'; cls = left <= 3 * 864e5 ? 'soon' : 'full'; title = 'Full access until ' + fmt(s.activeUntil);
     } else if (s.trialEndsAt && new Date(s.trialEndsAt).getTime() > now) {
-        text = 'Free trial · ' + timeLeftText(new Date(s.trialEndsAt).getTime() - now); cls = 'soon'; title = 'Free trial ends ' + fmt(s.trialEndsAt);
+        const left = new Date(s.trialEndsAt).getTime() - now;
+        text = 'Free trial · ' + timeLeftText(left); short = 'Trial · ' + shortLeft(left); cls = 'soon'; title = 'Free trial ends ' + fmt(s.trialEndsAt);
     } else {
-        text = s.trialEndsAt ? 'Trial ended' : 'No active plan'; cls = 'none'; title = s.trialEndsAt ? 'Your free trial ended ' + fmt(s.trialEndsAt) : 'No active plan';
+        text = s.trialEndsAt ? 'Trial ended' : 'No active plan'; short = s.trialEndsAt ? 'Trial ended' : 'No plan'; cls = 'none'; title = s.trialEndsAt ? 'Your free trial ended ' + fmt(s.trialEndsAt) : 'No active plan';
     }
-    pill.style.display = ''; pill.textContent = text; pill.className = 'plan-pill ' + cls; pill.title = title;
+    const l = document.createElement('span'), sh = document.createElement('span');
+    l.className = 'pl-l'; l.textContent = text; sh.className = 'pl-s'; sh.textContent = short;
+    pill.style.display = ''; pill.replaceChildren(l, sh); pill.className = 'plan-pill ' + cls; pill.title = title;
 
     // The note under the header says what the current plan gets: a trial has full alerts, no plan has the hidden ones.
     const note = document.getElementById('trialNote');
@@ -1496,7 +1555,12 @@ function renderSettings() {
     document.getElementById('generalGrid').innerHTML = `
         <button class="chip full ${s.notifyTrending ? 'on' : ''}" data-field="notifyTrending" aria-pressed="${s.notifyTrending}">🔥 Trending Alerts: ${onOff(s.notifyTrending)}</button>`;
 
-    document.querySelectorAll('#settingsGrid .chip, #generalGrid .chip')
+    const locksOn = currentSettings.notifyLocks !== false;
+    document.getElementById('lockGrid').innerHTML =
+        `<button class="chip full ${locksOn ? 'on' : ''}" data-field="notifyLocks" aria-pressed="${locksOn}">🔒 Lock Alerts: ${onOff(locksOn)}</button>`;
+    document.querySelectorAll('#lockGrid ~ .field-row input').forEach(i => { i.disabled = !locksOn; });
+
+    document.querySelectorAll('#settingsGrid .chip, #generalGrid .chip, #lockGrid .chip')
         .forEach(btn => btn.addEventListener('click', onSettingToggle));
 }
 
@@ -1533,6 +1597,26 @@ async function onSettingToggle(e) {
     });
     if (!res.ok) showToast('Failed to save');
 }
+
+/* ---------- Lock alerts' limits ---------- */
+let lockSettings = {};
+const LOCK_FIELDS = [['lockMinPct', 'minPercent'], ['lockMinDays', 'minDays'], ['lockMinMc', 'minMarketCap'], ['lockMaxMc', 'maxMarketCap'], ['lockMaxAge', 'maxTokenAgeHours']];
+function renderLockFields() {
+    for (const [id, key] of LOCK_FIELDS) document.getElementById(id).value = lockSettings[key] ?? '';
+}
+async function saveLockFields() {
+    const body = {};
+    for (const [id, key] of LOCK_FIELDS) {
+        const v = parseFloat(document.getElementById(id).value);
+        body[key] = Number.isFinite(v) && v > 0 ? (key === 'minDays' || key === 'maxTokenAgeHours' ? Math.round(v) : v) : null;
+    }
+    const res = await fetch(`${API}/api/manage/lock-settings`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    }).catch(() => null);
+    if (res?.ok) { lockSettings = body; renderLockFields(); }
+    showToast(res?.ok ? 'Saved' : 'Failed to save');
+}
+LOCK_FIELDS.forEach(([id]) => document.getElementById(id).addEventListener('change', saveLockFields));
 
 document.getElementById('repeatWindowInput').addEventListener('change', async (e) => {
     currentSettings.repeatWindowMinutes = parseInt(e.target.value, 10) || 0;

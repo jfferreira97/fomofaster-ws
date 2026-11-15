@@ -83,6 +83,8 @@ builder.Services.AddSingleton<PaymentPollerService>();
 builder.Services.AddHostedService(provider => provider.GetRequiredService<PaymentPollerService>()); // Solana payment polling + subscription expiry
 builder.Services.AddSingleton<ConfluenceService>();
 builder.Services.AddHostedService(provider => provider.GetRequiredService<ConfluenceService>()); // Multi-trader confluence -> TRENDING alerts
+builder.Services.AddSingleton<StreamflowLockService>();
+builder.Services.AddHostedService(provider => provider.GetRequiredService<StreamflowLockService>()); // new Streamflow locks on Solana -> LOCK alerts
 builder.Services.AddSingleton<WebAnalyticsService>(); // first-party landing-site analytics + /start attribution
 builder.Services.AddHostedService<NotificationRetentionService>(); // Purges Notifications/SentMessages older than the repeat-window's max lookback
 builder.Services.AddSingleton<ActiveUserCache>();

@@ -184,6 +184,78 @@ namespace TelegramBot.Migrations
                     b.ToTable("ConfluenceAlerts");
                 });
 
+            modelBuilder.Entity("TelegramBot.Models.LockEvent", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(38,9)");
+
+                    b.Property<DateTime?>("CliffAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("EndAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("MarketCapUsd")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Mint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("PairCreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("PercentSupply")
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<DateTime>("ReceivedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Sender")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Signature")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SkipReason")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("StartAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StreamAccount")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Symbol")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("UsdValue")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Mint");
+
+                    b.HasIndex("Signature")
+                        .IsUnique();
+
+                    b.ToTable("LockEvents");
+                });
+
             modelBuilder.Entity("TelegramBot.Models.Notification", b =>
                 {
                     b.Property<int>("Id")
@@ -654,6 +726,21 @@ namespace TelegramBot.Migrations
                     b.Property<DateTime?>("LastActiveAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<decimal?>("LockMaxMarketCap")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("LockMaxTokenAgeHours")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("LockMinDays")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal?>("LockMinMarketCap")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("LockMinPercent")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("MinTokenAgeMinutes")
                         .HasColumnType("INTEGER");
 
@@ -661,6 +748,9 @@ namespace TelegramBot.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("NotifyFomoThesis")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("NotifyLocks")
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("NotifyPumpBuySell")

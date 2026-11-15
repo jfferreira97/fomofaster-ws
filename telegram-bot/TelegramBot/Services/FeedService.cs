@@ -57,6 +57,37 @@ public class FeedService
         _tokenImages[ca] = img;
     }
 
+    // Lock alerts: the lock behind each one, for the row's details on the feed (amount, unlock dates, who locked it, links).
+    // StreamflowLockService hands each lock over just before its alert goes out; SeedAsync reloads them after a restart.
+    // Mint -> its last few locks, oldest first.
+    private readonly ConcurrentDictionary<string, List<LockEvent>> _locks = new();
+    public void RememberLock(LockEvent ev)
+    {
+        if (string.IsNullOrEmpty(ev.Mint)) return;
+        if (_locks.Count > 2000) _locks.Clear();
+        var list = _locks.GetOrAdd(ev.Mint, _ => new List<LockEvent>());
+        lock (list) { list.Add(ev); if (list.Count > 5) list.RemoveAt(0); }
+    }
+    private LockEvent? LockFor(Notification n)
+    {
+        if (n.Type != NotificationType.CUSTOM_Lock || string.IsNullOrEmpty(n.ContractAddress) || !_locks.TryGetValue(n.ContractAddress, out var list)) return null;
+        // A coin can get several locks within seconds (KET: four in 15 s on 2026-11-15), and an alert can go out after the next lock
+        // was seen: each alert's own "2.27% of" picks its lock; the time only when no percentage matches.
+        lock (list)
+            return list.LastOrDefault(e => e.PercentSupply is decimal p && (n.Message ?? "").Contains(p.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + "% of"))
+                ?? list.LastOrDefault(e => e.ReceivedAt <= n.SentAt.AddMinutes(1)) ?? list.LastOrDefault();
+    }
+    private static long? Ms(DateTime? t) => t is DateTime d ? new DateTimeOffset(DateTime.SpecifyKind(d, DateTimeKind.Utc)).ToUnixTimeMilliseconds() : null;
+    // The free version keeps the shape of the lock (how much, how long) and leaves out what leads to the coin: the
+    // transaction, the Streamflow contract, the wallet and the token amount.
+    private static object LockDetail(LockEvent e, bool full) => new
+    {
+        tokens = full ? e.Amount : (decimal?)null, pct = e.PercentSupply,
+        at = Ms(e.CreatedAt), start = Ms(e.StartAt), cliff = Ms(e.CliffAt), end = Ms(e.EndAt), born = Ms(e.PairCreatedAt),
+        by = full ? e.Sender : null, tx = full ? e.Signature : null,
+        sf = full && !string.IsNullOrEmpty(e.StreamAccount) ? e.StreamAccount : null,
+    };
+
     private static string ScoreKey(Platform p, string handle) => $"{(int)p}:{handle.ToLowerInvariant()}";
 
     private sealed class Client
@@ -181,6 +212,12 @@ public class FeedService
             .Select(e => new { e.ActorHandle, e.CoinMint, e.RawJson }).ToListAsync();
         var pumpImg = pumpRows.GroupBy(e => (e.ActorHandle ?? "").ToLowerInvariant() + "|" + e.CoinMint).ToDictionary(g => g.Key,
             g => (Tok: RawString(g.Last().RawJson, "coinImage"), Face: RawString(g.Last().RawJson, "author", "profileImage")));
+
+        // The locks behind the lock alerts, for their details.
+        var lockMints = notes.Where(n => n.Type == NotificationType.CUSTOM_Lock && n.ContractAddress != null).Select(n => n.ContractAddress!).Distinct().ToList();
+        if (lockMints.Count > 0)
+            foreach (var e in await db.LockEvents.AsNoTracking().Where(e => lockMints.Contains(e.Mint) && e.SkipReason == null).OrderBy(e => e.Id).ToListAsync())
+                RememberLock(e);
 
         lock (_lock)
         {
@@ -465,20 +502,24 @@ public class FeedService
             ?? (string.IsNullOrEmpty(n.Trader) ? null : SafeImage(_intel.Get(n.Platform, n.Trader)?.Avatar));
 
         var type = n.Type.ToString();
+        // Lock alerts come from neither platform: the feed shows them under their own "lock" source, which can be filtered out.
+        var plat = n.Type == NotificationType.CUSTOM_Lock ? "lock" : isFomo ? "fomo" : "pump";
+        var lockEv = LockFor(n);
+        var lk = lockEv == null ? null : LockDetail(lockEv, full: true);
         var fullObj = new
         {
-            id, ts, type, platform = isFomo ? "fomo" : "pump", chain = chain?.ToString(),
+            id, ts, type, platform = plat, chain = chain?.ToString(),
             trader = n.Trader, profile, ticker = n.Ticker, ca, mc, usd,
-            msg = n.Message, links, locked = false, img = coinImg, av = faceImg
+            msg = n.Message, links, locked = false, img = coinImg, av = faceImg, lk
         };
 
         // Same card as Full plus the score pill, for paying members only.
         var score = !string.IsNullOrEmpty(n.Trader) && _scores.TryGetValue(ScoreKey(n.Platform, n.Trader), out var sc) ? sc : null;
         var ratedObj = new
         {
-            id, ts, type, platform = isFomo ? "fomo" : "pump", chain = chain?.ToString(),
+            id, ts, type, platform = plat, chain = chain?.ToString(),
             trader = n.Trader, profile, ticker = n.Ticker, ca, mc, usd,
-            msg = n.Message, links, locked = false, img = coinImg, av = faceImg,
+            msg = n.Message, links, locked = false, img = coinImg, av = faceImg, lk,
             rank = score?.Rank, weak = score?.Weak
         };
 
@@ -496,10 +537,11 @@ public class FeedService
 
         var freeObj = new
         {
-            id, ts, type, platform = isFomo ? "fomo" : "pump", chain = chain?.ToString(),
+            id, ts, type, platform = plat, chain = chain?.ToString(),
             trader = n.Trader, profile, ticker = (string?)null, ca = (string?)null,
             mc, usd = n.Type is NotificationType.Buy or NotificationType.Sell ? (double?)null : usd, msg = freeMsg, links = (object?)null, locked = true,
-            img = ProxyUrl(coinImg, coinAlt), av = ProxyUrl(faceImg)
+            img = ProxyUrl(coinImg, coinAlt), av = ProxyUrl(faceImg),
+            lk = lockEv == null ? null : LockDetail(lockEv, full: false)
         };
 
         return new Entry(id, ts, recipients, JsonSerializer.Serialize(fullObj, Json), JsonSerializer.Serialize(ratedObj, Json), JsonSerializer.Serialize(freeObj, Json));

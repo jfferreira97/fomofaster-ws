@@ -159,7 +159,7 @@ public class TelegramService : ITelegramService
         }
     }
 
-    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, string? contractAddress = null, Chain? chain = null, string? traderHandle = null, string? ticker = null, double? marketCap = null, NotificationType notificationType = NotificationType.Unknown, string? fomoWsTradeId = null, Platform platform = Platform.Fomo, double? usdAmount = null, string? tokenImage = null, string? traderImage = null, AlertTrace? trace = null, double? feedUsd = null)
+    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, string? contractAddress = null, Chain? chain = null, string? traderHandle = null, string? ticker = null, double? marketCap = null, NotificationType notificationType = NotificationType.Unknown, string? fomoWsTradeId = null, Platform platform = Platform.Fomo, double? usdAmount = null, string? tokenImage = null, string? traderImage = null, AlertTrace? trace = null, double? feedUsd = null, LockFacts? lockFacts = null, string? extraLink = null)
     {
         if (_botClient == null)
         {
@@ -242,7 +242,7 @@ public class TelegramService : ITelegramService
         // pair for yet counts as brand new. If the lookup does not answer in time, nobody is filtered: a slow API must never cost an alert.
         TokenAge? ageForText = null;   // also shown in the alert's link line
         var carriesToken = chain.HasValue && !string.IsNullOrEmpty(contractAddress)
-            && notificationType is NotificationType.Buy or NotificationType.Sell or NotificationType.Callout or NotificationType.Thesis or NotificationType.CUSTOM_Trending;
+            && notificationType is NotificationType.Buy or NotificationType.Sell or NotificationType.Callout or NotificationType.Thesis or NotificationType.CUSTOM_Trending or NotificationType.CUSTOM_Lock;
         if (carriesToken)
         {
             var ageSettings = _chainSettingsCache.GetForChain(chain.Value);
@@ -297,6 +297,7 @@ public class TelegramService : ITelegramService
             NotificationType.Thesis                        => u.NotifyFomoThesis,
             NotificationType.Callout or NotificationType.Repost or NotificationType.Reply => u.NotifyPumpCallouts,
             NotificationType.CUSTOM_Trending => u.NotifyTrending,
+            NotificationType.CUSTOM_Lock => u.NotifyLocks && LockPasses(u, lockFacts),
             _ => true
         }).ToList();
 
@@ -305,12 +306,6 @@ public class TelegramService : ITelegramService
             _logger.LogWarning("No active users to send notification to");
             return;
         }
-
-        // Escape Markdown special chars in the raw message before parsing — stray _, *, `, [
-        // characters (including those shifted by invisible unicode) cause Telegram to throw
-        // "Can't find end of entity". Do this first, then inject the intentional link.
-        static string EscapeMarkdown(string text) =>
-            text.Replace("_", "\\_").Replace("*", "\\*").Replace("`", "\\`").Replace("[", "\\[");
 
         var processedMessage = EscapeMarkdown(notification.Message);
         if (!string.IsNullOrEmpty(traderHandle))
@@ -344,26 +339,6 @@ public class TelegramService : ITelegramService
             NotificationType.CUSTOM_Trending => "🔥 | ",
             _                                => ""
         };
-
-        // Axiom and Terminal (Padre) are each omitted per-chain when that platform doesn't
-        // support the chain (confirmed 2026-08-30: Axiom has no Base/Monad, Padre has no Monad)
-        // rather than guessed. DexScreener always has a slug for every chain we track, so it
-        // stays last as the one link that's always present.
-        static string TradeLinks(Chain chain, string contractAddress)
-        {
-            var parts = new List<string>();
-            var axiomUrl = ChainInfo.AxiomUrl(chain, contractAddress);
-            if (axiomUrl != null) parts.Add($"[Axiom]({axiomUrl})");
-
-            var padreUrl = ChainInfo.PadreUrl(chain, contractAddress);
-            if (padreUrl != null) parts.Add($"[Terminal]({padreUrl})");
-
-            parts.Add($"[Dexscreener]({ChainInfo.DexScreenerUrl(chain, contractAddress)})");
-
-            return string.Join(" | ", parts);
-        }
-
-        const string GenericTradeLinks = "[Axiom](https://axiom.trade) | [Terminal](https://trade.padre.gg)";
 
         if (!string.IsNullOrEmpty(contractAddress))
         {
@@ -410,9 +385,15 @@ public class TelegramService : ITelegramService
             obfuscatedMessage = obfuscatedMessage.Replace(linkHead, withAge);
         }
 
+        // A lock keeps the old FasterAlerts layout: the bold "… LOCKED" line, the contract, the bold duration line, then the links
+        // (ours, then Solscan | Streamflow, which only the full alert carries: they name the token). Its age is in the first
+        // line already, so the link line goes without it.
+        if (notificationType == NotificationType.CUSTOM_Lock && !string.IsNullOrEmpty(contractAddress))
+            (fullMessage, obfuscatedMessage) = LockMessages(notification.Message, contractAddress, chain, ticker, extraLink);
+
         // Global per-platform prefix — 👀 mirrors the FOMO logo, 💊 marks Pump-sourced
-        // notifications. TRENDING alerts are cross-platform by nature, so they skip it entirely.
-        if (notificationType != NotificationType.CUSTOM_Trending)
+        // notifications. TRENDING and LOCK alerts come from neither platform, so they skip it entirely.
+        if (notificationType is not (NotificationType.CUSTOM_Trending or NotificationType.CUSTOM_Lock))
         {
             var platformPrefix = platform == Platform.Pump ? "💊" : "👀";
             fullMessage = $"{platformPrefix} | {fullMessage}";
@@ -703,6 +684,88 @@ public class TelegramService : ITelegramService
             _logger.LogError(ex, "Failed to send plain message to chat {ChatId}", chatId);
             return false;
         }
+    }
+
+    // Escape Markdown special chars in the raw message before parsing — stray _, *, `, [
+    // characters (including those shifted by invisible unicode) cause Telegram to throw
+    // "Can't find end of entity". Do this first, then inject the intentional link.
+    private static string EscapeMarkdown(string text) =>
+        text.Replace("_", "\\_").Replace("*", "\\*").Replace("`", "\\`").Replace("[", "\\[");
+
+    // Axiom and Terminal (Padre) are each omitted per-chain when that platform doesn't
+    // support the chain (confirmed 2026-08-30: Axiom has no Base/Monad, Padre has no Monad)
+    // rather than guessed. DexScreener always has a slug for every chain we track, so it
+    // stays last as the one link that's always present.
+    private static string TradeLinks(Chain chain, string contractAddress)
+    {
+        var parts = new List<string>();
+        var axiomUrl = ChainInfo.AxiomUrl(chain, contractAddress);
+        if (axiomUrl != null) parts.Add($"[Axiom]({axiomUrl})");
+
+        var padreUrl = ChainInfo.PadreUrl(chain, contractAddress);
+        if (padreUrl != null) parts.Add($"[Terminal]({padreUrl})");
+
+        parts.Add($"[Dexscreener]({ChainInfo.DexScreenerUrl(chain, contractAddress)})");
+
+        return string.Join(" | ", parts);
+    }
+
+    private const string GenericTradeLinks = "[Axiom](https://axiom.trade) | [Terminal](https://trade.padre.gg)";
+
+    // A lock alert keeps the old FasterAlerts layout: the bold "… LOCKED" line, the contract, the bold duration line, then the
+    // links (ours, then Solscan | Streamflow, which only the full alert carries: they name the token). The token's age is in
+    // the first line already, so the link line goes without it. Free: the ticker becomes "coin", the contract is hidden.
+    // Public so the dashboard can preview exactly what goes out (api/dashboard/locks).
+    public static (string Full, string Free) LockMessages(string raw, string contractAddress, Chain? chain, string? ticker, string? extraLink)
+    {
+        static bool Plain(string s) => s.IndexOfAny(new[] { '_', '*', '`', '[' }) < 0;   // legacy Markdown: no escapes inside bold
+        static string Head(string h)
+        {
+            var at = h.IndexOf(" LOCKED", StringComparison.Ordinal);
+            if (!h.StartsWith("🔒 ", StringComparison.Ordinal) || at < 0) return EscapeMarkdown(h);
+            var core = h[2..(at + 7)].Trim();
+            return Plain(core) ? $"🔒 *{core}*{EscapeMarkdown(h[(at + 7)..])}" : EscapeMarkdown(h);
+        }
+        static string When(string w) =>
+            System.Text.RegularExpressions.Regex.Replace(EscapeMarkdown(w), @"^⏰ For: ([^|*\\]+?) \|", m => $"⏰ For: *{m.Groups[1].Value}* |");
+
+        var parts = raw.Split('\n', 2);
+        var head = parts[0].Trim();
+        var when = parts.Length > 1 ? parts[1].Trim() : "";
+        var freeHead = string.IsNullOrEmpty(ticker) ? head : System.Text.RegularExpressions.Regex.Replace(head,
+            @"(?<![A-Za-z0-9])" + System.Text.RegularExpressions.Regex.Escape(ticker) + @"(?![A-Za-z0-9])", "coin",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        var chainLabel = chain?.ToString() ?? "?";
+        var links = chain.HasValue ? TradeLinks(chain.Value, contractAddress) : GenericTradeLinks;
+        var hiddenCa = contractAddress.Length > 4
+            ? contractAddress[..2] + new string('*', contractAddress.Length - 4) + contractAddress[^2..]
+            : contractAddress;
+
+        var full = $@"{Head(head)}
+
+📝 Contract: `{contractAddress}`
+{When(when)}
+🔗 {chainLabel} | {links}{(string.IsNullOrEmpty(extraLink) ? "" : " | " + extraLink)}";
+        var free = $@"{Head(freeHead)}
+
+📝 Contract: `{hiddenCa}`
+{When(when)}
+🔗 {chainLabel} | {GenericTradeLinks}
+
+{SubscribeFooter}";
+        return (full, free);
+    }
+
+    // A lock alert reaches this user only within their own limits (set on /manage). Unknown facts never filter anyone out.
+    private static bool LockPasses(Models.User u, LockFacts? f)
+    {
+        if (f == null) return true;
+        if (u.LockMinPercent is decimal minPct && f.PercentSupply is decimal pct && pct < minPct) return false;
+        if (u.LockMinDays is int minDays && f.LockDays is double days && days < minDays) return false;
+        if (u.LockMinMarketCap is decimal minMc && f.MarketCapUsd is double mc && mc < (double)minMc) return false;
+        if (u.LockMaxMarketCap is decimal maxMc && f.MarketCapUsd is double mc2 && mc2 > (double)maxMc) return false;
+        if (u.LockMaxTokenAgeHours is int maxAge && f.TokenCreatedAt is DateTime born && (DateTime.UtcNow - born).TotalHours > maxAge) return false;
+        return true;
     }
 
     private static string BuildObfuscatedText(string rawMessage, string? traderHandle, string? ticker, double? marketCap)

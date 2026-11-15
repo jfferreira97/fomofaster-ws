@@ -37,6 +37,15 @@ public class User
 
     public bool NotifyTrending { get; set; } = true;
 
+    // Lock alerts: a new Streamflow lock on a Solana token (StreamflowLockService), with this user's own limits. Null = no
+    // limit. Paid and trial users get the full alert, free users the hidden one, like every other alert.
+    public bool NotifyLocks { get; set; } = true;
+    public decimal? LockMinPercent { get; set; } = 2m;        // % of the token's supply locked (default raised from 1 on 2026-11-15)
+    public int? LockMinDays { get; set; } = 30;               // how long until it is fully unlocked (default raised from 7)
+    public decimal? LockMinMarketCap { get; set; }
+    public decimal? LockMaxMarketCap { get; set; }
+    public int? LockMaxTokenAgeHours { get; set; }
+
     public int RepeatWindowMinutes { get; set; } = 0;
     public bool IsRegisteredNurse { get; set; }
     public bool IsRN4L { get; set; }

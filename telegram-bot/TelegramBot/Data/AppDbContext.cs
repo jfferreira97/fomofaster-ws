@@ -27,6 +27,7 @@ public class AppDbContext : DbContext
     public DbSet<UserCategoryFollow> UserCategoryFollows { get; set; }
     public DbSet<ReferralCode> ReferralCodes { get; set; }
     public DbSet<ReferralPayout> ReferralPayouts { get; set; }
+    public DbSet<LockEvent> LockEvents { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -108,6 +109,19 @@ public class AppDbContext : DbContext
                 .WithOne()
                 .HasForeignKey<TraderRating>(e => e.TraderId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<LockEvent>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.Signature).IsUnique();
+            entity.HasIndex(e => e.Mint);
+            entity.Property(e => e.Signature).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Mint).IsRequired().HasMaxLength(64);
+            entity.Property(e => e.Amount).HasColumnType("decimal(38,9)");
+            entity.Property(e => e.PercentSupply).HasColumnType("decimal(18,6)");
+            entity.Property(e => e.UsdValue).HasColumnType("decimal(18,2)");
+            entity.Property(e => e.MarketCapUsd).HasColumnType("decimal(18,2)");
         });
 
         modelBuilder.Entity<UserCategoryFollow>(entity =>

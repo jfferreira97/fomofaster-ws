@@ -24,6 +24,7 @@ public enum NotificationType
     Thesis,
     Verified,
     CUSTOM_Trending, // custom notification fired as a ConfluenceAlert, not an event from the fomo WS feed
+    CUSTOM_Lock,     // a new Streamflow lock on a Solana token (StreamflowLockService); stored as text, so its place here is free
 
     // Pump — kept distinct from the FOMO types above rather than aliased onto
     // them (e.g. Callout != Thesis), since the two platforms' event shapes

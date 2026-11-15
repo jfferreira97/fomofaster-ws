@@ -56,6 +56,39 @@ public class DashboardController : ControllerBase
     private static readonly HashSet<string> MajorTickers = new(StringComparer.OrdinalIgnoreCase)
         { "BTC", "ETH", "BNB", "SOL", "WBTC", "CBBTC", "ZEC", "XMR", "DOGE", "LTC", "XRP", "ADA", "AVAX", "LINK", "TTWO", "DJT", "SPCX", "OPENAI", "ANTHRP" };
 
+    // Lock alerts: what the Streamflow listener has heard, the last locks, and with ?sig= a dry run on a past creation
+    // transaction (built exactly like a live one, but not saved and not sent).
+    // send=owner also sends the owner both Telegram versions (full and free), marked as a preview, to check how they render.
+    [HttpGet("locks")]
+    public async Task<IActionResult> Locks([FromQuery] string? sig, [FromQuery] string? send, CancellationToken ct)
+    {
+        var svc = HttpContext.RequestServices.GetRequiredService<StreamflowLockService>();
+        object? test = null;
+        if (!string.IsNullOrWhiteSpace(sig))
+        {
+            var (ev, text) = await svc.TestAsync(sig.Trim(), ct);
+            string? full = null, free = null, sent = null;
+            if (ev != null && text != null && ev.SkipReason == null)
+            {
+                (full, free) = TelegramService.LockMessages(text, ev.Mint, Chain.SOL, ev.Symbol, StreamflowLockService.ExtraLinks(ev));
+                if (send == "owner")
+                {
+                    var settings = HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<TelegramSettings>>().Value;
+                    var owner = await _dbContext.Users.FindAsync(new object[] { settings.OwnerUserId }, ct);
+                    if (owner != null)
+                    {
+                        await _telegramService.SendTestMessageAsync(owner.ChatId, "🧪 Preview of a lock alert, full version (paid/trial):\n\n" + full);
+                        await _telegramService.SendTestMessageAsync(owner.ChatId, "🧪 Same lock, free version:\n\n" + free);
+                        sent = "owner";
+                    }
+                }
+            }
+            test = new { lockEvent = ev, text, full, free, sent };
+        }
+        var recent = await _dbContext.LockEvents.AsNoTracking().OrderByDescending(e => e.Id).Take(20).ToListAsync(ct);
+        return Ok(new { svc.Connected, svc.Heard, svc.Creates, svc.Alerted, svc.Skipped, svc.LastEventAt, svc.LastLockAt, test, recent });
+    }
+
     [HttpGet("accumulation")]
     public async Task<IActionResult> GetAccumulation([FromServices] AccumulationService acc, [FromServices] TokenAgeService ages,
         [FromQuery] int days = 7, [FromQuery] int minDays = 2, [FromQuery] int minBuyers = 3, [FromQuery] int minBuyersPerDay = 2,

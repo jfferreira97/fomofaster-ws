@@ -187,9 +187,39 @@ public class ManageController : ControllerBase
                 notifyPumpBuySell = user.NotifyPumpBuySell,
                 notifyTrending = user.NotifyTrending,
                 repeatWindowMinutes = user.RepeatWindowMinutes,
-                minTokenAgeMinutes = user.MinTokenAgeMinutes
+                minTokenAgeMinutes = user.MinTokenAgeMinutes,
+                notifyLocks = user.NotifyLocks
+            },
+            locks = new
+            {
+                minPercent = user.LockMinPercent,
+                minDays = user.LockMinDays,
+                minMarketCap = user.LockMinMarketCap,
+                maxMarketCap = user.LockMaxMarketCap,
+                maxTokenAgeHours = user.LockMaxTokenAgeHours
             }
         });
+    }
+
+    // Lock alerts' limits (the on/off switch rides /settings like the other alert types). Every field is sent every time;
+    // null = no limit.
+    [HttpPost("lock-settings")]
+    public async Task<IActionResult> UpdateLockSettings([FromBody] UpdateLockSettingsRequest request)
+    {
+        var (user, error) = await ResolveSubscriberAsync();
+        if (user == null) return error!;
+
+        static decimal? Pos(decimal? v, decimal max) => v is decimal d && d > 0 ? Math.Min(d, max) : null;
+        static int? PosInt(int? v, int max) => v is int i && i > 0 ? Math.Min(i, max) : null;
+        user.LockMinPercent = Pos(request.MinPercent, 100m);
+        user.LockMinDays = PosInt(request.MinDays, 36_500);
+        user.LockMinMarketCap = Pos(request.MinMarketCap, 1_000_000_000_000m);
+        user.LockMaxMarketCap = Pos(request.MaxMarketCap, 1_000_000_000_000m);
+        user.LockMaxTokenAgeHours = PosInt(request.MaxTokenAgeHours, 876_000);
+
+        await _dbContext.SaveChangesAsync();
+        await _activeUsers.RefreshNowAsync();   // the alert pipeline reads a copy of the users
+        return Ok(new { status = "success" });
     }
 
     [HttpPost("settings")]
@@ -213,6 +243,7 @@ public class ManageController : ControllerBase
         user.RepeatWindowMinutes = request.RepeatWindowMinutes;
         // Nullable on purpose, like NotifyPumpBuySell: a page cached from before this setting posts nothing, which must leave it alone.
         if (request.MinTokenAgeMinutes.HasValue) user.MinTokenAgeMinutes = Math.Clamp(request.MinTokenAgeMinutes.Value, 0, 129_600);
+        if (request.NotifyLocks.HasValue) user.NotifyLocks = request.NotifyLocks.Value;   // nullable for pages cached from before lock alerts
 
         await _dbContext.SaveChangesAsync();
         await _activeUsers.RefreshNowAsync();   // the alert pipeline reads a copy of the users: make it see this change now, not in up to 2 minutes
@@ -754,7 +785,10 @@ public record UpdateManageSettingsRequest(
     bool NotifyTrending,
     int RepeatWindowMinutes,
     bool? NotifyPumpBuySell = null,
-    int? MinTokenAgeMinutes = null);
+    int? MinTokenAgeMinutes = null,
+    bool? NotifyLocks = null);
+
+public record UpdateLockSettingsRequest(decimal? MinPercent, int? MinDays, decimal? MinMarketCap, decimal? MaxMarketCap, int? MaxTokenAgeHours);
 
 public record ManageTraderRequest(int TraderId);
 public record SetThresholdRequest(int TraderId, decimal? MinValueUsd);

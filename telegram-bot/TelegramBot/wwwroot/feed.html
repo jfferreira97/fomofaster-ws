@@ -15,7 +15,7 @@
 :root{
   color-scheme:dark;   /* native bits (the terminal picker's list, number spinners) follow the dark page */
   --bg:#090b0f;--p:#0f1218;--p2:#141821;--line:#161b25;--tx:#e8ebf1;--mu:#808a9c;--fa:#586377;
-  --buy:#2fd38a;--sell:#f0506e;--call:#e9ab43;--the:#5aa2ff;--fire:#f2c14e;--rep:#a98bf5;
+  --buy:#2fd38a;--sell:#f0506e;--call:#e9ab43;--the:#5aa2ff;--fire:#f2c14e;--rep:#a98bf5;--lock:#4fd1e8;
   --s1:var(--p);--s2:var(--p2);--s3:#1c2530;--line2:#2a3243;--accent:var(--call);--accent-dim:#6b551f;--accent-soft:#e9ab431f;--r:7px;
   --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   --sans:'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
@@ -40,7 +40,13 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .gc-nav .dot.live{box-shadow:0 0 0 2px rgba(47,211,138,.18)}
 @media(max-width:619px){.gc-nav .dot{left:17px}}
 @media(max-width:759px){.brand span,.openin span{display:none}}
-@media(max-width:919px){.tier{display:none}}   /* the plan reads in full, as on /manage, where there is room; narrower, the bar keeps to the tools */
+@media(max-width:799px){.openin span{display:none}}   /* room for the plan badge */
+@media(max-width:679px){.top{gap:8px}}
+@media(max-width:459px){.tier{display:none}}   /* a phone: the bar keeps to the tools (/manage, with fewer buttons, still shows it) */
+/* The plan sits right after the nav on both pages (/manage too), worded the same: in full where there is room ("Full access ·
+   17 days left"), short on a narrower bar ("17d left"). */
+.tier .pl-s{display:none}
+@media(max-width:919px){.tier .pl-l{display:none}.tier .pl-s{display:inline}}
 .brand,.brand img{flex:none}
 .brand{display:flex;align-items:center;gap:8px;font-weight:800;font-size:15px;letter-spacing:-.01em;min-width:0}
 .brand img{width:24px;height:24px;border-radius:6px}
@@ -105,7 +111,8 @@ input:focus,select:focus{border-color:var(--accent-dim)}
 /* every row carries a faint tint of its own colour, as the flat trackers do: green buys, red sells, amber calls... */
 .r{--c:var(--mu);position:relative;border-bottom:1px solid var(--line);cursor:pointer;background:color-mix(in srgb,var(--c) 4.5%,transparent);box-shadow:inset 3px 0 0 var(--c)}
 .r:hover{background:color-mix(in srgb,var(--c) 9%,transparent)}
-.r.buy{--c:var(--buy)} .r.sell{--c:var(--sell)} .r.call{--c:var(--call)} .r.thesis{--c:var(--the)} .r.fire{--c:var(--fire)} .r.reply{--c:var(--rep)}
+.r.buy{--c:var(--buy)} .r.sell{--c:var(--sell)} .r.call{--c:var(--call)} .r.thesis{--c:var(--the)} .r.fire{--c:var(--fire)}
+.r.lock{--c:var(--lock)} .r.reply{--c:var(--rep)}
 .r.new{animation:in .6s ease-out}
 @keyframes in{from{background:color-mix(in srgb,var(--c) 22%,transparent)}}
 
@@ -179,11 +186,19 @@ a.nm:hover{text-decoration:underline}
 .tl .tn.b::before{background:var(--buy)} .tl .tn.s::before{background:var(--sell)} .tl .tn.p::before{background:#e8a04a}
 .tl .tu{font:600 12px var(--mono);color:#c9d0dc;text-align:right}
 .tl .te{font:500 11.5px var(--mono);color:var(--mu)}
+/* a lock row, opened: the lock itself, one fact a line (how much, when it unlocks, when it was locked, by whom, links) */
+.ld{display:grid;grid-template-columns:max-content minmax(0,1fr);column-gap:14px;row-gap:5px;padding-left:9px;border-left:2px solid color-mix(in srgb,var(--c) 60%,transparent);font-size:12.5px;line-height:1.4;align-items:baseline}
+.ld .lb{font:500 10.5px var(--mono);letter-spacing:.04em;text-transform:uppercase;color:var(--mu);white-space:nowrap}
+.ld .lv{color:#c9d0dc;min-width:0;overflow-wrap:anywhere}
+.ld .sep{color:var(--fa)}
+.ld .lt{font:500 12px var(--mono);color:var(--tx)}
+.ld a{color:var(--c);font-weight:600;text-decoration:none} .ld a:hover{text-decoration:underline}
+.r:not(.x) .ld{display:none}
 
 .empty{padding:40px 24px;text-align:center;color:var(--mu);font-size:13px;line-height:1.6}
 .empty b{display:block;color:var(--tx);font-size:14px;margin-bottom:4px}
 
-@media(max-width:560px){.brand span,.openin span{display:none}.top{gap:8px}.mlink{padding:6px 9px}}
+@media(max-width:560px){.brand span,.openin span{display:none}.top{gap:6px}.mlink{padding:6px 9px}}
 @media(max-width:440px){.tier{display:none}.tab{padding:9px 7px 10px;gap:5px}.l1{gap:5px}.top{gap:6px;padding-left:10px;padding-right:10px}}   /* the five tabs still fit a 390px phone */
 @media(max-width:380px){.tabs{padding:0 5px}.tab{padding:9px 5px 10px;gap:4px}                 /* ...and a 360px one, */
   .top{gap:5px;padding:10px 8px 8px}.mlink{padding:6px 7px}.openin select{padding:5px 4px}}    /* top bar included */
@@ -237,14 +252,14 @@ a.nm:hover{text-decoration:underline}
   </select></label>
   <button class="ibtn" id="bSound" title="Sound"><svg viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
   <button class="ibtn" id="bNotif" title="Desktop notifications"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></button>
-  <button class="ibtn" id="bFold" title="Fold calls and theses"><svg viewBox="0 0 24 24"></svg></button>
+  <button class="ibtn" id="bFold" title="Fold calls, theses and locks"><svg viewBox="0 0 24 24"></svg></button>
   <button class="ibtn" id="bPop" title="Pop out: a narrow window to keep beside your terminal" aria-label="Pop out" hidden><svg viewBox="0 0 24 24"><path d="M14 4h6v6"/><path d="M20 4l-8 8"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></button>
   <button class="ibtn" id="bFilter" title="Filters"><svg viewBox="0 0 24 24"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg></button>
 </div>
 <div class="tabs" id="tabs"></div>
 <div class="banner" id="banner" hidden></div>
 <section id="filters">
-  <div class="row"><span class="lbl">Platform</span><span id="fPlat" class="row"></span></div>
+  <div class="row"><span class="lbl">Source</span><span id="fPlat" class="row"></span></div>
   <div class="row"><span class="lbl">Chain</span><span id="fChain" class="row"></span></div>
   <div class="two">
     <label>Min market cap ($)<input type="number" id="minMc" min="0" step="1000" placeholder="0"></label>
@@ -281,14 +296,14 @@ a.nm:hover{text-decoration:underline}
 
   // The tabs are the type filter. typeKey groups the alert types for the tabs and for the sound.
   // "Calls/Thesis": FOMO only sends theses; pump.fun sends calls, and reposts and replies of calls, which land here too.
-  const TYPES = { buy: ['Buys', ['Buy']], sell: ['Sells', ['Sell']], call: ['Calls/Thesis', ['Callout', 'Thesis', 'Repost', 'Reply']], fire: ['Trending', ['CUSTOM_Trending']] };
+  const TYPES = { buy: ['Buys', ['Buy']], sell: ['Sells', ['Sell']], call: ['Calls/Thesis', ['Callout', 'Thesis', 'Repost', 'Reply']], fire: ['Trending', ['CUSTOM_Trending']], lock: ['Locks', ['CUSTOM_Lock']] };
   const TAB_TIP = { call: 'pump.fun calls, with their reposts and replies, and FOMO theses' };
   const typeKey = (t) => Object.keys(TYPES).find((k) => TYPES[k][1].includes(t)) || 'other';
   const TABS = [['all', 'All'], ...Object.keys(TYPES).map((k) => [k, TYPES[k][0]])];
   const CALLISH = new Set(['Callout', 'Thesis', 'Repost', 'Reply']);
-  const cls = (t) => t === 'Buy' ? 'buy' : t === 'Sell' ? 'sell' : t === 'Thesis' ? 'thesis' : (t === 'Reply' || t === 'Repost') ? 'reply' : t === 'CUSTOM_Trending' ? 'fire' : 'call';
-  const TAG = { Buy: 'buy', Sell: 'sell', Callout: 'call', Thesis: 'thesis', Reply: 'reply', Repost: 'repost', CUSTOM_Trending: 'trend' };
-  const TYPE_LABEL = { Buy: 'buy', Sell: 'sell', Callout: 'call', Thesis: 'thesis', Repost: 'repost', Reply: 'reply', CUSTOM_Trending: 'trending', Deposit: 'deposit', Verified: 'verified' };
+  const cls = (t) => t === 'Buy' ? 'buy' : t === 'Sell' ? 'sell' : t === 'Thesis' ? 'thesis' : (t === 'Reply' || t === 'Repost') ? 'reply' : t === 'CUSTOM_Trending' ? 'fire' : t === 'CUSTOM_Lock' ? 'lock' : 'call';
+  const TAG = { Buy: 'buy', Sell: 'sell', Callout: 'call', Thesis: 'thesis', Reply: 'reply', Repost: 'repost', CUSTOM_Trending: 'trend', CUSTOM_Lock: 'lock' };
+  const TYPE_LABEL = { Buy: 'buy', Sell: 'sell', Callout: 'call', Thesis: 'thesis', Repost: 'repost', Reply: 'reply', CUSTOM_Trending: 'trending', CUSTOM_Lock: 'lock', Deposit: 'deposit', Verified: 'verified' };
 
   const st = {
     sound: store.get('sound', false), notif: store.get('notif', false), term: store.get('term', 'axiom'),
@@ -396,6 +411,7 @@ a.nm:hover{text-decoration:underline}
     return b;
   };
   const nameEl = (a) => {
+    if (a.type === 'CUSTOM_Lock') return el('span', 'nm', '🔒 Streamflow');
     if (!a.trader) return el('span', 'nm hid', a.type === 'CUSTOM_Trending' ? '' : 'trader hidden');
     if (!a.profile) return el('span', 'nm', a.trader);
     const n = el('a', 'nm', a.trader); n.href = a.profile; n.target = '_blank'; n.rel = 'noopener noreferrer'; n.addEventListener('click', (e) => e.stopPropagation()); return n;
@@ -408,11 +424,59 @@ a.nm:hover{text-decoration:underline}
   };
   const amountEl = (a) => {   // the value; on a call it is the caller's position, said small and centred under the number
     const isTrade = a.type === 'Buy' || a.type === 'Sell';
-    if (a.usd != null) { const vb = el('div', 'valbox'); vb.append(el('div', 'amt', money(a.usd))); if (CALLISH.has(a.type)) vb.append(el('div', 'pos', '(position size)')); return vb; }
+    if (a.usd != null) { const vb = el('div', 'valbox'); vb.append(el('div', 'amt', money(a.usd))); if (CALLISH.has(a.type)) vb.append(el('div', 'pos', '(position size)')); else if (a.type === 'CUSTOM_Lock') vb.append(el('div', 'pos', '(locked)')); return vb; }
     if (isTrade) { const vb = el('div', 'valbox'); vb.append(el('div', 'amt hid', '$•••')); return vb; }
     return null;
   };
-  const textOf = (a) => CALLISH.has(a.type) ? quote(a) : a.type === 'CUSTOM_Trending' ? trendText(a) : (a.type === 'Buy' || a.type === 'Sell') ? '' : (a.msg || '');
+  const textOf = (a) => CALLISH.has(a.type) ? quote(a) : a.type === 'CUSTOM_Trending' ? trendText(a) : a.type === 'CUSTOM_Lock' ? lockText(a) : (a.type === 'Buy' || a.type === 'Sell') ? '' : (a.msg || '');
+  // A lock row reads "2.42% of supply · for 16d · until Dec 1, 2026 · token 2d old": the value locked and the market cap have
+  // their own columns. From the alert's two lines (the old FasterAlerts wording):
+  //   🔒 2.42% of $SYM ($37.52k MC) LOCKED · 2d 4h old
+  //   ⏰ For: 16d | Until Dec 1, 2026 05:00 UTC        (or "⏰ Until: See Streamflow")
+  function lockText(a) {
+    const [l1 = '', l2 = ''] = (a.msg || '').split('\n');
+    const pct = /([\d.?]+%) of/.exec(l1)?.[1];
+    const age = /· (\d+(?:d|h|min)\b[^·]*?) old\s*$/.exec(l1)?.[1]?.replace(/ \d+[hm]$/, '');
+    const dur = /For: ([^|]+?) \|/.exec(l2)?.[1];
+    const until = /Until:? (.+?)(?: \d{1,2}:\d{2} UTC)?$/.exec(l2)?.[1]?.replace(', ' + new Date().getUTCFullYear(), '');   // this year's dates go without the year
+    const parts = [pct ? pct + ' of supply' : '', dur || '', until ? (dur ? 'until ' + until : 'unlock: ' + until.replace(/^See/, 'see')) : '', age ? 'token ' + age + ' old' : ''];
+    return parts.filter(Boolean).join(' · ') || l1.replace(/^🔒\s*/u, '');
+  }
+  // A lock row, opened (a.lk, from the lock itself): how much, when it unlocks (and is fully vested, when that is later), when it
+  // was locked, by which wallet, and the Streamflow / Solscan links. Times in UTC, as the bot's alert. The free feed's a.lk has
+  // no tokens, wallet or links.
+  const B58 = /^[1-9A-HJ-NP-Za-km-z]{32,90}$/;
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const utc = (ms) => { const d = new Date(ms), p = (n) => String(n).padStart(2, '0');
+    return MON[d.getUTCMonth()] + ' ' + d.getUTCDate() + (d.getUTCFullYear() !== new Date().getUTCFullYear() ? ', ' + d.getUTCFullYear() : '') + ' ' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()) + ' UTC'; };
+  function span(ms) {   // the bot's wording (OldTimeUntil): 12mo 4d · 16d · 2d 4h · 5h 20m · 45m
+    const m = Math.max(0, Math.round(ms / 60000)), d = Math.floor(m / 1440);
+    if (d >= 60) { const mo = Math.floor(d / 30), r = d % 30; return mo + 'mo' + (r ? ' ' + r + 'd' : ''); }
+    if (d >= 1) { const h = Math.floor((m % 1440) / 60); return d + 'd' + (d < 3 && h ? ' ' + h + 'h' : ''); }
+    const h = Math.floor(m / 60); return h ? h + 'h' + (m % 60 ? ' ' + (m % 60) + 'm' : '') : m + 'm';
+  }
+  const tokFmt = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 2 });
+  function lockList(a) {
+    const k = a.lk, g = el('div', 'ld'), now = Date.now();
+    const row = (label, ...parts) => {
+      const v = el('span', 'lv');
+      for (const p of parts.filter(Boolean)) { if (v.childNodes.length) v.append(el('span', 'sep', ' · ')); v.append(typeof p === 'string' ? document.createTextNode(p) : p); }
+      if (v.childNodes.length) g.append(el('span', 'lb', label), v);
+    };
+    const when = (ms) => el('span', 'lt', utc(ms));
+    const soon = (ms) => ms > now ? 'in ' + span(ms - now) : 'already open';
+    const link = (text, href) => { const x = el('a', null, text); x.href = href; x.target = '_blank'; x.rel = 'noopener noreferrer'; x.addEventListener('click', (e) => e.stopPropagation()); return x; };
+    row('Locked', k.tokens != null ? tokFmt.format(k.tokens) + ' tokens' : '', k.pct != null ? (+k.pct).toFixed(2) + '% of supply' : '', a.usd != null ? money(a.usd) : '');
+    const unlock = k.cliff && k.start && k.cliff > k.start ? k.cliff : k.end;
+    if (unlock) row('Unlocks', when(unlock), soon(unlock));
+    else row('Unlocks', 'on price targets, see Streamflow');
+    if (unlock && k.end && k.end - unlock > 36e5) row('Fully vested', when(k.end), soon(k.end));
+    if (k.at) row('Locked at', when(k.at), a.mc != null ? money(a.mc) + ' MC' : '', k.born && k.at > k.born ? 'token ' + span(k.at - k.born) + ' old' : '');
+    if (k.by && B58.test(k.by)) row('Locked by', link(k.by.slice(0, 4) + '…' + k.by.slice(-4), 'https://solscan.io/account/' + k.by));
+    row('Links', k.sf && B58.test(k.sf) ? link('Streamflow ↗', 'https://app.streamflow.finance/contract/solana/mainnet/' + k.sf) : null,
+      k.tx && B58.test(k.tx) ? link('Solscan ↗', 'https://solscan.io/tx/' + k.tx) : null);
+    return g;
+  }
   const ageEl = (a) => { const x = el('div', 'age ago', ago(a.ts)); x.dataset.ts = a.ts; return x; };
   // The chain chip, next to the coin. Long chain names are shortened so the ticker keeps its room; the full name is the tooltip.
   const CH_SHORT = { ROBINHOOD: 'HOOD', HYPEREVM: 'HYPE', MEGAETH: 'MEGA', ELYSIUM: 'ELYS' };
@@ -535,7 +599,8 @@ a.nm:hover{text-decoration:underline}
     if (a.chain) l1.append(chainEl(a));    // next to the coin, not on the trader's line
     if (a.mc != null) l1.append(el('span', 'mc', money(a.mc)));
     const cp = copyEl(a); if (cp) l1.append(cp);
-    if (a.type !== 'CUSTOM_Trending') l2.append(nameEl(a), el('span', 'pl ' + (a.platform === 'pump' ? 'pump' : 'fomo'), a.platform === 'pump' ? 'PUMP' : 'FOMO'));
+    if (a.type === 'CUSTOM_Lock') l2.append(nameEl(a));
+    else if (a.type !== 'CUSTOM_Trending') l2.append(nameEl(a), el('span', 'pl ' + (a.platform === 'pump' ? 'pump' : 'fomo'), a.platform === 'pump' ? 'PUMP' : 'FOMO'));
     const mu1 = muteEl(a); if (mu1) l2.append(mu1);
     m.append(l1, l2);
     const v = el('div', 'v'), am = amountEl(a); if (am) v.append(am); v.append(ageEl(a));
@@ -543,11 +608,13 @@ a.nm:hover{text-decoration:underline}
     // A call / thesis / reply / repost is shown whole (with what it answers), or as the 2-line preview when folded.
     // A trending row shows "N traders: a · b · c", and opens into one line per trader.
     const isCall = CALLISH.has(a.type) && !!txt, ctx = isCall ? context(a) : '', full = isCall ? fullQuote(a) : '';
-    const trend = a.type === 'CUSTOM_Trending' ? trendRows(a) : [], canOpen = isCall || trend.length > 0;
+    const trend = a.type === 'CUSTOM_Trending' ? trendRows(a) : [], isLock = a.type === 'CUSTOM_Lock' && !!a.lk;
+    const canOpen = isCall || trend.length > 0 || isLock;
     if (txt) {
       const tw = el('div', 'txtw'), tb = el('div', 'tb');
       if (isCall) { if (ctx) tb.append(el('div', 'ctx', '↳ ' + ctx)); tb.append(el('div', 'txt long', full), el('div', 'txt short', txt)); }
       else if (trend.length) tb.append(el('div', 'txt tsum', txt), trendList(trend));
+      else if (isLock) tb.append(el('div', 'txt tsum', txt), lockList(a));
       else tb.append(el('div', 'txt', txt));
       tw.append(tb); if (canOpen) tw.append(tgEl(r));
       mob.append(tw);
@@ -567,11 +634,12 @@ a.nm:hover{text-decoration:underline}
     if (canOpen) {   // desktop: what does not fit the cell, under the row (the row gets "more"), with its fold button
       const d = el('div', 'drop'), tb = el('div', 'tb');
       if (isCall) { if (ctx) tb.append(el('div', 'ctx', '↳ ' + ctx)); tb.append(el('div', 'full', full)); }
-      else tb.append(trendList(trend));
+      else tb.append(isLock ? lockList(a) : trendList(trend));
       d.append(tb); r.append(d);
       if (isCall) { r._fit = true; if (ctx) r._ctx = true; }
-      else r.classList.add('more', 'pmore');   // a trending row always has more: each trader's size and entry
-      setOpen(r, isCall && !st.fold);         // calls open unless the reader folded them all; trending rows start closed
+      else r.classList.add('more', 'pmore');   // a trending row always has more (each trader's size and entry), a lock row the lock's details
+      if (isLock) r._lock = true;
+      setOpen(r, (isCall || isLock) && !st.fold);   // calls and locks open unless the reader folded them all; trending rows start closed
     }
     r.addEventListener('click', () => {
       const s = window.getSelection?.(); if (s && !s.isCollapsed && r.contains(s.anchorNode)) return;   // selecting text to copy it is not a click on the coin
@@ -640,25 +708,29 @@ a.nm:hover{text-decoration:underline}
     if (d === 1) return '1 day ' + h + 'h left';
     return h > 0 ? h + 'h ' + m + 'm left' : m + 'm left';
   }
+  function shortLeft(ms) {   // = shortLeft in manage.html: the same, for a narrow bar
+    const mins = Math.max(0, Math.floor(ms / 60000)), d = Math.floor(mins / 1440), h = Math.floor(mins / 60);
+    return d >= 1 ? d + 'd' : h >= 1 ? h + 'h' : mins + 'm';
+  }
+  const showPlan = (p) => { const e = $('tier'); e.className = 'tier ' + p.cls; e.replaceChildren(el('span', 'pl-l', p.text), el('span', 'pl-s', p.short)); };
   let planShown = null;   // kept across stream reconnects, so the badge does not flash back to a placeholder
   async function loadPlan() {
     try {
       const s = await fetch('/api/manage/subscription', { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : null));
       if (!s || st.tier === 'demo') return;
-      const now = Date.now(); let text, cls;
-      if (s.lifetime) { text = 'Lifetime'; cls = 'full'; }
-      else if (s.activeUntil && Date.parse(s.activeUntil) > now) { const left = Date.parse(s.activeUntil) - now; text = 'Full access · ' + leftText(left); cls = left <= 3 * 864e5 ? 'soon' : 'full'; }
-      else if (s.trialEndsAt && Date.parse(s.trialEndsAt) > now) { text = 'Free trial · ' + leftText(Date.parse(s.trialEndsAt) - now); cls = 'soon'; }
-      else { text = s.trialEndsAt ? 'Trial ended' : 'No active plan'; cls = 'none'; }
-      planShown = { text, cls };
-      const e = $('tier'); e.className = 'tier ' + cls; e.textContent = text;
+      const now = Date.now(); let text, short, cls;
+      if (s.lifetime) { text = short = 'Lifetime'; cls = 'full'; }
+      else if (s.activeUntil && Date.parse(s.activeUntil) > now) { const left = Date.parse(s.activeUntil) - now; text = 'Full access · ' + leftText(left); short = shortLeft(left) + ' left'; cls = left <= 3 * 864e5 ? 'soon' : 'full'; }
+      else if (s.trialEndsAt && Date.parse(s.trialEndsAt) > now) { const left = Date.parse(s.trialEndsAt) - now; text = 'Free trial · ' + leftText(left); short = 'Trial · ' + shortLeft(left); cls = 'soon'; }
+      else { text = s.trialEndsAt ? 'Trial ended' : 'No active plan'; short = s.trialEndsAt ? 'Trial ended' : 'No plan'; cls = 'none'; }
+      planShown = { text, short, cls };
+      showPlan(planShown);
     } catch {}
   }
   function setTier(t, delay) {
     st.tier = t; window.__delay = delay || 90;
-    const e = $('tier');
-    if (t !== 'demo' && planShown) { e.className = 'tier ' + planShown.cls; e.textContent = planShown.text; }
-    else { e.className = 'tier ' + t; e.textContent = t === 'demo' ? 'demo' : t === 'full' ? 'full access' : 'free'; }
+    if (t !== 'demo' && planShown) showPlan(planShown);
+    else { const w = t === 'demo' ? 'demo' : t === 'full' ? 'full access' : 'free'; showPlan({ text: w, short: w, cls: t }); }
     if (t !== 'demo') loadPlan();   // then the exact words /manage shows: Lifetime, Full access · 17 days left, Free trial · ...
     const b = $('banner');
     if (t === 'demo') {
@@ -694,7 +766,7 @@ a.nm:hover{text-decoration:underline}
   function renderChips() {
     const p = $('fPlat'), c = $('fChain');
     p.replaceChildren(); c.replaceChildren();
-    for (const [k, n] of [['fomo', 'FOMO'], ['pump', 'Pump']]) chip(p, n, !st.offPlat.has(k), () => toggle(st.offPlat, k));
+    for (const [k, n] of [['fomo', 'FOMO'], ['pump', 'Pump'], ['lock', 'Locks']]) chip(p, n, !st.offPlat.has(k), () => toggle(st.offPlat, k));
     for (const k of [...st.chains].sort()) chip(c, k, !st.offChain.has(k), () => toggle(st.offChain, k));
     if (!st.chains.size) c.append(el('span', 'sub', 'appear as alerts arrive'));
   }
@@ -708,12 +780,12 @@ a.nm:hover{text-decoration:underline}
   const syncFold = () => {
     document.body.classList.toggle('fold', st.fold);
     const b = $('bFold'); b.querySelector('svg').innerHTML = st.fold ? UNFOLD_ICON : FOLD_ICON;
-    b.title = st.fold ? 'Show calls and theses in full' : 'Fold calls and theses'; b.setAttribute('aria-label', b.title); b.setAttribute('aria-pressed', String(st.fold));
+    b.title = st.fold ? 'Show calls, theses and locks in full' : 'Fold calls, theses and locks'; b.setAttribute('aria-label', b.title); b.setAttribute('aria-pressed', String(st.fold));
   };
   const syncButtons = () => { $('bSound').classList.toggle('on', st.sound); $('bNotif').classList.toggle('on', st.notif); syncFold(); };
   $('bFold').addEventListener('click', () => {
     st.fold = !st.fold; track('fold:' + (st.fold ? 'on' : 'off')); save(); syncFold();
-    for (const r of nodes.values()) if (r._fit) setOpen(r, !st.fold);   // every call / thesis, also any opened or folded on its own
+    for (const r of nodes.values()) if (r._fit || r._lock) setOpen(r, !st.fold);   // every call / thesis / lock, also any opened or folded on its own
     frame();
   });
 
