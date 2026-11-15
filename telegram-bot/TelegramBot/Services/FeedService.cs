@@ -455,6 +455,17 @@ public class FeedService
     // The picture DexScreener itself shows for a token: the last resort when the alert carried none (or one we do not trust).
     // pump.fun's own image host knows every coin it lists on any chain (an unknown mint gets its generic placeholder), so for the pump
     // feed it is the better last resort; DexScreener's static pictures are the one for FOMO's coins, which are not all on pump.fun.
+    // FOMO's own picture host (Mobula): FOMO's events point at solana_solana_<mint>.webp / evm_<chainId>_<address>.webp there, so it has
+    // the coins FOMO trades. It is the fallback when a FOMO alert went out without its picture (its event not stored yet when the alert
+    // was built): 33 of the owner's 80 rows on 2026-11-15 fell through to DexScreener, which has pictures only for coins with a paid
+    // profile; Mobula had all 33.
+    private static string? MobulaImage(Chain? chain, string? ca)
+    {
+        if (chain is not { } c || string.IsNullOrEmpty(ca) || !Regex.IsMatch(ca, @"^[A-Za-z0-9]{20,64}$")) return null;
+        if (c == Chain.SOL) return $"https://metadata.mobula.io/assets/logos/solana_solana_{ca}.webp";
+        return ca.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? $"https://metadata.mobula.io/assets/logos/evm_{ChainInfo.NetworkIdOf(c)}_{ca.ToLowerInvariant()}.webp" : null;
+    }
+
     private static string? FallbackImage(Chain? chain, string? ca, bool pump)
     {
         if (chain is not { } c || string.IsNullOrEmpty(ca) || !Regex.IsMatch(ca, @"^[A-Za-z0-9]{20,64}$")) return null;
@@ -498,8 +509,10 @@ public class FeedService
         // A lock alert's only picture is DexScreener's, which a coin without a DexScreener profile doesn't have (a 404: half of the
         // locks on 2026-11-15), and which is not kept across a restart. pump.fun's picture host had all of them, pump.fun coins or not.
         var platformImg = FallbackImage(chain, ca, pump: !isFomo || n.Type == NotificationType.CUSTOM_Lock);
-        var coinImg = !isFomo && platformImg != null ? platformImg : ownImg ?? platformImg;
-        var coinAlt = coinImg == platformImg ? ownImg : platformImg;
+        var mobulaImg = isFomo && n.Type != NotificationType.CUSTOM_Lock ? MobulaImage(chain, ca) : null;
+        var coinImg = !isFomo && platformImg != null ? platformImg : ownImg ?? mobulaImg ?? platformImg;
+        var coinAlt = coinImg == platformImg ? ownImg ?? mobulaImg : platformImg;
+        var img2 = coinAlt != coinImg ? coinAlt : null;   // the browser tries it when the first picture fails
         var faceImg = SafeImage(traderImage)
             ?? (string.IsNullOrEmpty(n.Trader) ? null : SafeImage(_intel.Get(n.Platform, n.Trader)?.Avatar));
 
@@ -512,7 +525,7 @@ public class FeedService
         {
             id, ts, type, platform = plat, chain = chain?.ToString(),
             trader = n.Trader, profile, ticker = n.Ticker, ca, mc, usd,
-            msg = n.Message, links, locked = false, img = coinImg, av = faceImg, lk
+            msg = n.Message, links, locked = false, img = coinImg, img2, av = faceImg, lk
         };
 
         // Same card as Full plus the score pill, for paying members only.
@@ -521,7 +534,7 @@ public class FeedService
         {
             id, ts, type, platform = plat, chain = chain?.ToString(),
             trader = n.Trader, profile, ticker = n.Ticker, ca, mc, usd,
-            msg = n.Message, links, locked = false, img = coinImg, av = faceImg, lk,
+            msg = n.Message, links, locked = false, img = coinImg, img2, av = faceImg, lk,
             rank = score?.Rank, weak = score?.Weak
         };
 
