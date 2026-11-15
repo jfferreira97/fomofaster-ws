@@ -205,32 +205,70 @@ a.nm:hover{text-decoration:underline}
 @media(max-width:380px){.tabs{padding:0 5px}.tab{padding:9px 5px 10px;gap:4px}                 /* ...and a 360px one, */
   .top{gap:5px;padding:10px 8px 8px}.mlink{padding:6px 7px}.openin select{padding:5px 4px}}    /* top bar included */
 
-/* ---------- desktop: one dense line per row, with a header, like a table ---------- */
+/* ---------- one dense line per row, with a header, like a table, at every width: the feed is kept in a narrow window
+   beside a terminal. Calls, theses, locks and trending rows open under their line. ---------- */
+.mob{display:none}
+.thead,.dsk{display:grid;align-items:center}
+.thead{flex:none;width:100%;height:30px;border-bottom:1px solid var(--line);font:600 11px var(--sans);color:var(--fa);letter-spacing:.02em}
+.thead span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.thead span:nth-child(5),.thead span:nth-child(6){text-align:right}
+.dsk{height:40px}
+.dsk .c-age{font:400 12px var(--mono);color:var(--mu);white-space:nowrap}
+.dsk .c-tr{display:flex;align-items:center;gap:8px;min-width:0}
+.dsk .c-tr .who{width:20px;height:20px;flex:none;font-size:9px}
+.dsk .c-tk{display:flex;align-items:center;gap:8px;min-width:0}
+.dsk .c-tk .coin{width:24px;height:24px;border-radius:6px;font-size:11px;flex:none}
+.dsk .c-tk .sym{font-size:13.5px;min-width:0}
+.dsk .c-tx{display:flex;align-items:center;gap:6px;min-width:0}
+.dsk .c-tx .q{font-size:13px;color:#aab3c2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.dsk .c-am{display:flex;justify-content:flex-end}
+.dsk .c-am .amt{font-size:13.5px}
+.dsk .c-mc{text-align:right;font:500 12.5px var(--mono);color:#c9d0dc;white-space:nowrap}
 @media (min-width:760px){
   body{align-items:center}
   .top{align-self:stretch}   /* the site bar spans the window, as on /manage; the feed itself stays a 1040px column */
   .tabs,.banner,#filters,.thead,#wrap{width:100%;max-width:1040px}
-  .mob{display:none}
-  .thead,.dsk{display:grid;grid-template-columns:54px 190px 252px minmax(0,1fr) 112px 92px;column-gap:14px;align-items:center;padding:0 22px 0 14px}
-  .thead{flex:none;height:30px;border-bottom:1px solid var(--line);font:600 11px var(--sans);color:var(--fa);letter-spacing:.02em}
-  .thead span:nth-child(5),.thead span:nth-child(6){text-align:right}
-  .dsk{height:40px}
-  .dsk .c-age{font:400 12px var(--mono);color:var(--mu)}
-  .dsk .c-tr{display:flex;align-items:center;gap:8px;min-width:0}
-  .dsk .c-tr .who{width:20px;height:20px;flex:none;font-size:9px}
-  .dsk .c-tk{display:flex;align-items:center;gap:8px;min-width:0}
-  .dsk .c-tk .coin{width:24px;height:24px;border-radius:6px;font-size:11px;flex:none}
-  .dsk .c-tk .sym{font-size:13.5px}
-  .dsk .c-tx{display:flex;align-items:center;gap:6px;min-width:0}
-  .dsk .c-tx .q{font-size:13px;color:#aab3c2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .thead,.dsk{grid-template-columns:54px 190px 252px minmax(0,1fr) 112px 92px;column-gap:14px;padding:0 22px 0 14px}
   /* opened, a text too long for its cell (or a trending row's traders) is shown under the row, lined up with the Trader
      column; folded, the cell shows the start of it. The fold button sits at the right end of the cell either way. */
   .r.more.x .drop{display:block;padding:2px 22px 12px 82px}
   .r.more.x .dsk .c-tx .q{visibility:hidden}
   .r.more .dsk .c-tx .tg{display:grid;margin-left:auto}
-  .dsk .c-am{display:flex;justify-content:flex-end}
-  .dsk .c-am .amt{font-size:13.5px}
-  .dsk .c-mc{text-align:right;font:500 12.5px var(--mono);color:#c9d0dc}
+}
+/* Narrower, the line keeps the age, the trader, the coin, the amount and the market cap; a call's or a lock's text has no room
+   in it and shows only opened, under the line (they open by default), with the fold button in its own small column. */
+@media (max-width:759px){
+  .thead,.dsk{grid-template-columns:34px minmax(0,1fr) minmax(0,1.35fr) 22px 60px 56px;column-gap:8px;padding:0 10px 0 10px}
+  .thead span:nth-child(4){visibility:hidden}
+  .dsk .c-tx .q{display:none}
+  .dsk .c-tx .tg{display:grid}
+  .r.x .drop{display:block;padding:0 10px 10px 52px}
+  .dsk .c-tr{gap:7px}
+  .dsk .c-tr .mute{display:none} .r:hover .dsk .c-tr .mute{display:inline-block}   /* on hover it takes the end of the name */
+  .dsk .c-tk{gap:6px}
+  .dsk .c-tk .sym{font-size:13px}
+  .dsk .c-am .amt{font-size:13px}
+  .dsk .c-mc{font-size:12px}
+  /* room for the ticker: a buy or a sell already reads from the row's colour (bar, name, amount), a lock from "Streamflow" in
+     the trader's place, and Solana is the default chain */
+  .r.buy .dsk .tag,.r.sell .dsk .tag,.r.lock .dsk .tag,.dsk .ch[title="SOL"]{display:none}
+}
+@media (max-width:480px){
+  .thead,.dsk{grid-template-columns:28px minmax(0,.75fr) minmax(0,1.25fr) 20px 52px 50px;column-gap:6px;padding:0 8px}
+  .r:not(.fire) .dsk .tag{display:none}   /* a call's or thesis's own words are right under its line */
+  .dsk .c-tk .ch{padding:2px 3px;font-size:9px}
+  .thead{font-size:10.5px}
+  .r.x .drop{padding:0 8px 10px 42px}
+  .dsk .c-age{font-size:11px}
+  .dsk .c-tr{gap:6px} .dsk .c-tr .who{width:18px;height:18px}
+  .dsk .c-tk{gap:5px} .dsk .c-tk .coin{width:22px;height:22px}
+  .dsk .c-am .amt{font-size:12.5px}
+  .dsk .c-mc{font-size:11.5px}
+  .dsk .c-tx .tg{width:20px;height:20px}
+}
+@media (max-width:360px){
+  .dsk .c-tr .who{display:none}   /* the name, not the face, when a pop-out is this narrow */
+  .dsk .c-tk .coin{width:20px;height:20px}
 }
 /* A pop-out window can be far narrower than a browser window: the bar and the tabs still fit at 300px. */
 @media(max-width:499px){#bPop{display:none}}
