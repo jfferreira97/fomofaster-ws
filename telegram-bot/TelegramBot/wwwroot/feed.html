@@ -208,6 +208,22 @@ a.nm:hover{text-decoration:underline}
 .ld .lw{display:inline-flex;align-items:center;gap:7px;vertical-align:middle}
 .ld .cp{width:20px;height:20px} .ld .cp svg{width:11px;height:11px}
 .r:not(.x) .ld{display:none}
+/* links in a call's text, and an X post's preview under it */
+.lnk{color:#7db6ff;text-decoration:underline;text-decoration-color:rgba(125,182,255,.35);text-underline-offset:2px;border-radius:3px;word-break:break-all;transition:color .1s,text-decoration-color .1s,background-color .1s}
+.lnk:hover{color:#b3d4ff;text-decoration-color:currentColor;background:rgba(125,182,255,.12)}
+#xpop{position:fixed;z-index:90;display:flex;flex-direction:column;filter:drop-shadow(0 14px 30px rgba(0,0,0,.55))}
+#xpop[hidden]{display:none}
+.xc{display:block;min-height:0;overflow:auto;overscroll-behavior:contain;padding:11px 13px;border:1px solid #2f3848;border-radius:10px;background:var(--p);color:inherit;text-decoration:none;white-space:normal;cursor:pointer;transition:border-color .12s}
+.xc:hover{border-color:#43506a}
+.xc .xl{font-size:12px;color:var(--fa)}
+.xc .xh{display:flex;align-items:center;gap:7px;font-size:12.5px;min-width:0}
+.xc .xh img{width:22px;height:22px;border-radius:50%;flex:none}
+.xc .xn{font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.xc .xu{color:var(--mu);white-space:nowrap}
+.xc .xt{margin-left:auto;padding-left:8px;font:500 11px var(--mono);color:var(--fa);white-space:nowrap}
+.xc .xb{margin-top:6px;font-size:13px;line-height:1.45;color:#c9d0dc;white-space:pre-wrap;word-break:break-word;display:-webkit-box;-webkit-line-clamp:7;-webkit-box-orient:vertical;overflow:hidden}
+.xc .xm{display:block;width:100%;max-height:220px;margin-top:8px;border-radius:8px;object-fit:cover}
+.xc .xs{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:7px;font:500 11px var(--mono);color:var(--fa)}
 
 .empty{padding:40px 24px;text-align:center;color:var(--mu);font-size:13px;line-height:1.6}
 .empty b{display:block;color:var(--tx);font-size:14px;margin-bottom:4px}
@@ -226,7 +242,8 @@ a.nm:hover{text-decoration:underline}
 .thead span:nth-child(5),.thead span:nth-child(6){text-align:right}
 .dsk{height:40px}
 .dsk .c-age{font:400 12px var(--mono);color:var(--mu);white-space:nowrap}
-.dsk .c-tr{display:flex;align-items:center;gap:8px;min-width:0}
+.dsk .c-tr{display:flex;align-items:center;gap:8px;min-width:0;position:relative}
+.dsk .c-tr .mute{position:absolute;right:0;top:50%;transform:translateY(-50%)}   /* over the end of the name on hover: it takes no room from it */
 .dsk .c-tr .who{width:20px;height:20px;flex:none;font-size:9px}
 .dsk .c-tk{display:flex;align-items:center;gap:8px;min-width:0}
 .dsk .c-tk .coin{width:24px;height:24px;border-radius:6px;font-size:11px;flex:none}
@@ -240,7 +257,7 @@ a.nm:hover{text-decoration:underline}
   body{align-items:center}
   .top{align-self:stretch}   /* the site bar spans the window, as on /manage; the feed itself stays a 1040px column */
   .tabs,.banner,#filters,.thead,#wrap{width:100%;max-width:1040px}
-  .thead,.dsk{grid-template-columns:54px 190px 252px minmax(0,1fr) 112px 92px;column-gap:14px;padding:0 22px 0 14px}
+  .thead,.dsk{grid-template-columns:54px min(var(--trw,190px),280px) minmax(0,240px) minmax(0,1fr) 104px 88px;column-gap:14px;padding:0 22px 0 14px}
   /* opened, a text too long for its cell (or a trending row's traders) is shown under the row, lined up with the Trader
      column; folded, the cell shows the start of it. The fold button sits at the right end of the cell either way. */
   .r.more.x .drop{display:block;padding:2px 22px 12px 82px}
@@ -250,37 +267,37 @@ a.nm:hover{text-decoration:underline}
 /* Narrower, the line keeps the age, the trader, the coin, the amount and the market cap; a call's or a lock's text has no room
    in it and shows only opened, under the line (they open by default), with the fold button in its own small column. */
 @media (max-width:759px){
-  .thead,.dsk{grid-template-columns:34px minmax(0,1fr) minmax(0,1.35fr) 22px 60px 56px;column-gap:8px;padding:0 10px 0 10px}
+  .thead,.dsk{grid-template-columns:34px min(var(--trw,120px),42vw) minmax(0,1fr) 22px 56px 52px;column-gap:8px;padding:0 10px 0 10px}
   .thead span:nth-child(4){visibility:hidden}
   .dsk .c-tx .q{display:none}
   .dsk .c-tx .tg{display:grid}
   .r.x .drop{display:block;padding:0 10px 10px 52px}
-  .dsk .c-tr{gap:7px}
+  .dsk .c-tr{gap:6px} .dsk .c-tr .who{width:18px;height:18px} .dsk .nm{font-size:13px}   /* a little smaller, so the whole name fits and the coin keeps its room */
   .dsk .c-tr .mute{display:none} .r:hover .dsk .c-tr .mute{display:inline-block}   /* on hover it takes the end of the name */
-  .dsk .c-tk{gap:6px}
+  .dsk .c-tk{gap:5px} .dsk .c-tk .coin{width:22px;height:22px}
   .dsk .c-tk .sym{font-size:13px}
   .dsk .c-am .amt{font-size:13px}
   .dsk .c-mc{font-size:12px}
   /* room for the ticker: a buy or a sell already reads from the row's colour (bar, name, amount), a lock from "Streamflow" in
      the trader's place, and Solana is the default chain */
-  .r.buy .dsk .tag,.r.sell .dsk .tag,.r.lock .dsk .tag,.dsk .ch[title="SOL"]{display:none}
+  .r:not(.fire) .dsk .tag,.dsk .ch[title="SOL"]{display:none}   /* a call or thesis also reads from its colour and its words right under the line */
 }
 @media (max-width:480px){
-  .thead,.dsk{grid-template-columns:28px minmax(0,.75fr) minmax(0,1.25fr) 20px 52px 50px;column-gap:6px;padding:0 8px}
-  .r:not(.fire) .dsk .tag{display:none}   /* a call's or thesis's own words are right under its line */
+  .thead,.dsk{grid-template-columns:28px min(var(--trw,100px),36vw) minmax(0,1fr) 20px 52px 50px;column-gap:6px;padding:0 8px}
   .dsk .c-tk .ch{padding:2px 3px;font-size:9px}
   .thead{font-size:10.5px}
   .r.x .drop{padding:0 8px 10px 42px}
   .dsk .c-age{font-size:11px}
-  .dsk .c-tr{gap:6px} .dsk .c-tr .who{width:18px;height:18px}
-  .dsk .c-tk{gap:5px} .dsk .c-tk .coin{width:22px;height:22px}
+  .dsk .c-tr{gap:5px} .dsk .c-tr .who{width:16px;height:16px} .dsk .nm{font-size:12.5px}
+  .dsk .c-tk{gap:4px} .dsk .c-tk .coin{width:20px;height:20px}
   .dsk .c-am .amt{font-size:12.5px}
   .dsk .c-mc{font-size:11.5px}
   .dsk .c-tx .tg{width:20px;height:20px}
 }
-@media (max-width:360px){
-  .dsk .c-tr .who{display:none}   /* the name, not the face, when a pop-out is this narrow */
-  .dsk .c-tk .coin{width:20px;height:20px}
+@media (max-width:440px){   /* a phone: the name without the face, so the whole name and the ticker both fit */
+  .thead,.dsk{grid-template-columns:26px min(var(--trw,90px),32vw) minmax(0,1fr) 20px 48px 46px}
+  .dsk .c-tr .who{display:none}
+  .dsk .c-am .amt{font-size:12px} .dsk .c-mc{font-size:11px}
 }
 /* A pop-out window can be far narrower than a browser window: the bar and the tabs still fit at 300px. */
 @media(max-width:499px){#bPop{display:none}}
@@ -560,6 +577,88 @@ a.nm:hover{text-decoration:underline}
   const CH_SHORT = { ROBINHOOD: 'HOOD', HYPEREVM: 'HYPE', MEGAETH: 'MEGA', ELYSIUM: 'ELYS' };
   const chainEl = (a) => { const c = el('span', 'ch', CH_SHORT[a.chain] || a.chain); c.title = a.chain; return c; };
 
+  /* ---------- links in a call's text: clickable on their own (not the row's coin link), and an X post's preview under the text ---------- */
+  const URL_RX = /https?:\/\/[^\s<>"']+/g;
+  const tidyUrl = (u) => u.replace(/[.,;:!?)\]]+$/, '');
+  const shortUrl = (u) => { const x = u.replace(/^https?:\/\/(www\.)?/, ''); return x.length > 64 ? x.slice(0, 61) + '…' : x; };
+  function richText(tag, cls, text, preview) {
+    const d = el(tag, cls); let last = 0;
+    for (const m of text.matchAll(URL_RX)) {
+      const u = tidyUrl(m[0]); d.append(text.slice(last, m.index));
+      const x = el('a', 'lnk', shortUrl(u)); x.href = u; x.target = '_blank'; x.rel = 'noopener noreferrer';
+      const id = preview && tweetId(u); if (id) x.dataset.x = id; else x.title = u;
+      x.addEventListener('click', (e) => { e.stopPropagation(); track('link', true); });
+      d.append(x); last = m.index + u.length;
+    }
+    d.append(text.slice(last)); return d;
+  }
+  const tweetId = (u) => { try { const x = new URL(u), h = x.hostname.replace(/^(www|mobile)\./, ''); if (h !== 'x.com' && h !== 'twitter.com') return null;
+    const p = x.pathname.split('/').filter(Boolean), i = p.indexOf('status'); return i >= 1 && /^\d+$/.test(p[i + 1] || '') ? p[i + 1] : null; } catch { return null; } };
+  // The post, from FxTwitter's free API (no key, open to browsers), read once per post and only when its card comes into view.
+  const tweets = new Map();
+  const getTweet = (id) => { if (!tweets.has(id)) tweets.set(id, fetch('https://api.fxtwitter.com/status/' + id).then((r) => (r.ok ? r.json() : null)).then((j) => j?.tweet || null).catch(() => null)); return tweets.get(id); };
+  const num = (n) => n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'K' : String(n);
+  // One box for the whole page, over everything (fixed, nothing moves): under the link, or above it when there is more room there
+  // (the side is picked once, so it does not jump when the post arrives). It opens 80 ms into a hover and closes the moment the
+  // pointer leaves the link, unless it goes into the box; a scroll outside it closes it too.
+  const xpop = el('div'); xpop.id = 'xpop'; xpop.hidden = true; document.body.append(xpop);
+  let xKey = null, xWait = 0;
+  function placePop(link) {
+    const r = link.getBoundingClientRect(), w = Math.min(380, innerWidth - 16), below = innerHeight - r.bottom, above = r.top, down = below >= 340 || below >= above;
+    xpop.style.width = w + 'px';
+    xpop.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + 'px';
+    xpop.style.top = down ? r.bottom + 6 + 'px' : ''; xpop.style.bottom = down ? '' : innerHeight - r.top + 6 + 'px';
+    xpop.style.maxHeight = Math.max(160, (down ? below : above) - 16) + 'px';
+  }
+  async function showPop(link) {
+    const id = link.dataset.x; xKey = id;
+    const c = el('a', 'xc'); c.href = link.href; c.target = '_blank'; c.rel = 'noopener noreferrer'; c.dataset.id = id;
+    c.append(el('span', 'xl', 'Loading the post…'));
+    c.addEventListener('click', (e) => { e.stopPropagation(); track('tweet', true); });
+    xpop.replaceChildren(c); xpop.hidden = false; placePop(link);
+    await fillCard(c);
+    if (xKey !== id) return;
+  }
+  function hidePop() { clearTimeout(xWait); xpop.hidden = true; xKey = null; }
+  document.addEventListener('mouseover', (e) => {
+    const link = e.target.closest?.('a[data-x]');
+    if (link) { if (link.dataset.x !== xKey || xpop.hidden) { clearTimeout(xWait); xWait = setTimeout(() => showPop(link), 80); } }
+    else if (!e.target.closest?.('#xpop')) { clearTimeout(xWait); if (!xpop.hidden) hidePop(); }
+  });
+  document.addEventListener('scroll', (e) => { if (!xpop.hidden && !e.target.closest?.('#xpop')) hidePop(); }, true);
+  document.documentElement.addEventListener('mouseleave', hidePop);
+  async function fillCard(c) {
+    const t = await getTweet(c.dataset.id);
+    if (!c.isConnected) return;
+    if (!t) { c.replaceChildren(el('span', 'xl', 'Open the post on X ↗')); return; }
+    const h = el('div', 'xh');
+    if (t.author?.avatar_url) { const i = el('img'); i.src = t.author.avatar_url; i.alt = ''; i.referrerPolicy = 'no-referrer'; h.append(i); }
+    h.append(el('span', 'xn', t.author?.name || ''), el('span', 'xu', '@' + (t.author?.screen_name || '')), el('span', 'xt', t.created_timestamp ? ago(t.created_timestamp * 1000) : ''));
+    const parts = [h], text = (t.text || '').trim();
+    if (text) parts.push(el('div', 'xb', text));
+    const m = t.media?.all?.[0], src = m && (m.type === 'photo' ? m.url : m.thumbnail_url);
+    if (src) { const i = el('img', 'xm'); i.src = src; i.alt = ''; i.loading = 'lazy'; i.referrerPolicy = 'no-referrer'; parts.push(i); }
+    const sx = el('div', 'xs');
+    for (const [k, v] of [['replies', t.replies], ['reposts', t.retweets], ['likes', t.likes], ['views', t.views]]) if (v != null) sx.append(el('span', null, num(v) + ' ' + k));
+    if (sx.childNodes.length) parts.push(sx);
+    c.replaceChildren(...parts);
+  }
+
+  /* ---------- the Trader column is as wide as the longest name on screen: names are never cut short (up to a cap on narrow windows) ---------- */
+  const measure = document.createElement('canvas').getContext('2d'), nameW = new Map();
+  let nameFont = '', trW = 0;
+  const shownName = (a) => (a.type === 'CUSTOM_Lock' ? '🔒 Streamflow' : a.trader || '');
+  const avatarRoom = () => matchMedia('(max-width:440px)').matches ? 2 : matchMedia('(max-width:480px)').matches ? 22 : matchMedia('(max-width:759px)').matches ? 25 : 30;
+  function nameWidth(a) {
+    const t = shownName(a); if (!t) return 0;
+    if (!nameFont) { const x = list.querySelector('.dsk .nm'); if (!x || !x.offsetParent) return 0; const cs = getComputedStyle(x); nameFont = cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily; }
+    let w = nameW.get(t); if (w == null) { measure.font = nameFont; w = Math.ceil(measure.measureText(t).width) + 3; nameW.set(t, w); }
+    return w + (a.trader ? avatarRoom() : 0);
+  }
+  function setTrW(px) { px = Math.max(px, 60); if (px !== trW) { trW = px; document.body.style.setProperty('--trw', px + 'px'); } }
+  // after a resize, a new tab or the web fonts arriving: measure again, every shown row
+  function fitNames() { nameFont = ''; nameW.clear(); let m = 0; for (const r of list.querySelectorAll('.r')) if (r._a) m = Math.max(m, nameWidth(r._a)); setTrW(m); }
+
   /* ---------- once per frame: which call rows do not fit their desktop cell (shown whole under the row), and the scrollbar's size ---------- */
   const fitQ = new Set(); let raf = 0;
   function frame() { if (!raf) raf = requestAnimationFrame(onFrame); }
@@ -582,7 +681,7 @@ a.nm:hover{text-decoration:underline}
     placeBar();
   }
   // Re-measure every shown call row: after a resize, and once the web fonts arrive (the first pass may use the fallback font).
-  const refit = () => { list.querySelectorAll('.r').forEach((r) => { if (r._fit) fitQ.add(r); }); frame(); };
+  const refit = () => { fitNames(); list.querySelectorAll('.r').forEach((r) => { if (r._fit) fitQ.add(r); }); frame(); };
   window.addEventListener('resize', refit);
   if (document.fonts) { document.fonts.ready.then(refit).catch(() => {}); document.fonts.addEventListener?.('loadingdone', refit); }
 
@@ -703,15 +802,18 @@ a.nm:hover{text-decoration:underline}
     const cAge = el('div', 'c-age ago', ago(a.ts)); cAge.dataset.ts = a.ts;
     const cTr = el('div', 'c-tr'); const w2 = whoEl(a); if (w2) cTr.append(w2); cTr.append(nameEl(a)); const mu2 = muteEl(a); if (mu2) cTr.append(mu2);
     const cTk = el('div', 'c-tk'); cTk.append(coinEl(a), el('span', 'tag', TAG[a.type] || a.type.toLowerCase()), symEl(a)); if (a.chain) cTk.append(chainEl(a)); const cp2 = copyEl(a); if (cp2) cTk.append(cp2);
-    const cTx = el('div', 'c-tx'); cTx.append(el('span', 'q', txt)); if (canOpen) cTx.append(tgEl(r));
+    const cTx = el('div', 'c-tx'); cTx.append(isCall ? richText('span', 'q', txt, !a.locked) : el('span', 'q', txt)); if (canOpen) cTx.append(tgEl(r));
     const cAm = el('div', 'c-am'); const am2 = amountEl(a); if (am2) cAm.append(am2);
     const cMc = el('div', 'c-mc', a.mc != null ? money(a.mc) : '');
     dsk.append(cAge, cTr, cTk, cTx, cAm, cMc);
 
-    r.append(mob, dsk);
+    r.append(mob, dsk); r._a = a;
     if (canOpen) {   // desktop: what does not fit the cell, under the row (the row gets "more"), with its fold button
       const d = el('div', 'drop'), tb = el('div', 'tb');
-      if (isCall) { if (ctx) tb.append(el('div', 'ctx', '↳ ' + ctx)); tb.append(el('div', 'full', full)); }
+      if (isCall) {
+        if (ctx) tb.append(el('div', 'ctx', '↳ ' + ctx));
+        tb.append(richText('div', 'full', full, !a.locked));   // the free feed gets the link, not the post's preview (it can name the coin)
+      }
       else tb.append(isLock ? lockList(a) : trendList(trend));
       d.append(tb); r.append(d);
       if (isCall) { r._fit = true; if (ctx) r._ctx = true; }
@@ -772,6 +874,7 @@ a.nm:hover{text-decoration:underline}
     if (shifted) list.scrollTop += list.scrollHeight - before;     // a reader scrolled down keeps their place
     const rs = rows(); for (let i = rs.length - 1; i >= MAX; i--) { nodes.delete(+rs[i].dataset.id); fitQ.delete(rs[i]); rs[i].remove(); }
     if (n._fit) fitQ.add(n);
+    const nw = nameWidth(a); if (nw > trW) setTrW(nw);   // a longer name widens the Trader column for every row
     frame();   // the scrollbar's size follows the list, without showing it
     if (live) { ping(typeKey(a.type)); desktop(a); }
   }
