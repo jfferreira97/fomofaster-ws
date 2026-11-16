@@ -212,6 +212,20 @@ a.nm:hover{text-decoration:underline}
 .lnk{color:#7db6ff;text-decoration:underline;text-decoration-color:rgba(125,182,255,.35);text-underline-offset:2px;border-radius:3px;word-break:break-all;transition:color .1s,text-decoration-color .1s,background-color .1s}
 .lnk:hover{color:#b3d4ff;text-decoration-color:currentColor;background:rgba(125,182,255,.12)}
 #xpop{position:fixed;z-index:90;display:flex;flex-direction:column;filter:drop-shadow(0 14px 30px rgba(0,0,0,.55))}
+.who.plat{border-radius:5px;object-fit:contain;background:none}   /* the platform's logo in the trader's place */
+.tc{min-height:0;overflow:auto;overscroll-behavior:contain;padding:12px 13px;border:1px solid #2f3848;border-radius:10px;background:var(--p);color:var(--tx);font-size:12.5px;cursor:default}
+.tc-h{display:flex;align-items:center;gap:10px;min-width:0}
+.tc-av{width:44px;height:44px;border-radius:50%;object-fit:cover;flex:none;display:grid;place-items:center;font-weight:800;font-size:17px;color:#fff}
+.tc-who{min-width:0}
+.tc-name{font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tc-plat{display:flex;align-items:center;gap:5px;margin-top:3px;font:600 11px var(--mono);color:var(--mu)}
+.tc-plat img{width:14px;height:14px;border-radius:3px;object-fit:contain}
+.tc-link{flex:none;color:#7db6ff;font-weight:600;text-decoration:none;white-space:nowrap}
+.tc-link:hover{text-decoration:underline}
+.tc-dn{margin-top:1px;font-size:12px;color:#c9d0dc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tc-f{display:flex;align-items:center;gap:12px;margin-top:11px;font-size:13px;color:var(--mu)}
+.tc-f b{color:var(--tx);font:600 14px var(--mono)}
+.tc-f .tc-link{margin-left:auto}
 #xpop[hidden]{display:none}
 .xc{display:block;min-height:0;overflow:auto;overscroll-behavior:contain;padding:11px 13px;border:1px solid #2f3848;border-radius:10px;background:var(--p);color:inherit;text-decoration:none;white-space:normal;cursor:pointer;transition:border-color .12s}
 .xc:hover{border-color:#43506a}
@@ -496,6 +510,9 @@ a.nm:hover{text-decoration:underline}
     if (!a.av) return badge();
     const i = el('img', 'who'); i.src = a.av; i.alt = ''; i.loading = 'lazy'; i.decoding = 'async'; i.referrerPolicy = 'no-referrer'; i.addEventListener('error', () => i.replaceWith(badge()), { once: true }); return i;
   };
+  const PLAT = { pump: ['pump', 'pump.fun'], fomo: ['fomo', 'FOMO'] };
+  const platOf = (a) => PLAT[a.platform === 'pump' ? 'pump' : 'fomo'];
+  const platEl = (a) => { if (!a.trader) return null; const [k, n] = platOf(a); const i = el('img', 'who plat'); i.src = '/logos/' + k + '.png'; i.alt = n; return i; };
   const symEl = (a) => el('span', 'sym' + (a.ticker ? '' : ' hid'), a.ticker || 'coin');
   // A copy button. No title tooltip (it hung on after the click); a tick for half a second, then straight back.
   const copyBtn = (text, label, what) => {
@@ -603,30 +620,60 @@ a.nm:hover{text-decoration:underline}
   // pointer leaves the link, unless it goes into the box; a scroll outside it closes it too.
   const xpop = el('div'); xpop.id = 'xpop'; xpop.hidden = true; document.body.append(xpop);
   let xKey = null, xWait = 0;
-  function placePop(link) {
-    const r = link.getBoundingClientRect(), w = Math.min(380, innerWidth - 16), below = innerHeight - r.bottom, above = r.top, down = below >= 340 || below >= above;
+  function placePop(link, width = 380) {
+    const r = link.getBoundingClientRect(), w = Math.min(width, innerWidth - 16), below = innerHeight - r.bottom, above = r.top, down = below >= 340 || below >= above;
     xpop.style.width = w + 'px';
     xpop.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + 'px';
     xpop.style.top = down ? r.bottom + 6 + 'px' : ''; xpop.style.bottom = down ? '' : innerHeight - r.top + 6 + 'px';
     xpop.style.maxHeight = Math.max(160, (down ? below : above) - 16) + 'px';
   }
+  const popKey = (t) => (t.dataset.x ? 'x:' + t.dataset.x : 'tr:' + (t.closest('.r')?.dataset.id || ''));
   async function showPop(link) {
-    const id = link.dataset.x; xKey = id;
+    xKey = popKey(link);
+    if (!link.dataset.x) { const a = link.closest('.r')?._a; if (!a) return; const c = traderCard(a); xpop.replaceChildren(c); xpop.hidden = false; placePop(link, 300); fillTrader(c, a); return; }
+    const id = link.dataset.x;
     const c = el('a', 'xc'); c.href = link.href; c.target = '_blank'; c.rel = 'noopener noreferrer'; c.dataset.id = id;
     c.append(el('span', 'xl', 'Loading the post…'));
     c.addEventListener('click', (e) => { e.stopPropagation(); track('tweet', true); });
     xpop.replaceChildren(c); xpop.hidden = false; placePop(link);
     await fillCard(c);
-    if (xKey !== id) return;
   }
   function hidePop() { clearTimeout(xWait); xpop.hidden = true; xKey = null; }
   document.addEventListener('mouseover', (e) => {
-    const link = e.target.closest?.('a[data-x]');
-    if (link) { if (link.dataset.x !== xKey || xpop.hidden) { clearTimeout(xWait); xWait = setTimeout(() => showPop(link), 80); } }
+    const link = e.target.closest?.('a[data-x],[data-tr]');
+    if (link) { if (popKey(link) !== xKey || xpop.hidden) { clearTimeout(xWait); xWait = setTimeout(() => showPop(link), 80); } }
     else if (!e.target.closest?.('#xpop')) { clearTimeout(xWait); if (!xpop.hidden) hidePop(); }
   });
   document.addEventListener('scroll', (e) => { if (!xpop.hidden && !e.target.closest?.('#xpop')) hidePop(); }, true);
   document.documentElement.addEventListener('mouseleave', hidePop);
+  // A trader's card: who they are on their platform. Their picture, name and platform at once (from the alert), then their follower
+  // count (read from the platform, once per trader per visit, for logged-in viewers), and the link to their profile.
+  const cards = new Map();
+  const getTraderCard = (a) => { const k = a.platform + ':' + a.trader.toLowerCase(); if (!cards.has(k)) cards.set(k,
+    fetch('/api/manage/trader-card?platform=' + (a.platform === 'pump' ? 'pump' : 'fomo') + '&handle=' + encodeURIComponent(a.trader), { credentials: 'same-origin' })
+      .then((r) => (r.ok ? r.json() : null)).then((d) => d?.trader || null).catch(() => null)); return cards.get(k); };
+  function traderCard(a) {
+    const c = el('div', 'tc'), h = el('div', 'tc-h');
+    const face = () => { const b = el('div', 'tc-av', [...a.trader.replace(/^@/, '')][0].toUpperCase()); const hh = hue(a.trader); b.style.background = `linear-gradient(135deg,hsl(${hh} 75% 58%),hsl(${(hh + 50) % 360} 80% 42%))`; return b; };
+    const pic = (src) => { const i = el('img', 'tc-av'); i.src = src; i.alt = ''; i.referrerPolicy = 'no-referrer'; i.addEventListener('error', () => i.replaceWith(face()), { once: true }); return i; };
+    const [k, pn] = platOf(a), who = el('div', 'tc-who'), pl = el('div', 'tc-plat'), logo = el('img'); logo.src = '/logos/' + k + '.png'; logo.alt = '';
+    pl.append(logo, document.createTextNode(pn));
+    who.append(el('div', 'tc-name', a.trader), pl);
+    h.append(a.av ? pic(a.av) : face(), who);
+    const f = el('div', 'tc-f'); f.append(el('span', 'tc-fol', st.tier === 'demo' ? '' : '…'));
+    if (a.profile) { const p = el('a', 'tc-link', 'View profile ↗'); p.href = a.profile; p.target = '_blank'; p.rel = 'noopener noreferrer'; f.append(p); }
+    c.append(h, f); c._pic = pic;
+    return c;
+  }
+  async function fillTrader(c, a) {
+    if (st.tier === 'demo') return;
+    const t = await getTraderCard(a);
+    if (!c.isConnected) return;
+    const fol = c.querySelector('.tc-fol');
+    if (t?.followers != null) { fol.replaceChildren(el('b', null, num(t.followers)), document.createTextNode(t.followers === 1 ? ' follower' : ' followers')); } else fol.textContent = '';
+    if (t?.name) c.querySelector('.tc-who').insertBefore(el('div', 'tc-dn', t.name), c.querySelector('.tc-plat'));
+    if (!a.av && t?.avatar) c.querySelector('.tc-av').replaceWith(c._pic(t.avatar));
+  }
   async function fillCard(c) {
     const t = await getTweet(c.dataset.id);
     if (!c.isConnected) return;
@@ -800,7 +847,8 @@ a.nm:hover{text-decoration:underline}
     // desktop: age | trader | token | call text | amount | mc
     const dsk = el('div', 'dsk');
     const cAge = el('div', 'c-age ago', ago(a.ts)); cAge.dataset.ts = a.ts;
-    const cTr = el('div', 'c-tr'); const w2 = whoEl(a); if (w2) cTr.append(w2); cTr.append(nameEl(a)); const mu2 = muteEl(a); if (mu2) cTr.append(mu2);
+    const cTr = el('div', 'c-tr'); const w2 = platEl(a); if (w2) cTr.append(w2); cTr.append(nameEl(a)); const mu2 = muteEl(a); if (mu2) cTr.append(mu2);
+    if (a.trader) cTr.dataset.tr = '1';   // hovering the trader opens their card
     const cTk = el('div', 'c-tk'); cTk.append(coinEl(a), el('span', 'tag', TAG[a.type] || a.type.toLowerCase()), symEl(a)); if (a.chain) cTk.append(chainEl(a)); const cp2 = copyEl(a); if (cp2) cTk.append(cp2);
     const cTx = el('div', 'c-tx'); cTx.append(isCall ? richText('span', 'q', txt, !a.locked) : el('span', 'q', txt)); if (canOpen) cTx.append(tgEl(r));
     const cAm = el('div', 'c-am'); const am2 = amountEl(a); if (am2) cAm.append(am2);

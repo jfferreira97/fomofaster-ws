@@ -665,6 +665,51 @@ public class ManageController : ControllerBase
     // As-you-type check for the add form: which accounts exist on that platform for what the user typed, asked through the
     // logged-in sidecar (FOMO: the app's own fuzzy user search; pump.fun has no user search, so the exact handle check there),
     // plus the tracked traders whose handle starts with it. Read-only. checkedLive=false means the platform could not be asked.
+    // The feed's hover card on a trader: who they are on their platform (their picture, name and follower count), nothing of ours.
+    // The followers come from the platform itself through the logged-in sidecar's lookup, kept 6 h per trader so a hover does not
+    // ask it every time; the intel file fills in when the platform could not be asked. Read-only.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (DateTime At, double? Followers, string? Pic, string? Name)> LiveCards = new();
+
+    [HttpGet("trader-card")]
+    public async Task<IActionResult> TraderCard([FromQuery] string? platform, [FromQuery] string? handle, CancellationToken ct)
+    {
+        var (user, error) = await ResolveSubscriberAsync();
+        if (user == null) return error!;
+        if (string.IsNullOrWhiteSpace(handle) || handle.Length > 64) return BadRequest(new { status = "error", message = "No trader" });
+        var plat = string.Equals(platform, "pump", StringComparison.OrdinalIgnoreCase) ? Platform.Pump : Platform.Fomo;
+        var h = handle.Trim().TrimStart('@').ToLower();
+        var trader = await _dbContext.Traders.AsNoTracking().FirstOrDefaultAsync(t => t.Platform == plat && t.Handle.ToLower() == h, ct);
+        if (trader == null) return NotFound(new { status = "error", message = "No such trader" });
+
+        var key = $"{(int)plat}:{h}";
+        double? followers = null; string? pic = null, name = null;
+        if (LiveCards.TryGetValue(key, out var hit) && DateTime.UtcNow - hit.At < TimeSpan.FromHours(6)) (followers, pic, name) = (hit.Followers, hit.Pic, hit.Name);
+        else
+        {
+            var live = await _sidecarFollow.LookupAsync(plat, trader.Handle, ct);
+            var u = live.Users?.FirstOrDefault(x => string.Equals(x.Handle, trader.Handle, StringComparison.OrdinalIgnoreCase));
+            if (u != null || live.Ok)
+            {
+                (followers, pic, name) = (u?.Followers, u?.Pic, u?.Name);
+                if (LiveCards.Count > 5000) LiveCards.Clear();
+                LiveCards[key] = (DateTime.UtcNow, followers, pic, name);
+            }
+        }
+        var intel = _intel.Get(plat, trader.Handle);
+        return Ok(new
+        {
+            status = "success",
+            trader = new
+            {
+                handle = trader.Handle,
+                platform = trader.Platform.ToString(),
+                name = string.Equals(name, trader.Handle, StringComparison.OrdinalIgnoreCase) ? null : name,
+                followers = followers ?? intel?.Followers,
+                avatar = pic ?? intel?.Avatar,
+            }
+        });
+    }
+
     [HttpGet("trader-lookup")]
     public async Task<IActionResult> TraderLookup([FromQuery] Platform platform, [FromQuery] string? q, CancellationToken ct)
     {
