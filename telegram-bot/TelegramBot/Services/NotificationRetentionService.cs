@@ -16,6 +16,13 @@ public class NotificationRetentionService : BackgroundService
     private static readonly TimeSpan RetentionWindow = TimeSpan.FromDays(8);
     private const int BatchSize = 500;
 
+    // Followed traders' pump.fun trades (PumpEvents Kind = 'trade') are ~90% of that table, about 20 MB a day. The longest
+    // look back at them is 60 days (the accumulation trades chart; the accumulation tab itself goes 30), so 90 days leaves
+    // a month of margin. The "still holding" figure on a sell alert reads all of a trader's trades on the coin: a bag
+    // bought more than 90 days ago is understated, as one bought before we followed them already is. Callouts, replies
+    // and reposts (the trader ratings' input, ~1.5 MB a day) are kept.
+    private static readonly TimeSpan PumpTradeRetention = TimeSpan.FromDays(90);
+
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<NotificationRetentionService> _logger;
 
@@ -38,6 +45,15 @@ public class NotificationRetentionService : BackgroundService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error during notification retention purge");
+            }
+
+            try
+            {
+                await PurgeOldPumpTradesAsync(stoppingToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during pump trade retention purge");
             }
 
             try { await Task.Delay(RunInterval, stoppingToken); } catch (OperationCanceledException) { break; }
@@ -74,5 +90,38 @@ public class NotificationRetentionService : BackgroundService
 
         if (totalDeleted > 0)
             _logger.LogInformation("Notification retention: purged {Count} notification(s) older than {Cutoff:u}", totalDeleted, cutoff);
+    }
+
+    // Oldest first through the Kind index in Id order (Ids follow ReceivedAt, checked on the live table), so it reads only
+    // the rows it deletes plus one batch, never the whole table: ReceivedAt has no index. Stops at the first batch that
+    // holds a row inside the window.
+    private async Task PurgeOldPumpTradesAsync(CancellationToken ct)
+    {
+        var cutoff = DateTime.UtcNow - PumpTradeRetention;
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var totalDeleted = 0;
+        while (!ct.IsCancellationRequested)
+        {
+            var batch = await db.PumpEvents.AsNoTracking()
+                .Where(e => e.Kind == "trade")
+                .OrderBy(e => e.Id)
+                .Take(BatchSize)
+                .Select(e => new { e.Id, e.ReceivedAt })
+                .ToListAsync(ct);
+            var oldIds = batch.Where(e => e.ReceivedAt < cutoff).Select(e => e.Id).ToList();
+            if (oldIds.Count == 0) break;
+
+            totalDeleted += await db.PumpEvents
+                .Where(e => oldIds.Contains(e.Id))
+                .ExecuteDeleteAsync(ct);
+
+            if (oldIds.Count < batch.Count) break;
+            await Task.Delay(200, ct);
+        }
+
+        if (totalDeleted > 0)
+            _logger.LogInformation("Pump trade retention: purged {Count} trade(s) older than {Cutoff:u}", totalDeleted, cutoff);
     }
 }

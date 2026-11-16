@@ -7,6 +7,7 @@ import { startAlertStream, type AlertStream, type StreamEvent } from './stream';
 import { startNatsMirror, type NatsMirror } from './natsMirror';
 import { logPumpTrade, tradeFromEvent, tradeFromItem, type PumpTradeRecord } from './tradeLog';
 import { startControlServer } from './control';
+import { startLogRetention } from './logRetention';
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
 
@@ -583,6 +584,7 @@ async function session(firstRun: boolean): Promise<void> {
 
 async function main(): Promise<void> {
   if (CONTROL_PORT) startControlServer(CONTROL_PORT, () => livePage, (m) => console.log(`${ts()} ${m}`));
+  startLogRetention();
   let firstRun = true;
   for (;;) {
     try {
