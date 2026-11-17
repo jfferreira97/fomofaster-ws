@@ -211,6 +211,12 @@ a.nm:hover{text-decoration:underline}
 /* links in a call's text, and an X post's preview under it */
 .lnk{color:#7db6ff;text-decoration:underline;text-decoration-color:rgba(125,182,255,.35);text-underline-offset:2px;border-radius:3px;word-break:break-all;transition:color .1s,text-decoration-color .1s,background-color .1s}
 .lnk:hover{color:#b3d4ff;text-decoration-color:currentColor;background:rgba(125,182,255,.12)}
+#toast{position:fixed;left:50%;bottom:18px;z-index:95;display:flex;align-items:center;gap:10px;max-width:calc(100vw - 32px);padding:7px 7px 7px 13px;border:1px solid var(--line2);border-radius:9px;background:var(--s3);color:var(--tx);font-size:12.5px;box-shadow:0 10px 28px rgba(0,0,0,.5);opacity:0;transform:translate(-50%,8px);pointer-events:none;transition:opacity .16s,transform .16s}
+#toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+#toast span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#toast button{flex:none;padding:3px 10px;border:1px solid var(--line2);border-radius:6px;background:var(--p2);color:var(--tx);font:600 11.5px var(--sans);cursor:pointer}
+#toast button:hover{border-color:#43506a}
+@media (prefers-reduced-motion:reduce){#toast{transition:none}}
 #xpop{position:fixed;z-index:90;display:flex;flex-direction:column;filter:drop-shadow(0 14px 30px rgba(0,0,0,.55))}
 .who.plat{border-radius:5px;object-fit:contain;background:none}   /* the platform's logo in the trader's place */
 .tc{min-height:0;overflow:auto;overscroll-behavior:contain;padding:12px 13px;border:1px solid #2f3848;border-radius:10px;background:var(--p);color:var(--tx);font-size:12.5px;cursor:default}
@@ -531,7 +537,7 @@ a.nm:hover{text-decoration:underline}
   const muteEl = (a) => {
     if (!a.trader) return null;
     const x = el('button', 'mute', 'mute'); x.title = 'Mute ' + a.trader;
-    x.addEventListener('click', (e) => { e.stopPropagation(); track('mute', true); st.muted.add(a.trader.toLowerCase()); save(); renderMuted(); renderTabs(); rerender(); });
+    x.addEventListener('click', (e) => { e.stopPropagation(); track('mute', true); muteTrader(a.trader); });
     return x;
   };
   const amountEl = (a) => {   // the value; on a call it is the caller's position, said small and centred under the number
@@ -1002,7 +1008,31 @@ a.nm:hover{text-decoration:underline}
   function renderMuted() {
     const m = $('muted'); m.replaceChildren();
     if (!st.muted.size) m.append(el('span', 'sub', 'none'));
-    for (const t of st.muted) { const b = el('button', 'chip on', t + ' ✕'); b.addEventListener('click', () => { st.muted.delete(t); save(); renderMuted(); renderTabs(); rerender(); }); m.append(b); }
+    for (const t of st.muted) { const b = el('button', 'chip on', t + ' ✕'); b.addEventListener('click', () => { st.muted.delete(t); afterMutes(); toast('Unmuted ' + t + ' on this feed'); }); m.append(b); }
+  }
+  // The toast for mutes: who went quiet on this feed, with an undo. Mutes made while it shows gather in it, and its undo
+  // brings them all back. It waits while the pointer is on it.
+  const toastBox = el('div'); toastBox.id = 'toast'; toastBox.setAttribute('role', 'status'); document.body.append(toastBox);
+  let toastTimer = 0, toastMutes = [];
+  const afterMutes = () => { save(); renderMuted(); renderTabs(); rerender(); };
+  function hideToast() { clearTimeout(toastTimer); toastBox.classList.remove('show'); toastMutes = []; }
+  const armToast = (ms) => { clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, ms); };
+  toastBox.addEventListener('mouseenter', () => clearTimeout(toastTimer));
+  toastBox.addEventListener('mouseleave', () => { if (toastBox.classList.contains('show')) armToast(2500); });
+  function toast(text, undo) {
+    toastBox.replaceChildren(el('span', null, text));
+    if (undo) { const b = el('button', null, 'Undo'); b.addEventListener('click', () => { undo(); hideToast(); }); toastBox.append(b); }
+    else toastMutes = [];
+    toastBox.classList.add('show');
+    if (!toastBox.matches(':hover')) armToast(undo ? 5000 : 2200);   // under the pointer it waits for the pointer to leave
+  }
+  function muteTrader(name) {
+    const k = name.toLowerCase();
+    if (st.muted.has(k)) return;
+    if (!toastBox.classList.contains('show')) toastMutes = [];
+    st.muted.add(k); toastMutes.push(k); afterMutes();
+    const batch = toastMutes.slice();
+    toast(batch.length === 1 ? 'Muted ' + name + ' on this feed' : 'Muted ' + batch.length + ' traders on this feed', () => { batch.forEach((x) => st.muted.delete(x)); afterMutes(); });
   }
   // One button folds every call / thesis to its 2-line preview, or shows them all whole again (the default).
   const FOLD_ICON = '<path d="m7 20 5-5 5 5"/><path d="m7 4 5 5 5-5"/>', UNFOLD_ICON = '<path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/>';
