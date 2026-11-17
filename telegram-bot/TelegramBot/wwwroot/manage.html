@@ -651,13 +651,27 @@
     .pf-calls-wrap { overflow-x: auto; }
     .pf-calls .pf-mult { font-size: 10.5px; opacity: .7; }
 
-    .toast {
-        position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
-        background: var(--surface-3); color: var(--text); border: 1px solid var(--border);
-        padding: 10px 16px; border-radius: var(--radius); font-size: 12.5px;
-        opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; z-index: 30;
+    /* Toasts: a short stack at the bottom, over the modals too. Clicks go through them to the page. */
+    #toasts {
+        position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 60;
+        display: flex; flex-direction: column; align-items: center; gap: 6px;
+        width: max-content; max-width: calc(100vw - 32px); pointer-events: none;
     }
-    .toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+    .toast {
+        display: flex; align-items: center; gap: 9px; max-width: 100%;
+        background: var(--surface-3); color: var(--text); border: 1px solid var(--border);
+        padding: 9px 15px 9px 12px; border-radius: var(--radius); font-size: 12.5px; line-height: 1.35; overflow-wrap: anywhere;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, .45);
+        opacity: 0; transform: translateY(6px); transition: opacity .18s, transform .18s;
+    }
+    .toast.show { opacity: 1; transform: none; }
+    .toast::before { content: ''; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--text-dim); }
+    .toast.ok::before { background: var(--good); }
+    .toast.err { border-color: rgba(234, 90, 110, .45); }
+    .toast.err::before { background: var(--bad); }
+    .toast.bump { animation: toast-bump .22s ease-out; }
+    @keyframes toast-bump { 40% { transform: scale(1.04); } }
+    @media (prefers-reduced-motion: reduce) { .toast { transition: none; } .toast.bump { animation: none; } }
 
     /* ---------- Review pass: follow = bell segment, quieter rows and header ---------- */
     .cat-chip { align-items: stretch; }
@@ -1204,7 +1218,7 @@
     </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<div id="toasts" role="status" aria-live="polite"></div>
 
 <script>
 const API = window.location.origin;
@@ -1219,12 +1233,42 @@ let fullAccess = true;               // false on a trial: no stats columns, no p
 let sortKey = 'follow';             // default view: the ones you follow, first
 let sortDir = 'desc';
 
-function showToast(msg, durationMs = 1800) {
-    const t = document.getElementById('toast');
-    t.textContent = msg;
-    t.classList.add('show');
+// Toasts stack at the bottom, at most TOAST_MAX at a time (the oldest goes first). A toast with a key takes the place of
+// the one already showing under that key, so a burst of clicks updates one toast instead of piling up a column of them.
+// kind: 'ok' (green dot), 'err' (red); a message starting with "Failed" is an error on its own.
+const TOAST_MAX = 3;
+function liveToasts() { return [...document.getElementById('toasts').children].filter(x => !x.classList.contains('out')); }
+function toastShowing(key) { return liveToasts().some(x => x.dataset.key === key); }
+function dropToast(t) {
     clearTimeout(t._hideTimer);
-    t._hideTimer = setTimeout(() => t.classList.remove('show'), durationMs);
+    t.classList.add('out');
+    t.classList.remove('show');
+    setTimeout(() => t.remove(), 200);
+}
+function showToast(msg, durationMs, opts = {}) {
+    const key = opts.key || 'msg';
+    const kind = opts.kind ?? (/^(failed|couldn't)/i.test(msg) ? 'err' : '');
+    durationMs ??= kind === 'err' ? 3500 : 1800;
+    let t = liveToasts().find(x => x.dataset.key === key);
+    if (t) {
+        t.classList.remove('bump');
+        void t.offsetWidth;                         // replay the bump on every update
+        t.classList.add('bump');
+    } else {
+        t = document.createElement('div');
+        t.className = 'toast';
+        t.dataset.key = key;
+        document.getElementById('toasts').append(t);
+        void t.offsetWidth;
+        t.classList.add('show');
+        const live = liveToasts();
+        live.slice(0, Math.max(0, live.length - TOAST_MAX)).forEach(dropToast);
+    }
+    t.classList.toggle('ok', kind === 'ok');
+    t.classList.toggle('err', kind === 'err');
+    t.textContent = msg;
+    clearTimeout(t._hideTimer);
+    t._hideTimer = setTimeout(() => dropToast(t), durationMs);
 }
 
 function escapeHtml(s) {
@@ -1302,6 +1346,7 @@ function showApp(me) {
     renderFilters();
 
     currentSettings = me.settings;
+    settingsSaved = JSON.parse(JSON.stringify(currentSettings));
     lockSettings = me.locks || {};
     renderLockFields();
     document.getElementById('repeatWindowInput').value = currentSettings.repeatWindowMinutes;
@@ -1588,14 +1633,59 @@ document.addEventListener('keydown', e => {
     if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('.tip-icon')) onTipActivate(e);
 });
 
+// Settings go out one save at a time, each carrying everything as it is when it leaves: a burst of clicks makes two saves
+// at most, and an older save can never land after a newer one. settingsSaved is what the server last took.
+let settingsSaved = null, settingsSaving = null, settingsAgain = false;
+function saveSettings() {
+    if (settingsSaving) { settingsAgain = true; return settingsSaving; }
+    settingsSaving = (async () => {
+        let ok;
+        do {
+            settingsAgain = false;
+            const body = JSON.stringify(currentSettings);
+            const res = await fetch(`${API}/api/manage/settings`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body
+            }).catch(() => null);
+            ok = !!res?.ok;
+            if (ok) settingsSaved = JSON.parse(body);
+        } while (ok && settingsAgain);
+        settingsSaving = null;
+        return ok;
+    })();
+    return settingsSaving;
+}
+
+const SETTING_NAMES = {
+    autoFollowFomoTraders: 'FOMO auto-follow', notifyFomoBuySell: 'FOMO transaction alerts', notifyFomoThesis: 'FOMO thesis alerts',
+    autoFollowPumpTraders: 'Pump.fun auto-follow', notifyPumpBuySell: 'Pump.fun transaction alerts', notifyPumpCallouts: 'Pump.fun callout alerts',
+    notifyTrending: 'Trending alerts', notifyLocks: 'Lock alerts',
+};
 async function onSettingToggle(e) {
     const field = e.currentTarget.dataset.field;
-    currentSettings[field] = !currentSettings[field];
+    currentSettings[field] = field === 'notifyLocks' ? currentSettings[field] === false : !currentSettings[field];
     renderSettings();
-    const res = await fetch(`${API}/api/manage/settings`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(currentSettings)
-    });
-    if (!res.ok) showToast('Failed to save');
+    const isOnNow = v => field === 'notifyLocks' ? v !== false : !!v;
+    const clicked = isOnNow(currentSettings[field]);
+    const ok = await saveSettings();
+    if (!ok) {
+        // Put the page back to what the server has, so a switch never shows a state that was not saved.
+        Object.assign(currentSettings, JSON.parse(JSON.stringify(settingsSaved)));
+        renderSettings();
+        showMinAge();
+        document.getElementById('repeatWindowInput').value = currentSettings.repeatWindowMinutes;
+        showToast("Couldn't save. Put back as it was.", 3500, { key: 'settings-err', kind: 'err' });
+    }
+    // This click's value is what the server has (a later save in the same burst may be the one that failed)
+    if (isOnNow(settingsSaved[field]) === clicked) noteSetting(field, clicked);
+}
+// One toast for the switches saved while it shows: "Lock alerts off", "Lock alerts off, Trending alerts on", "3 settings saved".
+let settingNote = new Map();
+function noteSetting(field, on) {
+    if (!toastShowing('settings')) settingNote = new Map();
+    settingNote.delete(field);
+    settingNote.set(field, on);
+    const parts = [...settingNote].map(([f, v]) => `${SETTING_NAMES[f] || 'Setting'} ${v ? 'on' : 'off'}`);
+    showToast(parts.length <= 2 ? parts.join(', ') : `${parts.length} settings saved`, 2200, { key: 'settings', kind: 'ok' });
 }
 
 /* ---------- Lock alerts' limits ---------- */
@@ -1613,17 +1703,18 @@ async function saveLockFields() {
     const res = await fetch(`${API}/api/manage/lock-settings`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
     }).catch(() => null);
-    if (res?.ok) { lockSettings = body; renderLockFields(); }
-    showToast(res?.ok ? 'Saved' : 'Failed to save');
+    if (res?.ok) { lockSettings = body; renderLockFields(); showToast('Lock limits saved', 1800, { kind: 'ok' }); return; }
+    renderLockFields();   // back to what the server has
+    showToast("Couldn't save the lock limits. Put back as they were.");
 }
 LOCK_FIELDS.forEach(([id]) => document.getElementById(id).addEventListener('change', saveLockFields));
 
 document.getElementById('repeatWindowInput').addEventListener('change', async (e) => {
     currentSettings.repeatWindowMinutes = parseInt(e.target.value, 10) || 0;
-    const res = await fetch(`${API}/api/manage/settings`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(currentSettings)
-    });
-    showToast(res.ok ? 'Saved' : 'Failed to save');
+    if (await saveSettings()) { showToast('Repeat cooldown saved', 1800, { kind: 'ok' }); return; }
+    currentSettings.repeatWindowMinutes = settingsSaved.repeatWindowMinutes;
+    e.target.value = currentSettings.repeatWindowMinutes;
+    showToast("Couldn't save the repeat cooldown. Put back as it was.");
 });
 
 /* ---------- Token age ---------- */
@@ -1663,10 +1754,12 @@ document.getElementById('minAgeInput').addEventListener('change', async (e) => {
     if (parsed === undefined) { showToast('Type it like 18h, 2d or 90m'); showMinAge(); return; }
     currentSettings.minTokenAgeMinutes = parsed || 0;
     showMinAge();
-    const res = await fetch(API + '/api/manage/settings', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(currentSettings)
-    });
-    showToast(res.ok ? 'Saved' : 'Failed to save');
+    if (await saveSettings()) showToast('Minimum token age saved', 1800, { kind: 'ok' });
+    else {
+        currentSettings.minTokenAgeMinutes = settingsSaved.minTokenAgeMinutes;
+        showMinAge();
+        showToast("Couldn't save the minimum token age. Put back as it was.");
+    }
     renderChains();   // the grey inherited values in the chain list follow the general one
 });
 
@@ -1694,8 +1787,8 @@ function editChainAge(btn, chain) {
         const res = await fetch(API + '/api/manage/chains/minage', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ chain, minTokenAgeMinutes: current.minTokenAgeMinutes })
-        });
-        showToast(res.ok ? 'Token age saved' : 'Failed to save');
+        }).catch(() => null);
+        chainSaved(res, `${chain} token age saved`, `Couldn't save the ${chain} token age.`);
     };
     input.addEventListener('blur', commit);
     input.addEventListener('keydown', ev => { if (ev.key === 'Enter') input.blur(); if (ev.key === 'Escape') { committed = true; renderChains(); } });
@@ -1746,26 +1839,35 @@ function onChainButtonClick(e) {
     if (action === 'age') return editChainAge(btn, chain);
 }
 
+// A chain save's answer: a named toast, or on a failure the server's copy of the chains back on the page.
+function chainSaved(res, okText, errText) {
+    if (res?.ok) { showToast(okText, 1800, { key: 'chain', kind: 'ok' }); return; }
+    showToast(errText + ' Put back as it was.', 3500, { key: 'chain', kind: 'err' });
+    loadChains();
+}
+
 async function toggleChainDisabled(chain) {
     const c = currentChains.find(x => x.chain === chain);
     c.isDisabled = !c.isDisabled;
+    const off = c.isDisabled;
     renderChains();
     const res = await fetch(`${API}/api/manage/chains/disabled`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chain, disabled: c.isDisabled })
-    });
-    showToast(res.ok ? 'Chain updated' : 'Failed to update chain');
+        body: JSON.stringify({ chain, disabled: off })
+    }).catch(() => null);
+    chainSaved(res, `${chain} alerts ${off ? 'off' : 'on'}`, `Couldn't turn ${chain} ${off ? 'off' : 'on'}.`);
 }
 
 async function toggleChainTrending(chain) {
     const c = currentChains.find(x => x.chain === chain);
     c.trendingDisabled = !c.trendingDisabled;
+    const off = c.trendingDisabled;
     renderChains();
     const res = await fetch(`${API}/api/manage/chains/trending`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chain, disabled: c.trendingDisabled })
-    });
-    showToast(res.ok ? 'Chain updated' : 'Failed to update chain');
+        body: JSON.stringify({ chain, disabled: off })
+    }).catch(() => null);
+    chainSaved(res, `${chain} trending alerts ${off ? 'off' : 'on'}`, `Couldn't turn ${chain} trending alerts ${off ? 'off' : 'on'}.`);
 }
 
 function editChainMcap(btn, chain) {
@@ -1790,8 +1892,8 @@ function editChainMcap(btn, chain) {
         const res = await fetch(`${API}/api/manage/chains/minmarketcap`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ chain, minMarketCap: current.minMarketCap })
-        });
-        showToast(res.ok ? 'Min market cap saved' : 'Failed to save');
+        }).catch(() => null);
+        chainSaved(res, `${chain} min market cap saved`, `Couldn't save the ${chain} min market cap.`);
     };
     input.addEventListener('blur', commit);
     input.addEventListener('keydown', ev => { if (ev.key === 'Enter') input.blur(); });
@@ -2170,20 +2272,99 @@ function renderPagination(totalCount, totalPages) {
     });
 }
 
-async function onToggleFollow(e) {
-    const traderId = parseInt(e.target.dataset.id, 10);
-    const nowFollowing = e.target.checked;
-    const endpoint = nowFollowing ? 'follow' : 'unfollow';
+function onToggleFollow(e) {
+    setFollow(parseInt(e.target.dataset.id, 10), e.target.checked);
+}
 
-    const res = await fetch(`${API}/api/manage/${endpoint}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ traderId })
-    });
-    if (!res.ok) { showToast('Failed'); e.target.checked = !nowFollowing; return; }
+// Follow / unfollow, from the list or the profile card. The page flips at once. One trader's requests go out one at a
+// time, in click order: the first click goes out at once, and the clicks made while a request is out collapse into one
+// more request at most, sent only if the last of them differs from what the server has. When one fails, the trader goes
+// back to what the server has, and a toast says so.
+const followSync = new Map();   // trader id -> { want, saved: the trader's follow fields as the server has them, handle, busy }
+const followFields = t => ({ isFollowing: t.isFollowing, isMuted: t.isMuted, viaCategory: t.viaCategory, minValueUsd: t.minValueUsd });
+function eachCopy(id, fn) {     // the list's row and the open profile card are separate objects
+    const row = allTraders.find(x => x.id === id);
+    if (row) fn(row);
+    if (profileTrader?.id === id && profileTrader !== row) fn(profileTrader);
+}
+// Only the trader's own row changes (the box, its tag, the $ box) and the count. The rows stay where they are until the
+// list is sorted, filtered or reloaded, so a quick second click lands on the same trader, and a click costs the same
+// with 800 rows on the page as with 60.
+function redrawFollow(id) {
+    const t = allTraders.find(x => x.id === id);
+    const tr = t && document.querySelector(`#traderList tr[data-id="${id}"]`);
+    if (tr) {
+        const chk = tr.querySelector('.follow-check');
+        chk.checked = isOn(t);
+        chk.parentElement.querySelectorAll('.via-tag, .muted-tag').forEach(x => x.remove());
+        chk.insertAdjacentHTML('afterend', followTag(t));
+        const box = tr.querySelector('.threshold-input');
+        if (box) {
+            box.disabled = !t.isFollowing;
+            if (document.activeElement !== box) box.value = t.minValueUsd ?? '';
+        }
+    }
+    const n = document.querySelector('#traderCount b');
+    if (n) n.textContent = allTraders.filter(isOn).length;
+    if (profileTrader?.id === id) renderProfile();
+}
+function setFollow(id, want) {
+    const t = allTraders.find(x => x.id === id) ?? (profileTrader?.id === id ? profileTrader : null);
+    if (!t) return;
+    let s = followSync.get(id);
+    if (!s) followSync.set(id, s = { busy: false, saved: followFields(t), handle: t.handle });
+    s.want = want;
+    eachCopy(id, x => applyFollowChange(x, want));
+    redrawFollow(id);
+    if (!s.busy) runFollow(id, s);
+}
+async function runFollow(id, s) {
+    s.busy = true;
+    while (s.want !== s.saved.isFollowing) {
+        const want = s.want;
+        const res = await fetch(`${API}/api/manage/${want ? 'follow' : 'unfollow'}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ traderId: id })
+        }).catch(() => null);
+        if (!res?.ok) {
+            followSync.delete(id);
+            eachCopy(id, x => Object.assign(x, s.saved));
+            redrawFollow(id);
+            noteFollowFail(s.handle, want);
+            return;
+        }
+        const after = { ...s.saved };
+        applyFollowChange(after, want);
+        s.saved = after;
+        noteFollow(s.handle, want);
+    }
+    // Settled. Back where the server already was (on-off), the page shows its copy: threshold and category tag included.
+    followSync.delete(id);
+    let changed = false;
+    eachCopy(id, x => { if (JSON.stringify(followFields(x)) !== JSON.stringify(s.saved)) { Object.assign(x, s.saved); changed = true; } });
+    if (changed) redrawFollow(id);
+}
 
-    const t = allTraders.find(x => x.id === traderId);
-    if (t) applyFollowChange(t, nowFollowing);
-    renderTraders();
+// One red toast for the ones that failed while it shows: "Couldn't follow A. Try again.", then "Couldn't change 2 traders".
+let followFails = [];
+function noteFollowFail(handle, want) {
+    if (!toastShowing('follow-err')) followFails = [];
+    if (!followFails.includes(handle)) followFails.push(handle);
+    showToast(followFails.length === 1 ? `Couldn't ${want ? 'follow' : 'unfollow'} ${handle}. Try again.` : `Couldn't change ${followFails.length} traders. Put back as they were.`,
+        3500, { key: 'follow-err', kind: 'err' });
+}
+
+// One toast for all the follows made while it shows: "Following A", then "Following 3 traders, unfollowed B".
+let followNote = { on: [], off: [] };
+function noteFollow(handle, on) {
+    if (!toastShowing('follow')) followNote = { on: [], off: [] };
+    followNote.on = followNote.on.filter(h => h !== handle);
+    followNote.off = followNote.off.filter(h => h !== handle);
+    followNote[on ? 'on' : 'off'].push(handle);
+    const who = list => list.length === 1 ? list[0] : `${list.length} traders`;
+    const parts = [];
+    if (followNote.on.length) parts.push(`Following ${who(followNote.on)}`);
+    if (followNote.off.length) parts.push(`${parts.length ? 'unfollowed' : 'Unfollowed'} ${who(followNote.off)}`);
+    showToast(parts.join(', '), 2600, { key: 'follow', kind: 'ok' });
 }
 
 // Mirrors the server: following clears a mute; unchecking always leaves a mute behind (so a
@@ -2203,12 +2384,17 @@ async function onThresholdChange(e) {
     const res = await fetch(`${API}/api/manage/threshold`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ traderId, minValueUsd })
-    });
-
-    if (!res.ok) { showToast('Failed to save threshold'); return; }
+    }).catch(() => null);
     const t = allTraders.find(x => x.id === traderId);
+    if (!res?.ok) {
+        e.target.value = t?.minValueUsd ?? '';
+        showToast(`Couldn't save the minimum $ for ${t?.handle ?? 'this trader'}. Put back as it was.`, 3500, { key: 'threshold', kind: 'err' });
+        return;
+    }
     if (t) t.minValueUsd = minValueUsd;
-    showToast('Threshold saved');
+    const sync = followSync.get(traderId);
+    if (sync) sync.saved.minValueUsd = minValueUsd;
+    showToast(minValueUsd == null ? `No minimum $ for ${t?.handle ?? 'this trader'}` : `Min $${minValueUsd.toLocaleString()} for ${t?.handle ?? 'this trader'} saved`, 1800, { key: 'threshold', kind: 'ok' });
 }
 
 document.getElementById('followAllBtn').addEventListener('click', async () => {
@@ -2218,22 +2404,23 @@ document.getElementById('followAllBtn').addEventListener('click', async () => {
     const original = btn.textContent;
     btn.disabled = true;
     btn.textContent = 'Following all... (can take a minute)';
-    showToast('Working on it — following everyone not previously unfollowed...', 60000);
+    showToast('Following everyone you did not unfollow before...', 60000);
 
     try {
-        const res = await fetch(`${API}/api/manage/follow-all`, { method: 'POST' });
-        const body = await res.json().catch(() => null);
-        if (!res.ok) { showToast('Failed to follow all'); return; }
+        const res = await fetch(`${API}/api/manage/follow-all`, { method: 'POST' }).catch(() => null);
+        const body = res ? await res.json().catch(() => null) : null;
+        if (!res?.ok) { showToast("Couldn't follow everyone. Nothing changed."); return; }
 
         // FollowAllTradersAsync also flips both autofollow flags on server-side — mirror that here.
         currentSettings.autoFollowFomoTraders = true;
         currentSettings.autoFollowPumpTraders = true;
+        if (settingsSaved) { settingsSaved.autoFollowFomoTraders = true; settingsSaved.autoFollowPumpTraders = true; }
         renderSettings();
 
         currentPage = 1;
         await Promise.all([loadTraders(), loadCategories()]);
-        const newlyFollowed = body?.followedCount ?? '?';
-        showToast(`Done — followed ${newlyFollowed} new trader(s)`, 4000);
+        const n = body?.followedCount;
+        showToast((n == null ? 'Followed everyone' : `Followed ${n} new trader${n === 1 ? '' : 's'}`) + '. Auto-follow is on for FOMO and Pump.fun.', 4000, { kind: 'ok' });
     } finally {
         btn.disabled = false;
         btn.textContent = original;
@@ -2247,19 +2434,19 @@ document.getElementById('unfollowAllBtn').addEventListener('click', async () => 
     const original = btn.textContent;
     btn.disabled = true;
     btn.textContent = 'Unfollowing all...';
-    showToast('Working on it...', 60000);
+    showToast('Unfollowing everyone...', 60000);
 
     try {
-        const res = await fetch(`${API}/api/manage/unfollow-all`, { method: 'POST' });
-        const body = await res.json().catch(() => null);
-        if (!res.ok) { showToast('Failed to unfollow all'); return; }
+        const res = await fetch(`${API}/api/manage/unfollow-all`, { method: 'POST' }).catch(() => null);
+        const body = res ? await res.json().catch(() => null) : null;
+        if (!res?.ok) { showToast("Couldn't unfollow everyone. Nothing changed."); return; }
 
         allTraders.forEach(t => { if (t.isFollowing) t.isMuted = true; t.isFollowing = false; t.viaCategory = false; t.minValueUsd = null; });
         loadCategories();
         currentPage = 1;
         renderTraders();
-        const unfollowedCount = body?.unfollowedCount ?? '?';
-        showToast(`Done — unfollowed ${unfollowedCount} trader(s)`, 4000);
+        const n = body?.unfollowedCount;
+        showToast(n == null ? 'Unfollowed everyone' : `Unfollowed ${n} trader${n === 1 ? '' : 's'}`, 4000, { kind: 'ok' });
     } finally {
         btn.disabled = false;
         btn.textContent = original;
@@ -2377,19 +2564,9 @@ function renderProfile() {
     btn.className = isOn(t) ? 'danger-btn' : 'ghost-btn';
 }
 
-async function toggleProfileFollow() {
+function toggleProfileFollow() {
     const t = profileTrader; if (!t) return;
-    const nowFollowing = !isOn(t);
-    const res = await fetch(`${API}/api/manage/${nowFollowing ? 'follow' : 'unfollow'}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ traderId: t.id })
-    });
-    if (!res.ok) { showToast('Failed'); return; }
-    applyFollowChange(t, nowFollowing);
-    const row = allTraders.find(x => x.id === t.id);
-    if (row) applyFollowChange(row, nowFollowing);
-    renderProfile();
-    renderTraders();
-    showToast(nowFollowing ? `Following ${t.handle}` : `Unfollowed ${t.handle}`);
+    setFollow(t.id, !isOn(t));
 }
 
 function closeProfile() { document.getElementById('profileModal').style.display = 'none'; profileTrader = null; }
@@ -2457,14 +2634,14 @@ async function toggleCategory(id) {
     if (follow && id === 'noise' && !confirm('Follow the −EV category? Over the last 30 days, acting on these traders\' alerts lost money on average.')) return;
     const res = await fetch(`${API}/api/manage/categories`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ category: id, follow })
-    });
-    const body = await res.json().catch(() => null);
-    if (!res.ok || !body) { showToast(body?.message || 'Failed'); return; }
+    }).catch(() => null);
+    const body = res ? await res.json().catch(() => null) : null;
+    if (!res?.ok || !body) { showToast(body?.message || `Couldn't ${follow ? 'follow' : 'stop following'} ${c.label}. Try again.`, 3500, { kind: 'err' }); return; }
     const followed = new Set(body.followedCategories);
     categories.forEach(x => x.followed = followed.has(x.id));
     renderCategories();
     await loadTraders();   // the server added or removed real follows
-    showToast(follow ? `Following ${c.label}: ${c.traderCount} traders now, and whoever joins later` : `Stopped following ${c.label}`, 3000);
+    showToast(follow ? `Following ${c.label}: ${c.traderCount} traders now, and whoever joins later` : `Stopped following ${c.label}`, 3000, { kind: 'ok' });
 }
 
 document.getElementById('logoutLink').addEventListener('click', async () => {
