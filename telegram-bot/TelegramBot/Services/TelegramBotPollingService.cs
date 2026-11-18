@@ -26,12 +26,14 @@ public class TelegramBotPollingService : BackgroundService
         var site = _settings.SiteUrl?.Trim().TrimEnd('/');
         if (string.IsNullOrEmpty(site)) return "";
         var shown = site.Replace("https://", "").Replace("http://", "");
-        return $"\n\n💻 *Best way to watch: the live feed.* Every alert you get here, in your browser the moment we have it, before the Telegram messages go out. Filters, timed mutes and a card for every trader, where you can follow, unfollow and set their minimums. Log in once with /manage in that browser, then open [{shown}/feed]({site}/feed)";
+        return $"\n\n💻 *Best way to watch: the live feed.* Every alert you get here, in your browser the moment we have it, before the Telegram messages go out. Filters, timed mutes and a card for every trader, where you can follow, unfollow and set their minimums. Tap your settings link once in that browser (it signs you in), then open [{shown}/feed]({site}/feed)";
     }
 
-    private string HelpText(string price) => $@"📚 GROUPCHAT
+    // link = the user's smart link (SmartLinkAsync): their settings page, already signed in.
+    private string HelpText(string price, string link) => $@"📚 GROUPCHAT
 
-/manage - traders, categories, alert types, chains: all on one page{FeedLine()}
+⚙️ [Open your settings]({link}): traders, categories, alert types, chains, all on one page. Already signed in, no password.
+/site - a fresh link to your settings any time{FeedLine()}
 
 /top - top tokens (e.g. /top 1h, /top sol 1d)
 /subscribe - full alerts: ticker, size, contract ({price} SOL / 30 days)
@@ -304,7 +306,7 @@ GROUPCHAT is not affiliated with FOMO or Pump.fun.";
             minCap = minCap is decimal c && Math.Round(c) > 0 ? Math.Round(c) : null;
             if (!await traderService.SetMinMarketCapAsync(user.Id, trader.Id, minCap))
             {
-                await _botClient.SendTextMessageAsync(chatId, $"❌ You're not following {trader.Handle}, so there's no minimum to set. Follow them on /manage first.");
+                await _botClient.SendTextMessageAsync(chatId, $"❌ You're not following {trader.Handle}, so there's no minimum to set. Follow them on /site first.");
                 return true;
             }
             await _botClient.SendTextMessageAsync(chatId, minCap.HasValue
@@ -326,7 +328,7 @@ GROUPCHAT is not affiliated with FOMO or Pump.fun.";
         var ok = await traderService.SetThresholdAsync(user.Id, trader.Id, minValue);
         if (!ok)
         {
-            await _botClient.SendTextMessageAsync(chatId, $"❌ You're not following {trader.Handle}, so there's no minimum to set. Follow them on /manage first.");
+            await _botClient.SendTextMessageAsync(chatId, $"❌ You're not following {trader.Handle}, so there's no minimum to set. Follow them on /site first.");
             return true;
         }
 
@@ -355,8 +357,8 @@ GROUPCHAT is not affiliated with FOMO or Pump.fun.";
 
         // Auto-reply to the user
         var supportText = !string.IsNullOrEmpty(ownerUsername)
-            ? $"I'm a bot and can't chat, but your message was passed on to the developer. Try /subscribe, /manage or /help. Anything else: @{ownerUsername}"
-            : "I'm a bot and can't chat. Try /subscribe, /manage or /help.";
+            ? $"I'm a bot and can't chat, but your message was passed on to the developer. Try /site (your settings), /subscribe or /help. Anything else: @{ownerUsername}"
+            : "I'm a bot and can't chat. Try /site (your settings), /subscribe or /help.";
 
         await _botClient.SendTextMessageAsync(
             chatId: chatId,
@@ -395,21 +397,24 @@ GROUPCHAT is not affiliated with FOMO or Pump.fun.";
     private static bool HasActiveSubscription(Models.User u) =>
         u.IsRN4L || (u.IsRegisteredNurse && u.RNExpiresAt > DateTime.UtcNow);
 
-    // The ?t= token is redeemed for a session cookie by GET /manage.
-    private async Task<InlineKeyboardMarkup> BuildManageButtonAsync(long chatId)
+    // The smart link: the user's own sign-in link to the site. GET /manage redeems ?t= for the session cookie (valid 30 days),
+    // so whoever taps it lands on their settings already signed in, without knowing any command. It is personal: sent only
+    // in this chat. "_" is percent-encoded so a Markdown link around it is never read as italics.
+    private async Task<string> SmartLinkAsync(long chatId)
     {
-        var sessions = _serviceProvider.GetRequiredService<WebSessionService>();
-        var token = await sessions.CreateLoginLinkTokenAsync(chatId);
-        return new InlineKeyboardMarkup(
-            InlineKeyboardButton.WithUrl("Open Manage Page", $"https://groupchat-bot.tech/manage?t={Uri.EscapeDataString(token)}"));
+        var token = await _serviceProvider.GetRequiredService<WebSessionService>().CreateLoginLinkTokenAsync(chatId);
+        return $"https://groupchat-bot.tech/manage?t={Uri.EscapeDataString(token).Replace("_", "%5F")}";
     }
 
+    private async Task<InlineKeyboardMarkup> BuildManageButtonAsync(long chatId) =>
+        new(InlineKeyboardButton.WithUrl("⚙️ Open my settings", await SmartLinkAsync(chatId)));
+
     // Settings and chains were managed with inline buttons in chat; old messages still carry
-    // them. They all live on /manage now.
+    // them. They all live on the site now.
     private async Task HandleCallbackQueryAsync(CallbackQuery callbackQuery)
     {
         if (_botClient == null) return;
-        await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id, "Settings moved to the manage page: send /manage", showAlert: true);
+        await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id, "Settings moved to the website: send /site", showAlert: true);
     }
 
     private async Task HandleCommandAsync(Message message, IUserService userService)
@@ -474,6 +479,9 @@ GROUPCHAT is not affiliated with FOMO or Pump.fun.";
 
                 var startPrice = PriceText(await scope.ServiceProvider.GetRequiredService<AppConfigService>().GetSubscriptionPriceSolAsync());
                 var starterLabels = string.Join(", ", starter.Select(id => TraderCategories.All.First(c => c.Id == id).Label));
+                // The same smart link as the button, in the text too, and how to get it back: nobody should have to guess a command.
+                var smart = await SmartLinkAsync(chatId);
+                var settingsLine = $"\n\n⚙️ [Open your settings]({smart}): it signs you in, no password. Lost this message? Send /site for a fresh link.";
                 string welcome;
                 if (trialGranted && starter.Count > 0)
                 {
@@ -483,7 +491,7 @@ FOMO and Pump.fun, all in one chat. I alert you the moment top traders act: buys
 
 👀 | MOONCAT at $85K MC 🟢 traderone bought $2,400
 
-You start on a profile built for signal over noise: *{starterLabels}*. Tap *Open Manage Page* below to tune every trader, chain and minimum size. Alerts can be frequent at busy hours, and that's where you tune it.
+You start on a profile built for signal over noise: *{starterLabels}*. Your settings page is where you tune every trader, chain and minimum size. Alerts can be frequent at busy hours, and that's where you tune it.{settingsLine}
 
 ⭐ *Subscribers get a playbook on every trader*: how to play them, hit rate, time to peak, typical entry and their last calls. So you know who to follow, why, and how.
 
@@ -493,26 +501,24 @@ You start on a profile built for signal over noise: *{starterLabels}*. Tap *Open
                 {
                     welcome = $@"👋 *Welcome back to the new GROUPCHAT.*
 
-Your follows came with you. Your free trial is on, everything unlocked. After it: {startPrice} SOL for 30 days, no auto-renew (/subscribe).
-
-Tap *Open Manage Page* below to adjust who you follow.";
+Your follows came with you. Your free trial is on, everything unlocked. After it: {startPrice} SOL for 30 days, no auto-renew (/subscribe).{settingsLine}";
                 }
                 else if (HasActiveSubscription(newUser))
                 {
-                    welcome = newUser.IsRN4L
-                        ? "👋 *You're back.* Full access, no end date.\n\nChange what you follow with the button below."
-                        : $"👋 *You're back.* Full access until {newUser.RNExpiresAt!.Value:yyyy-MM-dd HH:mm} UTC.\n\nChange what you follow with the button below.";
+                    welcome = (newUser.IsRN4L
+                        ? "👋 *You're back.* Full access, no end date."
+                        : $"👋 *You're back.* Full access until {newUser.RNExpiresAt!.Value:yyyy-MM-dd HH:mm} UTC.") + settingsLine;
                 }
                 else if (newUser.TrialExpiresAt != null && newUser.TrialExpiresAt > DateTime.UtcNow)
                 {
-                    welcome = "👋 *You're back.* Your free trial is still on. Adjust who you follow with the button below.";
+                    welcome = "👋 *You're back.* Your free trial is still on." + settingsLine;
                 }
                 else
                 {
-                    welcome = $"👋 *You're back.* Full access isn't active on this account, so alerts show limited details. {startPrice} SOL for 30 days: /subscribe\n\nChange what you follow with the button below.";
+                    welcome = $"👋 *You're back.* Full access isn't active on this account, so alerts show limited details. {startPrice} SOL for 30 days: /subscribe" + settingsLine;
                 }
 
-                await SendWithFallbackAsync(chatId, welcome, ParseMode.Markdown, await BuildManageButtonAsync(chatId));
+                await SendWithFallbackAsync(chatId, welcome, ParseMode.Markdown, new InlineKeyboardMarkup(InlineKeyboardButton.WithUrl("⚙️ Open my settings", smart)));
 
                 // Broadcast new user to dashboard via SignalR
                 await _hubContext.Clients.All.SendAsync("UserJoined", new
@@ -530,18 +536,15 @@ Tap *Open Manage Page* below to adjust who you follow.";
 
             case "/help":
                 var helpPrice = PriceText(await scope.ServiceProvider.GetRequiredService<AppConfigService>().GetSubscriptionPriceSolAsync());
-                await _botClient.SendTextMessageAsync(
-                    chatId: chatId,
-                    text: HelpText(helpPrice),
-                    parseMode: ParseMode.Markdown,
-                    disableWebPagePreview: true
-                );
+                await SendWithFallbackAsync(chatId, HelpText(helpPrice, await SmartLinkAsync(chatId)), ParseMode.Markdown, await BuildManageButtonAsync(chatId));
                 break;
 
+            // /site is the one users are told about; /manage stays for everyone who already knows it.
+            case "/site":
             case "/manage":
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
-                    text: "Manage your followed traders and per-trader alert thresholds here:",
+                    text: "⚙️ Your settings page: who you follow, categories, alert types, chains and minimums. The button signs you in, no password. It's your own link, don't share it.",
                     replyMarkup: await BuildManageButtonAsync(chatId),
                     disableWebPagePreview: true
                 );
@@ -559,7 +562,7 @@ Tap *Open Manage Page* below to adjust who you follow.";
             case "/chains":
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
-                    text: "That's on the manage page now: follow traders and categories, alert types, chains and repeat alerts, all in one place.\n\nTip: reply \"unfollow\", \"setmin 50k\" or \"setmc 100k\" to any alert to act on that trader.",
+                    text: "That's on your settings page now: follow traders and categories, alert types, chains and repeat alerts, all in one place. /site gets you there any time.\n\nTip: reply \"unfollow\", \"setmin 50k\" or \"setmc 100k\" to any alert to act on that trader.",
                     replyMarkup: await BuildManageButtonAsync(chatId),
                     disableWebPagePreview: true
                 );

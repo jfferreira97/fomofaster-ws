@@ -128,7 +128,7 @@ public class PaymentPollerService : BackgroundService
 
                 await _telegramService.SendPlainMessageAsync(
                     payment.ChatId,
-                    $"✅ Payment received, thank you. Full access is on until {UtcText(expiresAt)} (30 days).\n\nFrom your next alert you'll see the full ticker, buy size and contract. It doesn't renew by itself; I'll remind you 3 days before it ends. Adjust who you follow: /manage"
+                    $"✅ Payment received, thank you. Full access is on until {UtcText(expiresAt)} (30 days).\n\nFrom your next alert you'll see the full ticker, buy size and contract. It doesn't renew by itself; I'll remind you 3 days before it ends. Adjust who you follow: /site"
                 );
 
                 _logger.LogInformation("RN access granted for ChatId={ChatId}, wallet={Wallet}, until {Until}", payment.ChatId, payment.WalletPublicKey, expiresAt);
