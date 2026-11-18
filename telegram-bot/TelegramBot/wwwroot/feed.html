@@ -216,6 +216,8 @@ a.nm:hover{text-decoration:underline}
 #toast span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #toast button{flex:none;padding:3px 10px;border:1px solid var(--line2);border-radius:6px;background:var(--p2);color:var(--tx);font:600 11.5px var(--sans);cursor:pointer}
 #toast button:hover{border-color:#43506a}
+#toast.err{border-color:rgba(240,80,110,.55)}
+#toast.err span{color:#ffc2cd}
 @media (prefers-reduced-motion:reduce){#toast{transition:none}}
 #xpop{position:fixed;z-index:90;display:flex;flex-direction:column;filter:drop-shadow(0 14px 30px rgba(0,0,0,.55))}
 .who.plat{border-radius:5px;object-fit:contain;background:none}   /* the platform's logo in the trader's place */
@@ -232,6 +234,44 @@ a.nm:hover{text-decoration:underline}
 .tc-f{display:flex;align-items:center;gap:12px;margin-top:11px;font-size:13px;color:var(--mu)}
 .tc-f b{color:var(--tx);font:600 14px var(--mono)}
 .tc-f .tc-link{margin-left:auto}
+/* the card's settings: the follow and the $ floor (logged in, the same ones as /manage) and the mute (this feed's own) */
+#xpop.pin .tc{border-color:#43506a}
+.tc-s{display:flex;flex-direction:column;gap:8px;margin-top:11px;padding-top:11px;border-top:1px solid var(--line2)}
+.tc-row{display:flex;align-items:center;gap:10px;min-height:28px}
+.tc-row[hidden],.tc-ask[hidden],.tc-btn[hidden],.tc-tag[hidden]{display:none}
+.tc-k{flex:none;width:64px;font:500 10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--mu)}
+.tc-v{flex:1;min-width:0;display:flex;align-items:center;gap:7px}
+.tc-st{flex:none;font-weight:600;color:var(--mu);white-space:nowrap}
+.tc-st.on{color:var(--buy)}
+.tc-st.msg{flex:1 1 auto;min-width:0;white-space:normal;font-weight:500;color:var(--mu)}
+.tc-tag{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;padding:1px 6px;border:1px solid var(--line2);border-radius:5px;font:500 10px var(--mono);color:var(--mu);white-space:nowrap}
+.tc-btn{flex:none;margin-left:auto;padding:4px 10px;border:1px solid var(--line2);border-radius:6px;background:var(--p2);color:var(--tx);font:600 11.5px var(--sans);white-space:nowrap;transition:border-color .12s,background-color .12s}
+.tc-btn:hover:not(:disabled){border-color:#43506a}
+.tc-btn:disabled{opacity:.55;cursor:default}
+.tc-btn.go{color:var(--buy);border-color:rgba(47,211,138,.4)}
+.tc-btn.go:hover:not(:disabled){background:rgba(47,211,138,.1);border-color:rgba(47,211,138,.7)}
+.tc-btn.bad{color:var(--sell);border-color:rgba(240,80,110,.4)}
+.tc-btn.bad:hover:not(:disabled){background:rgba(240,80,110,.1);border-color:rgba(240,80,110,.7)}
+.tc-btn.solid{color:#fff;background:var(--sell);border-color:var(--sell)}
+.tc-btn.solid:hover:not(:disabled){background:#d9405d;border-color:#d9405d}
+.tc .tc-min{width:92px;flex:none;padding:5px 8px}
+.tc .tc-sel{width:auto;flex:1;min-width:0;padding:5px 8px;font:500 12px var(--sans)}
+.tc-hint{font-size:11.5px;color:var(--mu);line-height:1.4}
+.tc .tc-min::placeholder{color:var(--mu)}
+.tc{position:relative}
+.tc-x{display:none;position:absolute;top:7px;right:7px;width:24px;height:24px;place-items:center;border-radius:6px;color:var(--mu);font-size:18px;line-height:1}
+.tc-x:hover{color:var(--tx);background:var(--p2)}
+#xpop.pin .tc-x{display:grid}
+#xpop.pin .tc-h{padding-right:24px}
+@media (hover:none){.dsk .c-tr .mute{display:none!important}}   /* touch: the card has the mute (a tap on the trader opens it) */
+@media (max-width:440px){#toast span{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}}
+.tc-v .tc-hint{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tc-ask{padding:10px 11px;border:1px solid rgba(240,80,110,.35);border-radius:8px;background:rgba(240,80,110,.06);font-size:12.5px;line-height:1.45;color:#c9d0dc}
+.tc-ask b{color:var(--tx);font-weight:700}
+.tc-acts{display:flex;justify-content:flex-end;gap:6px;margin-top:9px}
+.tc-acts .tc-btn{margin-left:0}
+.tc-more{align-self:flex-start;font-size:11.5px;font-weight:600;color:#7db6ff;text-decoration:none}
+.tc-more:hover{text-decoration:underline}
 #xpop[hidden]{display:none}
 .xc{display:block;min-height:0;overflow:auto;overscroll-behavior:contain;padding:11px 13px;border:1px solid #2f3848;border-radius:10px;background:var(--p);color:inherit;text-decoration:none;white-space:normal;cursor:pointer;transition:border-color .12s}
 .xc:hover{border-color:#43506a}
@@ -354,7 +394,7 @@ a.nm:hover{text-decoration:underline}
     <label>Min market cap ($)<input type="number" id="minMc" min="0" step="1000" placeholder="0"></label>
     <label>Min trade size ($)<input type="number" id="minUsd" min="0" step="100" placeholder="0"></label>
   </div>
-  <div class="row"><span class="lbl">Muted traders (click to unmute)</span><span id="muted" class="row"></span></div>
+  <div class="row"><span class="lbl">Muted on this feed (click to unmute)</span><span id="muted" class="row"></span></div>
 </section>
 <div class="thead"><span>Age</span><span>Trader</span><span>Token</span><span>Call/Thesis</span><span>Amount</span><span>MC</span></div>
 <div id="wrap"><main id="list"></main></div>
@@ -382,6 +422,19 @@ a.nm:hover{text-decoration:underline}
     get(k, d) { try { const v = localStorage.getItem('gcfeed.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
     set(k, v) { try { localStorage.setItem('gcfeed.' + k, JSON.stringify(v)); } catch {} }
   };
+  // Muted traders, this feed's own (kept in this browser): name in lower case -> when the mute ends (ms; 0 = when unmuted).
+  // Stored as [[name, until], ...]; a plain list of names (how mutes were kept before they could end) reads as until unmuted.
+  function readMutes() {
+    const now = Date.now(), m = new Map(), v = store.get('muted', []);
+    for (const x of Array.isArray(v) ? v : []) {
+      const [k, u] = Array.isArray(x) ? [x[0], Number(x[1]) || 0] : [x, 0];
+      if (typeof k === 'string' && k && (!u || u > now)) m.set(k.toLowerCase(), u);
+    }
+    return m;
+  }
+  const mutedNow = (name) => { const u = st.muted.get(String(name).toLowerCase()); return u !== undefined && (!u || u > Date.now()); };
+  const MUTE_FOR = [[5, '5 minutes'], [15, '15 minutes'], [60, '1 hour'], [720, '12 hours'], [1440, '24 hours'], [0, 'Until I unmute']];
+  const muteLeft = (ms) => { const m = Math.max(1, Math.ceil(ms / 60000)); return m < 60 ? m + 'm' : Math.floor(m / 60) + 'h' + (m % 60 ? ' ' + (m % 60) + 'm' : ''); };
 
   // The tabs are the type filter. typeKey groups the alert types for the tabs and for the sound.
   // "Calls/Thesis": FOMO only sends theses; pump.fun sends calls, and reposts and replies of calls, which land here too.
@@ -398,7 +451,7 @@ a.nm:hover{text-decoration:underline}
     sound: store.get('sound', false), notif: store.get('notif', false), term: store.get('term', 'axiom'),
     offPlat: new Set(store.get('offPlat', [])), offChain: new Set(store.get('offChain', [])),
     minMc: store.get('minMc', 0), minUsd: store.get('minUsd', 0),
-    muted: new Set(store.get('muted', [])), chains: new Set(store.get('chains', [])), tier: 'demo', tab: 'all',
+    muted: readMutes(), chains: new Set(store.get('chains', [])), tier: 'demo', tab: 'all',
     fold: store.get('fold', false)   // calls / theses shown whole unless the reader folded them
   };
   const save = () => {
@@ -458,7 +511,7 @@ a.nm:hover{text-decoration:underline}
   function pass(a) {
     if (st.offPlat.has(a.platform)) return false;
     if (a.chain && st.offChain.has(a.chain)) return false;
-    if (a.trader && st.muted.has(a.trader.toLowerCase())) return false;
+    if (a.trader && mutedNow(a.trader)) return false;
     if (st.minMc && a.mc != null && a.mc < st.minMc) return false;
     if (st.minUsd && a.usd != null && a.usd < st.minUsd) return false;
     return true;
@@ -536,7 +589,7 @@ a.nm:hover{text-decoration:underline}
   };
   const muteEl = (a) => {
     if (!a.trader) return null;
-    const x = el('button', 'mute', 'mute'); x.title = 'Mute ' + a.trader;
+    const x = el('button', 'mute', 'mute'); x.title = 'Mute ' + a.trader + ' on this feed until you unmute';
     x.addEventListener('click', (e) => { e.stopPropagation(); track('mute', true); muteTrader(a.trader); });
     return x;
   };
@@ -635,8 +688,10 @@ a.nm:hover{text-decoration:underline}
   }
   const popKey = (t) => (t.dataset.x ? 'x:' + t.dataset.x : 'tr:' + (t.closest('.r')?.dataset.id || ''));
   async function showPop(link) {
+    if (pinned) return;
     xKey = popKey(link);
-    if (!link.dataset.x) { const a = link.closest('.r')?._a; if (!a) return; const c = traderCard(a); xpop.replaceChildren(c); xpop.hidden = false; placePop(link, 300); fillTrader(c, a); return; }
+    if (!link.dataset.x) { const a = link.closest('.r')?._a; if (!a) return; const c = traderCard(a); cardEl = c; xpop.replaceChildren(c); xpop.hidden = false; placePop(link, 330); fillTrader(c, a); return; }
+    cardEl = null;
     const id = link.dataset.x;
     const c = el('a', 'xc'); c.href = link.href; c.target = '_blank'; c.rel = 'noopener noreferrer'; c.dataset.id = id;
     c.append(el('span', 'xl', 'Loading the post…'));
@@ -644,14 +699,54 @@ a.nm:hover{text-decoration:underline}
     xpop.replaceChildren(c); xpop.hidden = false; placePop(link);
     await fillCard(c);
   }
-  function hidePop() { clearTimeout(xWait); xpop.hidden = true; xKey = null; }
+  // Closing commits a $ floor being typed (its box loses focus first); Escape puts the box back before that.
+  function hidePop() {
+    clearTimeout(xWait); stayOpen();
+    const f = document.activeElement; if (f && xpop.contains(f)) f.blur();
+    xpop.hidden = true; xKey = null; cardEl = null; setPinned(false);
+  }
+  let xLeave = 0, pinned = false, cardEl = null;
+  const stayOpen = () => { clearTimeout(xLeave); xLeave = 0; };
+  const setPinned = (on) => { pinned = on; xpop.classList.toggle('pin', on); if (on) stayOpen(); };
   document.addEventListener('mouseover', (e) => {
+    if (pinned) return;   // a card in use stays open until a click outside it or Escape
     const link = e.target.closest?.('a[data-x],[data-tr]');
-    if (link) { if (popKey(link) !== xKey || xpop.hidden) { clearTimeout(xWait); xWait = setTimeout(() => showPop(link), 80); } }
-    else if (!e.target.closest?.('#xpop')) { clearTimeout(xWait); if (!xpop.hidden) hidePop(); }
+    if (link) { stayOpen(); if (popKey(link) !== xKey || xpop.hidden) { clearTimeout(xWait); xWait = setTimeout(() => showPop(link), 80); } }
+    else if (e.target.closest?.('#xpop')) stayOpen();
+    else { clearTimeout(xWait); if (!xpop.hidden && !xLeave) xLeave = setTimeout(() => { xLeave = 0; hidePop(); }, 150); }
   });
-  document.addEventListener('scroll', (e) => { if (!xpop.hidden && !e.target.closest?.('#xpop')) hidePop(); }, true);
-  document.documentElement.addEventListener('mouseleave', hidePop);
+  document.addEventListener('scroll', (e) => { if (!xpop.hidden && !pinned && !e.target.closest?.('#xpop')) hidePop(); }, true);
+  document.documentElement.addEventListener('mouseleave', () => { if (!pinned) hidePop(); });
+  // A click or a key in a trader's card keeps it open; a click anywhere else or Escape closes it (Escape first closes the
+  // unfollow question, and puts back a $ floor being typed).
+  xpop.addEventListener('pointerdown', () => { if (cardEl) setPinned(true); });
+  xpop.addEventListener('focusin', () => { if (cardEl) setPinned(true); });
+  // The click that closes it is not also a click on a row (that would open the coin); the toast (its Undo) leaves it open.
+  let swallow = false, lastPtr = 'mouse', closedKey = null;
+  document.addEventListener('pointerdown', (e) => {
+    lastPtr = e.pointerType || 'mouse'; closedKey = null;
+    if (!pinned || xpop.contains(e.target) || e.target.closest?.('#toast')) return;
+    closedKey = xKey; hidePop();
+    if (e.button === 0 && e.target.closest?.('#list')) { swallow = true; setTimeout(() => { swallow = false; }, 600); }
+  }, true);
+  document.addEventListener('pointercancel', () => { swallow = false; }, true);   // a touch that became a scroll: no click follows
+  document.addEventListener('click', (e) => { if (swallow) { swallow = false; e.stopPropagation(); e.preventDefault(); } }, true);
+  // Touch screens have no hover: a tap on a trader opens their card, held open (their profile link is in it), instead of the
+  // name's link or the coin. A tap on the trader whose card it closed just closes it.
+  document.addEventListener('click', (e) => {
+    if (lastPtr === 'mouse') return;
+    const link = e.target.closest?.('[data-tr]'); if (!link) return;
+    e.preventDefault(); e.stopPropagation(); clearTimeout(xWait);
+    if (closedKey && popKey(link) === closedKey) { closedKey = null; return; }
+    setPinned(false); showPop(link); if (cardEl) setPinned(true);
+  }, true);
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || xpop.hidden) return;
+    const cs = cardEl?._s;
+    if (cs?._asking()) { cs._closeAsk(); return; }
+    cs?._revertMin();
+    hidePop();
+  });
   // A trader's card: who they are on their platform. Their picture, name and platform at once (from the alert), then their follower
   // count (read from the platform, once per trader per visit, for logged-in viewers), and the link to their profile.
   const cards = new Map();
@@ -668,7 +763,9 @@ a.nm:hover{text-decoration:underline}
     h.append(a.av ? pic(a.av) : face(), who);
     const f = el('div', 'tc-f'); f.append(el('span', 'tc-fol', st.tier === 'demo' ? '' : '…'));
     if (a.profile) { const p = el('a', 'tc-link', 'View profile ↗'); p.href = a.profile; p.target = '_blank'; p.rel = 'noopener noreferrer'; f.append(p); }
-    c.append(h, f); c._pic = pic;
+    c._s = cardSettings(a);
+    const x = el('button', 'tc-x', '×'); x.type = 'button'; x.setAttribute('aria-label', 'Close'); x.addEventListener('click', () => hidePop());
+    c.append(x, h, f, c._s); c._pic = pic;
     return c;
   }
   async function fillTrader(c, a) {
@@ -679,6 +776,128 @@ a.nm:hover{text-decoration:underline}
     if (t?.followers != null) { fol.replaceChildren(el('b', null, num(t.followers)), document.createTextNode(t.followers === 1 ? ' follower' : ' followers')); } else fol.textContent = '';
     if (t?.name) c.querySelector('.tc-who').insertBefore(el('div', 'tc-dn', t.name), c.querySelector('.tc-plat'));
     if (!a.av && t?.avatar) c.querySelector('.tc-av').replaceWith(c._pic(t.avatar));
+  }
+
+  /* ---------- a trader's settings, on their card ----------
+     Everyone: the mute, this feed's own (in this browser, for a while or until unmuted). Logged in: the follow and the $ floor, the
+     very ones /manage keeps (the same calls, rules and words), read from the trader list /manage loads, one platform at a time. */
+  const syncCard = () => { if (cardEl?.isConnected) cardEl._s?._sync(); };
+  const handleKey = (h) => String(h || '').trim().replace(/^@/, '').toLowerCase();
+  const myLists = new Map();   // 'fomo' | 'pump' -> { at, p }: kept 3 minutes, 30 s once the window has been away (a change on /manage)
+  function myTrader(a) {
+    const k = a.platform === 'pump' ? 'pump' : 'fomo'; let c = myLists.get(k);
+    if (!c || Date.now() - c.at > (c.failed ? 20000 : c.away ? 30000 : 180000)) {
+      const p = fetch('/api/manage/traders?platform=' + k, { credentials: 'same-origin' })
+        .then((r) => (r.ok ? r.json().then((j) => new Map((j.traders || []).map((t) => [handleKey(t.handle), t]))) : { err: r.status }))
+        .catch(() => ({ err: 0 }));
+      const mine = { at: Date.now(), p }; c = mine; myLists.set(k, mine);
+      p.then((x) => { if (!(x instanceof Map)) { mine.failed = true; mine.at = Date.now(); } });   // a failed read is asked again 20 s later
+    }
+    return c.p.then((x) => (x instanceof Map ? { row: x.get(handleKey(a.trader)) || null } : { err: x.err }));
+  }
+  addEventListener('blur', () => { for (const c of myLists.values()) c.away = true; });
+  const post = (path, body) => fetch('/api/manage/' + path, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    .then((r) => r.ok).catch(() => false);
+  // Following clears the category mute; unfollowing leaves one (their category does not bring them back) and drops the $ floor,
+  // as on the server and on /manage. Undo follows again with the floor they had.
+  async function changeFollow(t, want, minBack) {
+    if (t._busy === 'min') await t._minP;
+    if (t._busy) return;
+    const before = t.minValueUsd;
+    t._busy = want ? 'follow' : 'unfollow'; syncCard(); track('card:' + t._busy, true);
+    const ok = await post(want ? 'follow' : 'unfollow', { traderId: t.id });
+    if (ok) { t.isFollowing = want; t.isMuted = !want; t.viaCategory = null; if (!want) t.minValueUsd = null; }
+    let minLost = false;
+    if (ok && want && minBack != null) { if (await post('threshold', { traderId: t.id, minValueUsd: minBack })) t.minValueUsd = minBack; else minLost = true; }
+    t._busy = false; syncCard();
+    if (!ok) toast(`Couldn't ${want ? 'follow' : 'unfollow'} ${t.handle}. Try again.`, null, 'err');
+    else if (minLost) toast(`Following ${t.handle}, but couldn't put back the $${minBack.toLocaleString()} minimum.`, null, 'err');
+    else if (want) toast('Following ' + t.handle, null, 'ok');
+    else toast('Unfollowed ' + t.handle, () => changeFollow(t, true, before), 'follow');
+  }
+  async function changeMin(t, box) {
+    const raw = box.value.trim(), v = raw === '' ? null : Number(raw), saved = t.minValueUsd ?? null;
+    if (t._busy || box.validity?.badInput || (v != null && !(v >= 0 && Number.isFinite(v)))) { box.value = saved ?? ''; return; }
+    const want = v || null;   // empty or 0: no minimum
+    if (want === saved) { box.value = saved ?? ''; return; }
+    t._busy = 'min'; syncCard(); track('card:min', true);
+    t._minP = post('threshold', { traderId: t.id, minValueUsd: want });
+    const ok = await t._minP;
+    if (ok) t.minValueUsd = want;
+    t._busy = false; box.value = t.minValueUsd ?? ''; syncCard();
+    toast(ok ? (want == null ? `No minimum $ for ${t.handle}` : `Min $${want.toLocaleString()} for ${t.handle} saved`) : `Couldn't save the minimum $ for ${t.handle}. Put back as it was.`, null, ok ? 'ok' : 'err');
+  }
+  function cardSettings(a) {
+    const s = el('div', 'tc-s'), name = a.trader, logged = st.tier !== 'demo';
+    const line = (k) => { const r = el('div', 'tc-row'), v = el('div', 'tc-v'); r.append(el('span', 'tc-k', k), v); s.append(r); return [r, v]; };
+    let t, err, asking = false;
+    const [fR, fV] = line('Follow'), fSt = el('span', 'tc-st'), fTag = el('span', 'tc-tag', 'via category'), fBtn = el('button', 'tc-btn');
+    fTag.title = 'A category you follow added them'; fBtn.type = 'button'; fV.append(fSt, fTag, fBtn);
+    const ask = el('div', 'tc-ask'); ask.hidden = true; s.append(ask);
+    const [mR, mV] = line('Min $'), box = el('input', 'tc-min');
+    box.type = 'number'; box.min = '0'; box.step = '1'; box.placeholder = 'any'; box.inputMode = 'numeric'; box.setAttribute('aria-label', 'Minimum $ of their buys and sells');
+    const mHint = el('span', 'tc-hint'); mV.append(box, mHint);
+    const [, uV] = line('Feed mute'), sel = el('select', 'tc-sel'), ph = el('option'), unBtn = el('button', 'tc-btn', 'Unmute');
+    ph.value = ''; ph.disabled = true; sel.append(ph, ...MUTE_FOR.map(([m, label]) => Object.assign(el('option', null, label), { value: String(m) })));
+    sel.setAttribute('aria-label', 'Mute ' + name + ' on this feed'); unBtn.type = 'button'; uV.append(sel, unBtn);
+    const uHint = el('div', 'tc-hint'); s.append(uHint);
+    const mg = el('a', 'tc-more', logged ? 'All your trader settings in Manage ↗' : 'Log in through Telegram to follow them or set a minimum $ ↗');
+    mg.href = '/manage'; mg.target = '_blank'; mg.rel = 'noopener'; s.append(mg);
+
+    s._sync = () => {
+      const u = st.muted.get(name.toLowerCase()), on = mutedNow(name);
+      ph.textContent = on ? 'Change time…' : 'Mute for…';
+      if (document.activeElement !== sel) { if (sel.value) sel.value = ''; ph.selected = true; }   // while it has focus, arrow keys step through the times
+      unBtn.hidden = !on;
+      uHint.textContent = (on ? (u ? 'Muted on this feed for ' + muteLeft(u - Date.now()) + ' more.' : 'Muted on this feed until you unmute.') : 'Mute hides them on this feed only, in this browser.')
+        + (logged ? ' Telegram still sends their alerts.' : '');
+      fR.hidden = mR.hidden = !logged; if (!logged) return;
+      fTag.hidden = true;
+      if (t === undefined || t === null || err !== undefined) {
+        fSt.className = 'tc-st msg'; fBtn.hidden = true; mR.hidden = true; ask.hidden = true;
+        fSt.textContent = err === 401 ? 'Your session expired. Open /manage from the bot again.' : err !== undefined ? 'Couldn\'t load your settings for this trader. Try again in a moment.' : t === null ? 'Not in the trader list' : 'Loading…';
+        fSt.title = fSt.textContent; return;
+      }
+      const busy = t._busy;
+      fSt.className = 'tc-st' + (t.isFollowing ? ' on' : '');
+      fSt.textContent = t.isFollowing ? 'Following' : 'Not following';
+      fSt.title = t.isFollowing ? 'Their alerts come here and on Telegram.' : 'No alerts from them.';
+      fTag.hidden = !(t.isFollowing && t.viaCategory);
+      fBtn.hidden = asking; fBtn.disabled = busy === 'follow' || busy === 'unfollow';
+      fBtn.textContent = busy === 'follow' ? 'Following…' : busy === 'unfollow' ? 'Unfollowing…' : t.isFollowing ? 'Unfollow' : 'Follow';
+      fBtn.className = 'tc-btn ' + (t.isFollowing ? 'bad' : 'go');
+      ask.hidden = !asking;
+      mR.hidden = false; box.disabled = !t.isFollowing; box.readOnly = busy === 'min';
+      box.title = t.isFollowing ? 'Only alert me on their buys/sells above this size' : 'Follow them to set a minimum';
+      mHint.textContent = t.isFollowing ? 'per buy or sell' : 'follow them to set one';
+      if (document.activeElement !== box) box.value = t.minValueUsd ?? '';
+    };
+    // Unfollowing asks first, in the card: what stops, and what goes with it.
+    const closeAsk = () => { asking = false; s._sync(); if (fBtn.isConnected && !fBtn.hidden) fBtn.focus(); };
+    function openAsk() {
+      if (!t || (t._busy && t._busy !== 'min')) return;
+      asking = true;
+      const p = el('div'), b = (x) => el('b', null, x);
+      p.append('Unfollow ', b(t.handle), '? Their alerts stop here and on Telegram.');
+      if (t.minValueUsd) p.append(' Their $' + t.minValueUsd.toLocaleString() + ' minimum is cleared too.');
+      if (t.viaCategory) p.append(' A category you follow added them. Unfollowing keeps them out of it.');
+      const no = el('button', 'tc-btn', 'Keep following'), yes = el('button', 'tc-btn bad solid', 'Unfollow'), acts = el('div', 'tc-acts');
+      no.type = yes.type = 'button';
+      no.addEventListener('click', closeAsk);
+      yes.addEventListener('click', () => { asking = false; changeFollow(t, false); });
+      acts.append(no, yes); ask.replaceChildren(p, acts); s._sync(); no.focus();
+    }
+    s._asking = () => asking; s._closeAsk = closeAsk;
+    s._revertMin = () => { if (t && document.activeElement === box) box.value = t.minValueUsd ?? ''; };
+    fBtn.addEventListener('click', () => { if (!t || t._busy === 'follow' || t._busy === 'unfollow') return; if (t.isFollowing) openAsk(); else changeFollow(t, true); });
+    box.addEventListener('change', () => { if (t) changeMin(t, box); });
+    box.addEventListener('keydown', (e) => { if (e.key === 'Enter') box.blur(); });
+    sel.addEventListener('change', () => { const m = Number(sel.value); track('mute:' + m, true); muteTrader(name, m); });
+    sel.addEventListener('blur', () => s._sync());
+    unBtn.addEventListener('click', () => unmuteTrader(name));
+    if (logged) myTrader(a).then((x) => { if (x.err !== undefined) err = x.err; else t = x.row; s._sync(); });
+    s._sync();
+    return s;
   }
   async function fillCard(c) {
     const t = await getTweet(c.dataset.id);
@@ -904,7 +1123,9 @@ a.nm:hover{text-decoration:underline}
       list.append(e);
     }
   }
-  function rerender() {
+  function rerender(keepPlace) {
+    const top0 = list.scrollTop, lt = list.getBoundingClientRect().top; let anchor = null, off = 0;
+    if (keepPlace && top0 > 4) for (const r of rows()) { const b = r.getBoundingClientRect(); if (b.bottom > lt + 1) { anchor = r; off = b.top - lt; break; } }
     list.replaceChildren();
     // newest on top, at most MAX rows (the history in `all` grows all day; a tab click must not rebuild all of it)
     for (let i = all.length - 1, k = 0; i >= 0 && k < MAX; i--) {
@@ -912,7 +1133,9 @@ a.nm:hover{text-decoration:underline}
       let n = nodes.get(a.id); if (!n) { n = build(a, false); nodes.set(a.id, n); }
       list.append(n); k++;
     }
-    list.scrollTop = 0; toggleEmpty(); refit();
+    if (!keepPlace || top0 <= 4) list.scrollTop = 0;
+    else list.scrollTop = anchor?.isConnected ? list.scrollTop + anchor.getBoundingClientRect().top - lt - off : top0;
+    toggleEmpty(); refit();
   }
   function add(a, live) {
     if (seen.has(a.id)) return; seen.add(a.id);
@@ -1008,31 +1231,57 @@ a.nm:hover{text-decoration:underline}
   function renderMuted() {
     const m = $('muted'); m.replaceChildren();
     if (!st.muted.size) m.append(el('span', 'sub', 'none'));
-    for (const t of st.muted) { const b = el('button', 'chip on', t + ' ✕'); b.addEventListener('click', () => { st.muted.delete(t); afterMutes(); toast('Unmuted ' + t + ' on this feed'); }); m.append(b); }
+    const now = Date.now();
+    for (const [t, u] of st.muted) {
+      const b = el('button', 'chip on', t + (u ? ' · ' + muteLeft(u - now) : '') + ' ✕');
+      b.title = (u ? 'Muted on this feed for ' + muteLeft(u - now) + ' more.' : 'Muted on this feed until you unmute.') + ' Click to unmute.';
+      b.addEventListener('click', () => unmuteTrader(t)); m.append(b);
+    }
   }
+  // A mute that ends brings that trader's rows back by itself.
+  let muteTimer = 0;
+  function sweepMutes() { const now = Date.now(); let gone = false; for (const [k, u] of st.muted) if (u && u <= now) { st.muted.delete(k); gone = true; } return gone; }
+  function armMutes() {
+    clearTimeout(muteTimer); let next = Infinity;
+    for (const u of st.muted.values()) if (u) next = Math.min(next, u);
+    if (next < Infinity) muteTimer = setTimeout(() => { if (sweepMutes()) afterMutes(); else armMutes(); }, Math.min(2e9, Math.max(500, next - Date.now() + 200)));
+  }
+  setInterval(() => { if ([...st.muted.values()].some(Boolean)) { renderMuted(); syncCard(); } }, 30000);   // the time left, on the chips and the card
+  // Another tab or the pop-out window changed the mutes: the same here, without saving them back.
+  addEventListener('storage', (e) => { if (e.key === 'gcfeed.muted' || e.key === null) { st.muted = readMutes(); afterMutes(true); } });
   // The toast for mutes: who went quiet on this feed, with an undo. Mutes made while it shows gather in it, and its undo
   // brings them all back. It waits while the pointer is on it.
   const toastBox = el('div'); toastBox.id = 'toast'; toastBox.setAttribute('role', 'status'); document.body.append(toastBox);
-  let toastTimer = 0, toastMutes = [];
-  const afterMutes = () => { save(); renderMuted(); renderTabs(); rerender(); };
-  function hideToast() { clearTimeout(toastTimer); toastBox.classList.remove('show'); toastMutes = []; }
+  let toastTimer = 0, toastMutes = [], toastKind = '';
+  function afterMutes(fromStore) { sweepMutes(); if (!fromStore) save(); armMutes(); renderMuted(); renderTabs(); rerender(true); syncCard(); }
+  function hideToast() { clearTimeout(toastTimer); toastBox.classList.remove('show'); toastBox.querySelectorAll('button').forEach((b) => { b.disabled = true; }); toastMutes = []; toastKind = ''; }
   const armToast = (ms) => { clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, ms); };
   toastBox.addEventListener('mouseenter', () => clearTimeout(toastTimer));
   toastBox.addEventListener('mouseleave', () => { if (toastBox.classList.contains('show')) armToast(2500); });
-  function toast(text, undo) {
-    toastBox.replaceChildren(el('span', null, text));
-    if (undo) { const b = el('button', null, 'Undo'); b.addEventListener('click', () => { undo(); hideToast(); }); toastBox.append(b); }
-    else toastMutes = [];
+  // kind: 'mute' (mutes made while it shows gather in it), 'err' (red), anything else a plain one.
+  function toast(text, undo, kind) {
+    const t = el('span', null, text); t.title = text;
+    toastBox.replaceChildren(t); toastBox.classList.toggle('err', kind === 'err');
+    if (undo) { const b = el('button', null, 'Undo'); let used = false; b.addEventListener('click', () => { if (used) return; used = true; hideToast(); undo(); }); toastBox.append(b); }
+    if (kind !== 'mute') toastMutes = [];
+    toastKind = kind || '';
     toastBox.classList.add('show');
-    if (!toastBox.matches(':hover')) armToast(undo ? 5000 : 2200);   // under the pointer it waits for the pointer to leave
+    if (!toastBox.matches(':hover')) armToast(undo ? 5000 : kind === 'err' ? 4000 : 2200);   // under the pointer it waits for the pointer to leave
   }
-  function muteTrader(name) {
-    const k = name.toLowerCase();
-    if (st.muted.has(k)) return;
-    if (!toastBox.classList.contains('show')) toastMutes = [];
-    st.muted.add(k); toastMutes.push(k); afterMutes();
-    const batch = toastMutes.slice();
-    toast(batch.length === 1 ? 'Muted ' + name + ' on this feed' : 'Muted ' + batch.length + ' traders on this feed', () => { batch.forEach((x) => st.muted.delete(x)); afterMutes(); });
+  // minutes: 0 = until unmuted (the row's mute button). Muting again changes how long; its undo puts back what was there.
+  function muteTrader(name, minutes = 0) {
+    const k = name.toLowerCase(), until = minutes ? Date.now() + minutes * 60000 : 0;
+    if (!toastBox.classList.contains('show') || toastKind !== 'mute') toastMutes = [];
+    if (!toastMutes.some((x) => x.k === k)) toastMutes.push({ k, prev: mutedNow(k) ? st.muted.get(k) : undefined });
+    st.muted.set(k, until); afterMutes();
+    const batch = toastMutes.slice(), how = MUTE_FOR.find(([m]) => m === minutes)?.[1] || minutes + ' minutes';
+    toast(batch.length === 1 ? 'Muted ' + name + ' on this feed' + (minutes ? ' for ' + how : '') : 'Muted ' + batch.length + ' traders on this feed',
+      () => { batch.forEach(({ k, prev }) => (prev === undefined ? st.muted.delete(k) : st.muted.set(k, prev))); afterMutes(); }, 'mute');
+  }
+  function unmuteTrader(name) {
+    const k = name.toLowerCase(), prev = st.muted.get(k); if (prev === undefined) return;
+    st.muted.delete(k); afterMutes();
+    toast('Unmuted ' + name + ' on this feed', () => { st.muted.set(k, prev); afterMutes(); }, 'unmute');
   }
   // One button folds every call / thesis to its 2-line preview, or shows them all whole again (the default).
   const FOLD_ICON = '<path d="m7 20 5-5 5 5"/><path d="m7 4 5 5 5-5"/>', UNFOLD_ICON = '<path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/>';
@@ -1100,7 +1349,7 @@ a.nm:hover{text-decoration:underline}
   $('minMc').addEventListener('input', (e) => { track('filter:mc'); st.minMc = +e.target.value || 0; save(); renderTabs(); rerender(); });
   $('minUsd').addEventListener('input', (e) => { track('filter:usd'); st.minUsd = +e.target.value || 0; save(); renderTabs(); rerender(); });
 
-  renderChips(); renderMuted(); syncButtons(); renderTabs(); setTier('demo'); toggleEmpty();
+  renderChips(); renderMuted(); armMutes(); syncButtons(); renderTabs(); setTier('demo'); toggleEmpty();
   connect();
 })();
 </script>
