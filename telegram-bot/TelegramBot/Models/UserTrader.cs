@@ -12,6 +12,10 @@ public class UserTrader
     // on everything from this trader), matching the pre-existing default behavior.
     public decimal? MinValueUsd { get; set; }
 
+    // Per-trader market cap floor: only notify this user about this trader's alerts on a coin whose market cap (as the
+    // alert gives it) is at or above this. Null = no minimum. An alert without a known market cap is not held back.
+    public decimal? MinMarketCap { get; set; }
+
     // Set when a followed category added this follow (its category id); null when the user
     // followed the trader themselves. Unfollowing the category removes only these. Following
     // the trader explicitly claims the row (back to null), so it survives the category going.

@@ -867,6 +867,9 @@ namespace TelegramBot.Migrations
                     b.Property<DateTime>("FollowedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<decimal?>("MinMarketCap")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<decimal?>("MinValueUsd")
                         .HasColumnType("decimal(18,2)");
 

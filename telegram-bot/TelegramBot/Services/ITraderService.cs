@@ -29,9 +29,9 @@ public interface ITraderService
     Task<List<int>> GetFollowerUserIdsForTraderAsync(int traderId);
     Task<List<int>> GetFollowerUserIdsForTraderHandleAsync(string handle, Platform platform = Platform.Fomo);
 
-    // UserId -> that user's per-trader MinValueUsd (null = no minimum) for every follower
-    // of the given trader. Superset of GetFollowerUserIdsForTraderHandleAsync's keys.
-    Task<Dictionary<int, decimal?>> GetFollowerThresholdsForTraderHandleAsync(string handle, Platform platform = Platform.Fomo);
+    // UserId -> that user's per-trader floors (MinValueUsd and MinMarketCap, null = no minimum) for every
+    // follower of the given trader. Superset of GetFollowerUserIdsForTraderHandleAsync's keys.
+    Task<Dictionary<int, FollowerFloors>> GetFollowerThresholdsForTraderHandleAsync(string handle, Platform platform = Platform.Fomo);
 
     // enableAutoFollow: also turn on auto-follow for future traders (the explicit "follow all"
     // actions do; onboarding on /start does not).
@@ -56,6 +56,10 @@ public interface ITraderService
     // Set or clear (null) this user's alert floor for one trader they follow. Returns false
     // if the user doesn't currently follow that trader.
     Task<bool> SetThresholdAsync(int userId, int traderId, decimal? minValueUsd);
+
+    // Set or clear (null) this user's market cap floor for one trader they follow. Returns false
+    // if the user doesn't currently follow that trader.
+    Task<bool> SetMinMarketCapAsync(int userId, int traderId, decimal? minMarketCap);
 
     // Full (optionally platform-filtered) trader roster annotated with this user's follow
     // state, for the trader-management page.

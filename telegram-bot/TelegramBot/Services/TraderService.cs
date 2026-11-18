@@ -478,17 +478,17 @@ Use /settings to manage auto-follow and notification preferences.";
         return await GetFollowerUserIdsForTraderAsync(trader.Id);
     }
 
-    public async Task<Dictionary<int, decimal?>> GetFollowerThresholdsForTraderHandleAsync(string handle, Platform platform = Platform.Fomo)
+    public async Task<Dictionary<int, FollowerFloors>> GetFollowerThresholdsForTraderHandleAsync(string handle, Platform platform = Platform.Fomo)
     {
         var trader = await GetTraderByHandleIgnoreCaseAsync(handle, platform);
         if (trader == null)
-            return new Dictionary<int, decimal?>();
+            return new Dictionary<int, FollowerFloors>();
 
         // Category follows are materialized as UserTrader rows (SyncCategoryFollowsAsync), so
         // this is the whole audience.
         return await _dbContext.UserTraders
             .Where(ut => ut.TraderId == trader.Id)
-            .ToDictionaryAsync(ut => ut.UserId, ut => ut.MinValueUsd);
+            .ToDictionaryAsync(ut => ut.UserId, ut => new FollowerFloors(ut.MinValueUsd, ut.MinMarketCap));
     }
 
     public async Task<bool> SetThresholdAsync(int userId, int traderId, decimal? minValueUsd)
@@ -506,6 +506,21 @@ Use /settings to manage auto-follow and notification preferences.";
         return true;
     }
 
+    public async Task<bool> SetMinMarketCapAsync(int userId, int traderId, decimal? minMarketCap)
+    {
+        var userTrader = await _dbContext.UserTraders
+            .FirstOrDefaultAsync(ut => ut.UserId == userId && ut.TraderId == traderId);
+
+        if (userTrader == null)
+            return false;
+
+        userTrader.MinMarketCap = minMarketCap;
+        await _dbContext.SaveChangesAsync();
+
+        _logger.LogInformation("User {UserId} set MinMarketCap={MinMarketCap} for trader {TraderId}", userId, minMarketCap, traderId);
+        return true;
+    }
+
     public async Task<List<TraderBrowseEntry>> GetBrowseListAsync(int userId, Platform? platform)
     {
         var tradersQuery = _dbContext.Traders.AsQueryable();
@@ -516,7 +531,7 @@ Use /settings to manage auto-follow and notification preferences.";
 
         var follows = await _dbContext.UserTraders
             .Where(ut => ut.UserId == userId)
-            .ToDictionaryAsync(ut => ut.TraderId, ut => new { ut.MinValueUsd, ut.ViaCategory });
+            .ToDictionaryAsync(ut => ut.TraderId, ut => new { ut.MinValueUsd, ut.ViaCategory, ut.MinMarketCap });
         var excludedAt = await _dbContext.TraderFollowExclusions
             .Where(e => e.UserId == userId)
             .ToDictionaryAsync(e => e.TraderId, e => e.ExcludedAt);
@@ -535,7 +550,8 @@ Use /settings to manage auto-follow and notification preferences.";
             MinValueUsd: follows.GetValueOrDefault(t.Id)?.MinValueUsd,
             Category: TraderCategories.Effective(t.Category),
             IsMuted: !follows.ContainsKey(t.Id) && IsMuted(t),
-            ViaCategory: follows.GetValueOrDefault(t.Id)?.ViaCategory
+            ViaCategory: follows.GetValueOrDefault(t.Id)?.ViaCategory,
+            MinMarketCap: follows.GetValueOrDefault(t.Id)?.MinMarketCap
         )).ToList();
     }
 

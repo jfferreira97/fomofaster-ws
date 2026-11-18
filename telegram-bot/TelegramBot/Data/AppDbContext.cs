@@ -151,6 +151,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.TraderId).IsRequired();
             entity.Property(e => e.FollowedAt).IsRequired();
             entity.Property(e => e.MinValueUsd).HasColumnType("decimal(18,2)");
+            entity.Property(e => e.MinMarketCap).HasColumnType("decimal(18,2)");
 
             // Configure relationships
             entity.HasOne(e => e.User)

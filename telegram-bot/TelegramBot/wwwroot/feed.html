@@ -80,7 +80,7 @@ a.tier{text-decoration:none} a.tier:hover{filter:brightness(1.2)}
 .topt:hover,.topt:focus-visible{background:var(--p2);color:var(--tx);outline:0}
 .topt[aria-selected=true]{color:var(--tx)}
 .topt[aria-selected=true]::after{content:'';margin-left:auto;padding-left:0;width:6px;height:6px;border-radius:50%;background:var(--accent)}
-input[type=number],select{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--tx);border-radius:var(--r);padding:7px 10px;font:12px var(--mono);outline:0}
+input[type=number],input.tc-mc,select{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--tx);border-radius:var(--r);padding:7px 10px;font:12px var(--mono);outline:0}
 input:focus,select:focus{border-color:var(--accent-dim)}
 
 .tabs{flex:none;display:flex;gap:2px;padding:0 10px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
@@ -251,7 +251,8 @@ a.nm:hover{text-decoration:underline}
 .tc-btn.bad:hover:not(:disabled){background:rgba(240,80,110,.1);border-color:rgba(240,80,110,.7)}
 .tc-btn.solid{color:#fff;background:var(--sell);border-color:var(--sell)}
 .tc-btn.solid:hover:not(:disabled){background:#d9405d;border-color:#d9405d}
-.tc .tc-min{width:92px;flex:none;padding:5px 8px}
+.tc .tc-min,.tc .tc-mc{width:92px;flex:none;padding:5px 8px}
+.tc .tc-mc::placeholder{color:var(--mu)}
 .tc .tc-sel{width:auto;flex:1;min-width:0;padding:5px 8px;font:500 12px var(--sans)}
 .tc-hint{font-size:11.5px;color:var(--mu);line-height:1.4}
 .tc .tc-min::placeholder{color:var(--mu)}
@@ -772,8 +773,8 @@ a.nm:hover{text-decoration:underline}
   }
 
   /* ---------- a trader's settings, on their card ----------
-     Everyone: the mute, this feed's own (in this browser, for a while or until unmuted). Logged in: the follow and the $ floor, the
-     very ones /manage keeps (the same calls, rules and words), read from the trader list /manage loads, one platform at a time. */
+     Everyone: the mute, this feed's own (in this browser, for a while or until unmuted). Logged in: the follow, the $ floor and the
+     market cap floor, the very ones /manage keeps (the same calls, rules and words), read from the trader list /manage loads, one platform at a time. */
   const syncCard = () => { if (cardEl?.isConnected) cardEl._s?._sync(); };
   const handleKey = (h) => String(h || '').trim().replace(/^@/, '').toLowerCase();
   const myLists = new Map();   // 'fomo' | 'pump' -> { at, p }: kept 3 minutes, 30 s once the window has been away (a change on /manage)
@@ -789,24 +790,47 @@ a.nm:hover{text-decoration:underline}
     return c.p.then((x) => (x instanceof Map ? { row: x.get(handleKey(a.trader)) || null } : { err: x.err }));
   }
   addEventListener('blur', () => { for (const c of myLists.values()) c.away = true; });
+  // A market cap as typed: "50k", "1.2m", "$250,000", "2b". '' -> null, 0 -> 0, anything else (or over $1T) -> NaN.
+  function parseCap(raw) {
+    const x = String(raw ?? '').trim().toLowerCase().replace(/[$\s_]/g, '');
+    if (x === '') return String(raw ?? '').trim() === '' ? null : NaN;   // "$" alone is not "no minimum"
+    const m = /^([\d.,]+)([kmb]?)$/.exec(x);
+    if (!m) return NaN;
+    let n = m[1];
+    if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(n)) n = n.replace(/,/g, '');   // 250,000: commas group thousands
+    else if (/^\d+,\d{1,2}$/.test(n)) n = n.replace(',', '.');          // 1,5m: a decimal comma
+    else if (n.includes(',')) return NaN;
+    if (!m[2] && /^\d+\.\d{3}$/.test(n)) return NaN;                    // 250.000 could be 250 or 250,000: asked again
+    if (!/^(\d+(\.\d*)?|\.\d+)$/.test(n)) return NaN;
+    const v = Math.round(parseFloat(n) * { '': 1, k: 1e3, m: 1e6, b: 1e9 }[m[2]]);
+    return v <= 1e12 ? v : NaN;
+  }
+  // 50K, 1.2M, 2B when that is the exact amount, otherwise the plain number with commas (1,234,567): what is shown can be typed back
+  const capText = (v) => {
+    if (v == null || v === '') return ''; v = Math.round(Number(v));
+    for (const [d, u] of [[1e9, 'B'], [1e6, 'M'], [1e3, 'K']]) if (v >= d) { const x = Math.round(v / d * 100) / 100; if (Math.round(x * d) === v) return x + u; break; }
+    return v.toLocaleString('en-US');
+  };
   const post = (path, body) => fetch('/api/manage/' + path, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     .then((r) => r.ok).catch(() => false);
-  // Following clears the category mute; unfollowing leaves one (their category does not bring them back) and drops the $ floor,
-  // as on the server and on /manage. Undo follows again with the floor they had.
-  async function changeFollow(t, want, minBack) {
+  // Following clears the category mute; unfollowing leaves one (their category does not bring them back) and drops both floors
+  // ($ and market cap), as on the server and on /manage. Undo follows again with the floors they had.
+  async function changeFollow(t, want, minBack, mcBack) {
     if (t._busy === 'min') await t._minP;
+    if (t._mcBusy) await t._mcP;
     if (t._busy) return;
-    const before = t.minValueUsd;
+    const before = t.minValueUsd, mcBefore = t.minMarketCap;
     t._busy = want ? 'follow' : 'unfollow'; syncCard(); track('card:' + t._busy, true);
     const ok = await post(want ? 'follow' : 'unfollow', { traderId: t.id });
-    if (ok) { t.isFollowing = want; t.isMuted = !want; t.viaCategory = null; if (!want) t.minValueUsd = null; }
-    let minLost = false;
-    if (ok && want && minBack != null) { if (await post('threshold', { traderId: t.id, minValueUsd: minBack })) t.minValueUsd = minBack; else minLost = true; }
+    if (ok) { t.isFollowing = want; t.isMuted = !want; t.viaCategory = null; if (!want) { t.minValueUsd = null; t.minMarketCap = null; } }
+    const lost = [];
+    if (ok && want && minBack != null) { if (await post('threshold', { traderId: t.id, minValueUsd: minBack })) t.minValueUsd = minBack; else lost.push('$' + minBack.toLocaleString() + ' minimum'); }
+    if (ok && want && mcBack != null) { if (await post('min-mcap', { traderId: t.id, minMarketCap: mcBack })) t.minMarketCap = mcBack; else lost.push('$' + capText(mcBack) + ' min market cap'); }
     t._busy = false; syncCard();
     if (!ok) toast(`Couldn't ${want ? 'follow' : 'unfollow'} ${t.handle}. Try again.`, null, 'err');
-    else if (minLost) toast(`Following ${t.handle}, but couldn't put back the $${minBack.toLocaleString()} minimum.`, null, 'err');
+    else if (lost.length) toast(`Following ${t.handle}, but couldn't put back the ${lost.join(' or the ')}.`, null, 'err');
     else if (want) toast('Following ' + t.handle, null, 'ok');
-    else toast('Unfollowed ' + t.handle, () => changeFollow(t, true, before), 'follow');
+    else toast('Unfollowed ' + t.handle, () => changeFollow(t, true, before, mcBefore), 'follow');
   }
   async function changeMin(t, box) {
     const raw = box.value.trim(), v = raw === '' ? null : Number(raw), saved = t.minValueUsd ?? null;
@@ -820,6 +844,22 @@ a.nm:hover{text-decoration:underline}
     t._busy = false; box.value = t.minValueUsd ?? ''; syncCard();
     toast(ok ? (want == null ? `No minimum $ for ${t.handle}` : `Min $${want.toLocaleString()} for ${t.handle} saved`) : `Couldn't save the minimum $ for ${t.handle}. Put back as it was.`, null, ok ? 'ok' : 'err');
   }
+  async function changeMinMc(t, box) {
+    const v = parseCap(box.value), saved = t.minMarketCap ?? null;
+    if (t._busy === 'follow' || t._busy === 'unfollow' || t._mcBusy || Number.isNaN(v)) {
+      box.value = capText(saved);
+      if (Number.isNaN(v)) toast('Type a market cap like 50k, 1.2m or 250000.', null, 'err');
+      return;
+    }
+    const want = v || null;   // empty or 0: no minimum
+    if (want === saved) { box.value = capText(saved); return; }
+    t._mcBusy = true; syncCard(); track('card:mc', true);
+    t._mcP = post('min-mcap', { traderId: t.id, minMarketCap: want });
+    const ok = await t._mcP;
+    if (ok) t.minMarketCap = want;
+    t._mcBusy = false; box.value = capText(t.minMarketCap); syncCard();
+    toast(ok ? (want == null ? `No minimum market cap for ${t.handle}` : `Min market cap $${capText(want)} for ${t.handle} saved`) : `Couldn't save the minimum market cap for ${t.handle}. Put back as it was.`, null, ok ? 'ok' : 'err');
+  }
   function cardSettings(a) {
     const s = el('div', 'tc-s'), name = a.trader, logged = st.tier !== 'demo';
     const line = (k) => { const r = el('div', 'tc-row'), v = el('div', 'tc-v'); r.append(el('span', 'tc-k', k), v); s.append(r); return [r, v]; };
@@ -829,18 +869,29 @@ a.nm:hover{text-decoration:underline}
     const ask = el('div', 'tc-ask'); ask.hidden = true; s.append(ask);
     const [mR, mV] = line('Min $'), box = el('input', 'tc-min');
     box.type = 'number'; box.min = '0'; box.step = '1'; box.placeholder = 'any'; box.inputMode = 'numeric'; box.setAttribute('aria-label', 'Minimum $ per transaction');
-    const mHint = el('span', 'tc-hint'), mI = el('button', 'tc-i', 'i'), mInfo = el('div', 'tc-info');
-    mI.type = 'button'; mI.title = 'What is this?'; mI.setAttribute('aria-label', 'What Min $ does'); mI.setAttribute('aria-expanded', 'false');
-    mInfo.hidden = true; mV.append(box, mHint, mI); s.append(mInfo);
-    mInfo.append(el('b', null, 'Min $ per transaction'),
+    // an (i) at the end of a row opens a small card under it saying what the setting does
+    const infoFor = (v, label, title, text) => {
+      const i = el('button', 'tc-i', 'i'), note = el('div', 'tc-info');
+      i.type = 'button'; i.title = 'What is this?'; i.setAttribute('aria-label', 'What ' + label + ' does'); i.setAttribute('aria-expanded', 'false');
+      note.hidden = true; note.append(el('b', null, title), text); v.append(i); s.append(note);
+      const show = (on) => { note.hidden = !on; i.classList.toggle('on', on); i.setAttribute('aria-expanded', String(on)); };
+      i.addEventListener('click', () => show(note.hidden));
+      return show;
+    };
+    const mHint = el('span', 'tc-hint'); mV.append(box, mHint);
+    const showInfo = infoFor(mV, 'Min $', 'Min $ per transaction',
       'Their trades smaller than this don\'t alert you, here or on Telegram. Leave it empty to get all of them. Posts with no trade size, like theses, always come through. Same setting as on /manage.');
-    const showInfo = (on) => { mInfo.hidden = !on; mI.classList.toggle('on', on); mI.setAttribute('aria-expanded', String(on)); };
-    mI.addEventListener('click', () => showInfo(mInfo.hidden));
+    const [cR, cV] = line('Min MCap'), mcBox = el('input', 'tc-mc');
+    mcBox.type = 'text'; mcBox.placeholder = 'any'; mcBox.maxLength = 16; mcBox.autocomplete = 'off'; mcBox.spellcheck = false;
+    mcBox.setAttribute('aria-label', 'Minimum market cap of the coin');
+    const cHint = el('span', 'tc-hint'); cV.append(mcBox, cHint);
+    const showMcInfo = infoFor(cV, 'Min MCap', 'Min market cap of the coin',
+      'Their alerts on coins below this market cap don\'t reach you, here or on Telegram: buys, sells, calls and theses alike. Type 50k, 1.2m or a plain number. Leave it empty for every coin. An alert that comes without a market cap always comes through. Same setting as on /manage.');
     const [, uV] = line('Feed mute'), sel = el('select', 'tc-sel'), ph = el('option'), unBtn = el('button', 'tc-btn', 'Unmute');
     ph.value = ''; ph.disabled = true; sel.append(ph, ...MUTE_FOR.map(([m, label]) => Object.assign(el('option', null, label), { value: String(m) })));
     sel.setAttribute('aria-label', 'Mute ' + name + ' on this feed'); unBtn.type = 'button'; uV.append(sel, unBtn);
     const uHint = el('div', 'tc-hint'); s.append(uHint);
-    const mg = el('a', 'tc-more', logged ? 'All your trader settings in Manage ↗' : 'Log in through Telegram to follow them or set a minimum $ ↗');
+    const mg = el('a', 'tc-more', logged ? 'All your trader settings in Manage ↗' : 'Log in through Telegram to follow them or set their minimums ↗');
     mg.href = '/manage'; mg.target = '_blank'; mg.rel = 'noopener'; s.append(mg);
 
     s._sync = () => {
@@ -850,10 +901,10 @@ a.nm:hover{text-decoration:underline}
       unBtn.hidden = !on;
       uHint.textContent = (on ? (u ? 'Muted on this feed for ' + muteLeft(u - Date.now()) + ' more.' : 'Muted on this feed until you unmute.') : 'Mute hides them on this feed only, in this browser.')
         + (logged ? ' Telegram still sends their alerts.' : '');
-      fR.hidden = mR.hidden = !logged; if (!logged) { mInfo.hidden = true; return; }
+      fR.hidden = mR.hidden = cR.hidden = !logged; if (!logged) { showInfo(false); showMcInfo(false); return; }
       fTag.hidden = true;
       if (t === undefined || t === null || err !== undefined) {
-        fSt.className = 'tc-st msg'; fBtn.hidden = true; mR.hidden = true; ask.hidden = true; showInfo(false);
+        fSt.className = 'tc-st msg'; fBtn.hidden = true; mR.hidden = cR.hidden = true; ask.hidden = true; showInfo(false); showMcInfo(false);
         fSt.textContent = err === 401 ? 'Your session expired. Open /manage from the bot again.' : err !== undefined ? 'Couldn\'t load your settings for this trader. Try again in a moment.' : t === null ? 'Not in the trader list' : 'Loading…';
         fSt.title = fSt.textContent; return;
       }
@@ -869,7 +920,11 @@ a.nm:hover{text-decoration:underline}
       mR.hidden = false; box.disabled = !t.isFollowing; box.readOnly = busy === 'min';
       box.title = t.isFollowing ? 'Only alert me on their transactions of at least this size' : 'Follow them to set a minimum';
       mHint.textContent = t.isFollowing ? 'per transaction' : 'follow to set one';
-      if (document.activeElement !== box) box.value = t.minValueUsd ?? '';
+      if (document.activeElement !== box && busy !== 'min') box.value = t.minValueUsd ?? '';   // while it saves, the box keeps what was typed
+      cR.hidden = false; mcBox.disabled = !t.isFollowing; mcBox.readOnly = !!t._mcBusy;
+      mcBox.title = t.isFollowing ? 'Only alert me on their coins at or above this market cap' : 'Follow them to set a minimum';
+      cHint.textContent = t.isFollowing ? 'coin market cap' : 'follow to set one';
+      if (document.activeElement !== mcBox && !t._mcBusy) mcBox.value = capText(t.minMarketCap);
     };
     // Unfollowing asks first, in the card: what stops, and what goes with it.
     const closeAsk = () => { asking = false; s._sync(); if (fBtn.isConnected && !fBtn.hidden) fBtn.focus(); };
@@ -878,7 +933,8 @@ a.nm:hover{text-decoration:underline}
       asking = true;
       const p = el('div'), b = (x) => el('b', null, x);
       p.append('Unfollow ', b(t.handle), '? Their alerts stop here and on Telegram.');
-      if (t.minValueUsd) p.append(' Their $' + t.minValueUsd.toLocaleString() + ' minimum is cleared too.');
+      const floors = [t.minValueUsd ? '$' + t.minValueUsd.toLocaleString() + ' minimum' : '', t.minMarketCap ? '$' + capText(t.minMarketCap) + ' min market cap' : ''].filter(Boolean);
+      if (floors.length) p.append(' Their ' + floors.join(' and ') + (floors.length > 1 ? ' are' : ' is') + ' cleared too.');
       if (t.viaCategory) p.append(' A category you follow added them. Unfollowing keeps them out of it.');
       const no = el('button', 'tc-btn', 'Keep following'), yes = el('button', 'tc-btn bad solid', 'Unfollow'), acts = el('div', 'tc-acts');
       no.type = yes.type = 'button';
@@ -887,10 +943,12 @@ a.nm:hover{text-decoration:underline}
       acts.append(no, yes); ask.replaceChildren(p, acts); s._sync(); no.focus();
     }
     s._asking = () => asking; s._closeAsk = closeAsk;
-    s._revertMin = () => { if (t && document.activeElement === box) box.value = t.minValueUsd ?? ''; };
+    s._revertMin = () => { if (!t) return; if (document.activeElement === box) box.value = t.minValueUsd ?? ''; if (document.activeElement === mcBox) mcBox.value = capText(t.minMarketCap); };
     fBtn.addEventListener('click', () => { if (!t || t._busy === 'follow' || t._busy === 'unfollow') return; if (t.isFollowing) openAsk(); else changeFollow(t, true); });
     box.addEventListener('change', () => { if (t) changeMin(t, box); });
     box.addEventListener('keydown', (e) => { if (e.key === 'Enter') box.blur(); });
+    mcBox.addEventListener('change', () => { if (t) changeMinMc(t, mcBox); });
+    mcBox.addEventListener('keydown', (e) => { if (e.key === 'Enter') mcBox.blur(); });
     sel.addEventListener('change', () => { const m = Number(sel.value); track('mute:' + m, true); muteTrader(name, m); });
     sel.addEventListener('blur', () => s._sync());
     unBtn.addEventListener('click', () => unmuteTrader(name));

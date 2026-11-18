@@ -10,4 +10,8 @@ public record TraderBrowseEntry(
     decimal? MinValueUsd,
     string Category,
     bool IsMuted,
-    string? ViaCategory);
+    string? ViaCategory,
+    decimal? MinMarketCap);
+
+// A follower's two per-trader floors, read on every alert from that trader.
+public readonly record struct FollowerFloors(decimal? MinValueUsd, decimal? MinMarketCap);

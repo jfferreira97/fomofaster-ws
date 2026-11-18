@@ -281,6 +281,7 @@ public class ManageController : ControllerBase
                 platform = t.Platform.ToString(),
                 isFollowing = t.IsFollowing,
                 minValueUsd = t.MinValueUsd,
+                minMarketCap = t.MinMarketCap,
                 category = t.Category,
                 isMuted = t.IsMuted,
                 // getting their alerts through a followed category rather than a direct follow
@@ -322,6 +323,7 @@ public class ManageController : ControllerBase
                 platform = trader.Platform.ToString(),
                 isFollowing = follow != null,
                 minValueUsd = follow?.MinValueUsd,
+                minMarketCap = follow?.MinMarketCap,
                 category,
                 isMuted,
                 viaCategory,
@@ -390,6 +392,26 @@ public class ManageController : ControllerBase
             return BadRequest(new { status = "error", message = "You must follow this trader before setting a threshold" });
 
         return Ok(new { status = "success" });
+    }
+
+    // The per-trader market cap floor. Its own endpoint, so a page that only knows the $ floor can never clear it.
+    // 0 or null = no minimum.
+    [HttpPost("min-mcap")]
+    public async Task<IActionResult> SetMinMarketCap([FromBody] SetMinMarketCapRequest request)
+    {
+        var (user, error) = await ResolveSubscriberAsync();
+        if (user == null) return error!;
+
+        if (request.MinMarketCap is decimal v && (v < 0 || v > 1_000_000_000_000m))
+            return BadRequest(new { status = "error", message = "The minimum market cap must be between $0 and $1T" });
+        var rounded = Math.Round(request.MinMarketCap ?? 0m);
+        var minMarketCap = rounded > 0 ? rounded : (decimal?)null;
+
+        var success = await _traderService.SetMinMarketCapAsync(user.Id, request.TraderId, minMarketCap);
+        if (!success)
+            return BadRequest(new { status = "error", message = "You must follow this trader before setting a minimum market cap" });
+
+        return Ok(new { status = "success", minMarketCap });
     }
 
     // Trader categories with how many traders are in each right now, roughly how many alerts
@@ -837,6 +859,7 @@ public record UpdateLockSettingsRequest(decimal? MinPercent, int? MinDays, decim
 
 public record ManageTraderRequest(int TraderId);
 public record SetThresholdRequest(int TraderId, decimal? MinValueUsd);
+public record SetMinMarketCapRequest(int TraderId, decimal? MinMarketCap);
 public record SetChainDisabledRequest(Chain Chain, bool Disabled);
 public record SetChainMinMarketCapRequest(Chain Chain, decimal? MinMarketCap);
 public record SetChainMinTokenAgeRequest(Chain Chain, int? MinTokenAgeMinutes);

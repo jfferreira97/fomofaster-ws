@@ -173,7 +173,7 @@ public class TelegramService : ITelegramService
         var traderService = scope.ServiceProvider.GetRequiredService<ITraderService>();
 
         List<Models.User> users;
-        Dictionary<int, decimal?> followerThresholds = new();
+        Dictionary<int, FollowerFloors> followerThresholds = new();
 
         // CRITICAL: Filter by trader followers if trader handle provided - O(log n)
         if (!string.IsNullOrEmpty(traderHandle))
@@ -208,9 +208,21 @@ public class TelegramService : ITelegramService
         {
             users = users.Where(u =>
             {
-                var minValueUsd = followerThresholds.GetValueOrDefault(u.Id);
+                var minValueUsd = followerThresholds.GetValueOrDefault(u.Id).MinValueUsd;
                 return !minValueUsd.HasValue || usdAmount.Value >= (double)minValueUsd.Value;
             }).ToList();
+        }
+
+        // Per-trader market cap floor, set on the manage page or the feed's trader card: a follower who set one for this
+        // trader only gets this trader's alerts about a coin at or above it (any type: buys, sells, calls, theses...).
+        // An alert that doesn't know the coin's market cap (none, or 0) goes through. In-memory only: the floors came with
+        // the follower lookup above.
+        if (marketCap is double knownCap && knownCap > 0 && followerThresholds.Count > 0)
+        {
+            users = users.Where(u =>
+                !(followerThresholds.TryGetValue(u.Id, out var floors)
+                  && floors.MinMarketCap is decimal minMarketCap
+                  && knownCap < (double)minMarketCap)).ToList();
         }
 
         // Per-user chain preferences, set via /chains: a user who disabled this chain gets
@@ -230,8 +242,8 @@ public class TelegramService : ITelegramService
                     if (!chainSettings.TryGetValue(u.Id, out var setting)) return true;
                     if (setting.IsDisabled) return false;
                     if (notificationType == NotificationType.CUSTOM_Trending && setting.TrendingDisabled) return false;
-                    if (setting.MinMarketCap.HasValue && marketCap.HasValue)
-                        return marketCap.Value >= (double)setting.MinMarketCap.Value;
+                    if (setting.MinMarketCap.HasValue && marketCap is double cap && cap > 0)   // 0 = FOMO's "unknown"
+                        return cap >= (double)setting.MinMarketCap.Value;
                     return true;
                 }).ToList();
             }
