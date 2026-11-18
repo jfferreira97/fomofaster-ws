@@ -254,6 +254,9 @@ a.nm:hover{text-decoration:underline}
 .tc .tc-min,.tc .tc-mc{width:92px;flex:none;padding:5px 8px}
 .tc .tc-mc::placeholder{color:var(--mu)}
 .tc .tc-sel{width:auto;flex:1;min-width:0;padding:5px 8px;font:500 12px var(--sans)}
+.tc .tc-sel.muted{color:var(--accent);border-color:var(--accent-dim)}
+.tc .tc-sel.muted option{color:var(--tx)}
+@media (max-width:360px){.tc .tc-sel{padding:5px 4px;font-size:11.5px}.tc .tc-row .tc-btn{padding:4px 7px}.tc .tc-v{gap:5px}}
 .tc-hint{font-size:11.5px;color:var(--mu);line-height:1.4}
 .tc .tc-min::placeholder{color:var(--mu)}
 .tc{position:relative}
@@ -889,18 +892,22 @@ a.nm:hover{text-decoration:underline}
       'Their alerts on coins below this market cap don\'t reach you, here or on Telegram: buys, sells, calls and theses alike. Type 50k, 1.2m or a plain number. Leave it empty for every coin. An alert that comes without a market cap always comes through. Same setting as on /manage.');
     const [, uV] = line('Feed mute'), sel = el('select', 'tc-sel'), ph = el('option'), unBtn = el('button', 'tc-btn', 'Unmute');
     ph.value = ''; ph.disabled = true; sel.append(ph, ...MUTE_FOR.map(([m, label]) => Object.assign(el('option', null, label), { value: String(m) })));
-    sel.setAttribute('aria-label', 'Mute ' + name + ' on this feed'); unBtn.type = 'button'; uV.append(sel, unBtn);
-    const uHint = el('div', 'tc-hint'); s.append(uHint);
+    unBtn.type = 'button'; uV.append(sel, unBtn);
+    infoFor(uV, 'Feed mute', 'Feed mute',
+      'Hides their alerts on this feed only, in this browser. If you pick a time, they come back by themselves when it is up.'
+      + (logged ? ' Telegram still sends their alerts.' : '') + ' Muted traders are listed under Filters: click one to unmute.');
     const mg = el('a', 'tc-more', logged ? 'All your trader settings in Manage ↗' : 'Log in through Telegram to follow them or set their minimums ↗');
     mg.href = '/manage'; mg.target = '_blank'; mg.rel = 'noopener'; s.append(mg);
 
     s._sync = () => {
       const u = st.muted.get(name.toLowerCase()), on = mutedNow(name);
-      ph.textContent = on ? 'Change time…' : 'Mute for…';
+      const left = on ? (u ? muteLeft(u - Date.now()) + ' left' : 'Until unmuted') : '';
+      ph.textContent = on ? left : 'Mute for…';
+      sel.classList.toggle('muted', on);
+      sel.title = on ? (u ? 'Muted on this feed, ' + left + '. Pick another time to change it.' : 'Muted on this feed until you unmute. Pick a time to change it.') : 'Hide their alerts on this feed for a while';
+      sel.setAttribute('aria-label', on ? name + ' is muted on this feed, ' + left.toLowerCase() + '. Change how long' : 'Mute ' + name + ' on this feed');
       if (document.activeElement !== sel) { if (sel.value) sel.value = ''; ph.selected = true; }   // while it has focus, arrow keys step through the times
       unBtn.hidden = !on;
-      uHint.textContent = (on ? (u ? 'Muted on this feed for ' + muteLeft(u - Date.now()) + ' more.' : 'Muted on this feed until you unmute.') : 'Mute hides them on this feed only, in this browser.')
-        + (logged ? ' Telegram still sends their alerts.' : '');
       fR.hidden = mR.hidden = cR.hidden = !logged; if (!logged) { showInfo(false); showMcInfo(false); return; }
       fTag.hidden = true;
       if (t === undefined || t === null || err !== undefined) {
@@ -951,6 +958,10 @@ a.nm:hover{text-decoration:underline}
     mcBox.addEventListener('keydown', (e) => { if (e.key === 'Enter') mcBox.blur(); });
     sel.addEventListener('change', () => { const m = Number(sel.value); track('mute:' + m, true); muteTrader(name, m); });
     sel.addEventListener('blur', () => s._sync());
+    let selKeys = false;
+    sel.addEventListener('keydown', () => { selKeys = true; });
+    sel.addEventListener('pointerdown', () => { selKeys = false; });
+    sel.addEventListener('change', () => { if (!selKeys) sel.blur(); });
     unBtn.addEventListener('click', () => unmuteTrader(name));
     if (logged) myTrader(a).then((x) => { if (x.err !== undefined) err = x.err; else t = x.row; s._sync(); });
     s._sync();
@@ -1285,9 +1296,11 @@ a.nm:hover{text-decoration:underline}
     if (!st.chains.size) c.append(el('span', 'sub', 'appear as alerts arrive'));
   }
   function renderMuted() {
-    const m = $('muted'); m.replaceChildren();
+    const m = $('muted'), now = Date.now();
+    const sig = [...st.muted].map(([t, u]) => t + (u ? ' · ' + muteLeft(u - now) : '')).join('\n');
+    if (m.dataset.sig === sig && m.childElementCount) return;   // the same text: the chips stay as they are
+    m.dataset.sig = sig; m.replaceChildren();
     if (!st.muted.size) m.append(el('span', 'sub', 'none'));
-    const now = Date.now();
     for (const [t, u] of st.muted) {
       const b = el('button', 'chip on', t + (u ? ' · ' + muteLeft(u - now) : '') + ' ✕');
       b.title = (u ? 'Muted on this feed for ' + muteLeft(u - now) + ' more.' : 'Muted on this feed until you unmute.') + ' Click to unmute.';
@@ -1300,9 +1313,15 @@ a.nm:hover{text-decoration:underline}
   function armMutes() {
     clearTimeout(muteTimer); let next = Infinity;
     for (const u of st.muted.values()) if (u) next = Math.min(next, u);
-    if (next < Infinity) muteTimer = setTimeout(() => { if (sweepMutes()) afterMutes(); else armMutes(); }, Math.min(2e9, Math.max(500, next - Date.now() + 200)));
+    if (next < Infinity) muteTimer = setTimeout(() => {
+      const now = Date.now(), ended = [...st.muted].filter(([, u]) => u && u <= now).map(([k]) => k);
+      if (!sweepMutes()) { armMutes(); return; }
+      afterMutes();
+      const undoShowing = toastBox.classList.contains('show') && toastBox.querySelector('button:not(:disabled)');
+      if (ended.length && !undoShowing) toast(ended.length === 1 ? 'Mute ended: ' + ended[0] + ' is back on this feed' : 'Mutes ended: ' + ended.length + ' traders are back on this feed', null, 'ok');
+    }, Math.min(2e9, Math.max(500, next - Date.now() + 200)));
   }
-  setInterval(() => { if ([...st.muted.values()].some(Boolean)) { renderMuted(); syncCard(); } }, 30000);   // the time left, on the chips and the card
+  setInterval(() => { if ([...st.muted.values()].some(Boolean)) { renderMuted(); syncCard(); } }, 10000);   // the time left, on the chips and the card
   // Another tab or the pop-out window changed the mutes: the same here, without saving them back.
   addEventListener('storage', (e) => { if (e.key === 'gcfeed.muted' || e.key === null) { st.muted = readMutes(); afterMutes(true); } });
   // The toast for mutes: who went quiet on this feed, with an undo. Mutes made while it shows gather in it, and its undo
@@ -1331,7 +1350,7 @@ a.nm:hover{text-decoration:underline}
     if (!toastMutes.some((x) => x.k === k)) toastMutes.push({ k, prev: mutedNow(k) ? st.muted.get(k) : undefined });
     st.muted.set(k, until); afterMutes();
     const batch = toastMutes.slice(), how = MUTE_FOR.find(([m]) => m === minutes)?.[1] || minutes + ' minutes';
-    toast(batch.length === 1 ? 'Muted ' + name + ' on this feed' + (minutes ? ' for ' + how : '') : 'Muted ' + batch.length + ' traders on this feed',
+    toast(batch.length === 1 ? 'Muted ' + name + (minutes ? ' for ' + how + ' on this feed' : ' on this feed until you unmute') : 'Muted ' + batch.length + ' traders on this feed',
       () => { batch.forEach(({ k, prev }) => (prev === undefined ? st.muted.delete(k) : st.muted.set(k, prev))); afterMutes(); }, 'mute');
   }
   function unmuteTrader(name) {
