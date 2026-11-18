@@ -147,9 +147,6 @@ a.nm:hover{text-decoration:underline}
 .cp:hover{color:var(--tx);border-color:var(--line2)}
 .cp:active{transform:scale(.86)}
 .cp.ok{color:var(--buy);border-color:rgba(47,211,138,.4);background:rgba(47,211,138,.1)}   /* a short tick, not a lingering state */
-.mute{flex:none;opacity:0;font:500 10px var(--mono);letter-spacing:.05em;color:var(--mu);padding:1px 6px;border:1px solid var(--line);border-radius:5px;background:var(--p2);transition:opacity .12s}
-.r:hover .mute{opacity:1}
-.mute:hover{color:var(--sell)}
 .valbox{position:relative}
 .amt{font:700 15px/1.1 var(--mono);color:var(--c);letter-spacing:-.01em}
 .amt.hid{color:var(--fa);letter-spacing:.08em;font-weight:600}
@@ -263,9 +260,13 @@ a.nm:hover{text-decoration:underline}
 .tc-x:hover{color:var(--tx);background:var(--p2)}
 #xpop.pin .tc-x{display:grid}
 #xpop.pin .tc-h{padding-right:24px}
-@media (hover:none){.dsk .c-tr .mute{display:none!important}}   /* touch: the card has the mute (a tap on the trader opens it) */
 @media (max-width:440px){#toast span{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}}
 .tc-v .tc-hint{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tc-i{flex:none;width:18px;height:18px;margin-left:auto;display:grid;place-items:center;border:1px solid var(--line2);border-radius:50%;color:var(--mu);font:italic 700 11px Georgia,'Times New Roman',serif;line-height:1;transition:border-color .12s,color .12s,background-color .12s}
+.tc-i:hover,.tc-i.on{color:var(--tx);border-color:#43506a;background:var(--p2)}
+.tc-info{padding:9px 11px;border:1px solid var(--line2);border-radius:8px;background:var(--p2);font-size:12px;line-height:1.45;color:#c9d0dc}
+.tc-info b{display:block;margin-bottom:3px;color:var(--tx);font-weight:700}
+.tc-info[hidden]{display:none}
 .tc-ask{padding:10px 11px;border:1px solid rgba(240,80,110,.35);border-radius:8px;background:rgba(240,80,110,.06);font-size:12.5px;line-height:1.45;color:#c9d0dc}
 .tc-ask b{color:var(--tx);font-weight:700}
 .tc-acts{display:flex;justify-content:flex-end;gap:6px;margin-top:9px}
@@ -303,7 +304,6 @@ a.nm:hover{text-decoration:underline}
 .dsk{height:40px}
 .dsk .c-age{font:400 12px var(--mono);color:var(--mu);white-space:nowrap}
 .dsk .c-tr{display:flex;align-items:center;gap:8px;min-width:0;position:relative}
-.dsk .c-tr .mute{position:absolute;right:0;top:50%;transform:translateY(-50%)}   /* over the end of the name on hover: it takes no room from it */
 .dsk .c-tr .who{width:20px;height:20px;flex:none;font-size:9px}
 .dsk .c-tk{display:flex;align-items:center;gap:8px;min-width:0}
 .dsk .c-tk .coin{width:24px;height:24px;border-radius:6px;font-size:11px;flex:none}
@@ -333,7 +333,6 @@ a.nm:hover{text-decoration:underline}
   .dsk .c-tx .tg{display:grid}
   .r.x .drop{display:block;padding:0 10px 10px 52px}
   .dsk .c-tr{gap:6px} .dsk .c-tr .who{width:18px;height:18px} .dsk .nm{font-size:13px}   /* a little smaller, so the whole name fits and the coin keeps its room */
-  .dsk .c-tr .mute{display:none} .r:hover .dsk .c-tr .mute{display:inline-block}   /* on hover it takes the end of the name */
   .dsk .c-tk{gap:5px} .dsk .c-tk .coin{width:22px;height:22px}
   .dsk .c-tk .sym{font-size:13px}
   .dsk .c-am .amt{font-size:13px}
@@ -587,12 +586,6 @@ a.nm:hover{text-decoration:underline}
     if (!a.profile) return el('span', 'nm', a.trader);
     const n = el('a', 'nm', a.trader); n.href = a.profile; n.target = '_blank'; n.rel = 'noopener noreferrer'; n.addEventListener('click', (e) => e.stopPropagation()); return n;
   };
-  const muteEl = (a) => {
-    if (!a.trader) return null;
-    const x = el('button', 'mute', 'mute'); x.title = 'Mute ' + a.trader + ' on this feed until you unmute';
-    x.addEventListener('click', (e) => { e.stopPropagation(); track('mute', true); muteTrader(a.trader); });
-    return x;
-  };
   const amountEl = (a) => {   // the value; on a call it is the caller's position, said small and centred under the number
     const isTrade = a.type === 'Buy' || a.type === 'Sell';
     if (a.usd != null) { const vb = el('div', 'valbox'); vb.append(el('div', 'amt', money(a.usd))); if (CALLISH.has(a.type)) vb.append(el('div', 'pos', '(position size)')); else if (a.type === 'CUSTOM_Lock') vb.append(el('div', 'pos', '(locked)')); return vb; }
@@ -835,8 +828,14 @@ a.nm:hover{text-decoration:underline}
     fTag.title = 'A category you follow added them'; fBtn.type = 'button'; fV.append(fSt, fTag, fBtn);
     const ask = el('div', 'tc-ask'); ask.hidden = true; s.append(ask);
     const [mR, mV] = line('Min $'), box = el('input', 'tc-min');
-    box.type = 'number'; box.min = '0'; box.step = '1'; box.placeholder = 'any'; box.inputMode = 'numeric'; box.setAttribute('aria-label', 'Minimum $ of their buys and sells');
-    const mHint = el('span', 'tc-hint'); mV.append(box, mHint);
+    box.type = 'number'; box.min = '0'; box.step = '1'; box.placeholder = 'any'; box.inputMode = 'numeric'; box.setAttribute('aria-label', 'Minimum $ per transaction');
+    const mHint = el('span', 'tc-hint'), mI = el('button', 'tc-i', 'i'), mInfo = el('div', 'tc-info');
+    mI.type = 'button'; mI.title = 'What is this?'; mI.setAttribute('aria-label', 'What Min $ does'); mI.setAttribute('aria-expanded', 'false');
+    mInfo.hidden = true; mV.append(box, mHint, mI); s.append(mInfo);
+    mInfo.append(el('b', null, 'Min $ per transaction'),
+      'Their trades smaller than this don\'t alert you, here or on Telegram. Leave it empty to get all of them. Posts with no trade size, like theses, always come through. Same setting as on /manage.');
+    const showInfo = (on) => { mInfo.hidden = !on; mI.classList.toggle('on', on); mI.setAttribute('aria-expanded', String(on)); };
+    mI.addEventListener('click', () => showInfo(mInfo.hidden));
     const [, uV] = line('Feed mute'), sel = el('select', 'tc-sel'), ph = el('option'), unBtn = el('button', 'tc-btn', 'Unmute');
     ph.value = ''; ph.disabled = true; sel.append(ph, ...MUTE_FOR.map(([m, label]) => Object.assign(el('option', null, label), { value: String(m) })));
     sel.setAttribute('aria-label', 'Mute ' + name + ' on this feed'); unBtn.type = 'button'; uV.append(sel, unBtn);
@@ -851,10 +850,10 @@ a.nm:hover{text-decoration:underline}
       unBtn.hidden = !on;
       uHint.textContent = (on ? (u ? 'Muted on this feed for ' + muteLeft(u - Date.now()) + ' more.' : 'Muted on this feed until you unmute.') : 'Mute hides them on this feed only, in this browser.')
         + (logged ? ' Telegram still sends their alerts.' : '');
-      fR.hidden = mR.hidden = !logged; if (!logged) return;
+      fR.hidden = mR.hidden = !logged; if (!logged) { mInfo.hidden = true; return; }
       fTag.hidden = true;
       if (t === undefined || t === null || err !== undefined) {
-        fSt.className = 'tc-st msg'; fBtn.hidden = true; mR.hidden = true; ask.hidden = true;
+        fSt.className = 'tc-st msg'; fBtn.hidden = true; mR.hidden = true; ask.hidden = true; showInfo(false);
         fSt.textContent = err === 401 ? 'Your session expired. Open /manage from the bot again.' : err !== undefined ? 'Couldn\'t load your settings for this trader. Try again in a moment.' : t === null ? 'Not in the trader list' : 'Loading…';
         fSt.title = fSt.textContent; return;
       }
@@ -868,8 +867,8 @@ a.nm:hover{text-decoration:underline}
       fBtn.className = 'tc-btn ' + (t.isFollowing ? 'bad' : 'go');
       ask.hidden = !asking;
       mR.hidden = false; box.disabled = !t.isFollowing; box.readOnly = busy === 'min';
-      box.title = t.isFollowing ? 'Only alert me on their buys/sells above this size' : 'Follow them to set a minimum';
-      mHint.textContent = t.isFollowing ? 'per buy or sell' : 'follow them to set one';
+      box.title = t.isFollowing ? 'Only alert me on their transactions of at least this size' : 'Follow them to set a minimum';
+      mHint.textContent = t.isFollowing ? 'per transaction' : 'follow to set one';
       if (document.activeElement !== box) box.value = t.minValueUsd ?? '';
     };
     // Unfollowing asks first, in the card: what stops, and what goes with it.
@@ -1050,7 +1049,6 @@ a.nm:hover{text-decoration:underline}
     const cp = copyEl(a); if (cp) l1.append(cp);
     if (a.type === 'CUSTOM_Lock') l2.append(nameEl(a));
     else if (a.type !== 'CUSTOM_Trending') l2.append(nameEl(a), el('span', 'pl ' + (a.platform === 'pump' ? 'pump' : 'fomo'), a.platform === 'pump' ? 'PUMP' : 'FOMO'));
-    const mu1 = muteEl(a); if (mu1) l2.append(mu1);
     m.append(l1, l2);
     const v = el('div', 'v'), am = amountEl(a); if (am) v.append(am); v.append(ageEl(a));
     mob.append(tk, m, v);
@@ -1072,7 +1070,7 @@ a.nm:hover{text-decoration:underline}
     // desktop: age | trader | token | call text | amount | mc
     const dsk = el('div', 'dsk');
     const cAge = el('div', 'c-age ago', ago(a.ts)); cAge.dataset.ts = a.ts;
-    const cTr = el('div', 'c-tr'); const w2 = platEl(a); if (w2) cTr.append(w2); cTr.append(nameEl(a)); const mu2 = muteEl(a); if (mu2) cTr.append(mu2);
+    const cTr = el('div', 'c-tr'); const w2 = platEl(a); if (w2) cTr.append(w2); cTr.append(nameEl(a));
     if (a.trader) cTr.dataset.tr = '1';   // hovering the trader opens their card
     const cTk = el('div', 'c-tk'); cTk.append(coinEl(a), el('span', 'tag', TAG[a.type] || a.type.toLowerCase()), symEl(a)); if (a.chain) cTk.append(chainEl(a)); const cp2 = copyEl(a); if (cp2) cTk.append(cp2);
     const cTx = el('div', 'c-tx'); cTx.append(isCall ? richText('span', 'q', txt, !a.locked) : el('span', 'q', txt)); if (canOpen) cTx.append(tgEl(r));
