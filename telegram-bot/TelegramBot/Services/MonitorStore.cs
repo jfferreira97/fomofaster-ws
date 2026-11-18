@@ -86,6 +86,11 @@ public class MonitorStore
     public (DateTime Last, long Count)? GetBeat(string source) =>
         _beats.TryGetValue(source, out var b) ? b : null;
 
+    // What each sidecar said about itself with its last heartbeat (login state, cookie expiries); see SourceWatchService.
+    private readonly ConcurrentDictionary<string, SidecarReport> _reports = new();
+    public void Report(string source, SidecarReport report) => _reports[source] = report;
+    public SidecarReport? GetReport(string source) => _reports.TryGetValue(source, out var r) ? r : null;
+
     public void RecordAlert(AlertRecord r)
     {
         lock (_lock)

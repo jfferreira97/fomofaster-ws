@@ -166,6 +166,7 @@ async function session(firstRun: boolean): Promise<void> {
   ` });
 
   let hbInterval: NodeJS.Timeout | undefined;
+  let cookieInterval: NodeJS.Timeout | undefined;
   let probeInterval: NodeJS.Timeout | undefined;
   let pollInterval: NodeJS.Timeout | undefined;
   let verifiedSyncInterval: NodeJS.Timeout | undefined;
@@ -277,6 +278,10 @@ async function session(firstRun: boolean): Promise<void> {
     let tickCount = 0;
     let backoffUntil = 0;
     let failStreak = 0;
+    // Login state for the heartbeat: once the login runs out (it did on 2026-11-18, 30 days after it was made) pump.fun answers 401.
+    // Two 401s in a row count as logged out; any successful fetch clears it.
+    let authFails = 0;
+    let authFailSince: number | null = null;
     let tradesSeen = 0;
     let tradeEventsFull = 0;     // live trade events that carried everything
     let tradeEventsStub = 0;     // live trade events that were only a doorbell (coin without details yet)
@@ -315,6 +320,7 @@ async function session(firstRun: boolean): Promise<void> {
             tickCount = 0;
           }
           if (!probe.ok) {
+            if (probe.status === 401) { authFails++; authFailSince ??= Date.now(); }
             // At 1/s a failing endpoint would be hammered 60x/min. Back off instead —
             // longer for 429 (we are being told to slow down) than for a transient error
             // or an expired session, which the health check recovers separately.
@@ -327,6 +333,7 @@ async function session(firstRun: boolean): Promise<void> {
           }
 
           failStreak = 0;
+          authFails = 0; authFailSince = null;
           for (const item of probe.data?.items ?? []) {
             if (item.kind === 'trade') { handleTrade(item, t0 + fetchMs); continue; }
             const transformed = transformItem(item);
@@ -472,7 +479,29 @@ async function session(firstRun: boolean): Promise<void> {
       })();
     }, PROBE_INTERVAL_MS);
 
-    hbInterval = setInterval(() => { heartbeat().catch(() => {}); }, HEARTBEAT_INTERVAL_MS);
+    // The site's cookies that carry an expiry (name, domain, expiry: never the value), re-read every 10 minutes for the heartbeat.
+    let siteCookies: { name: string; domain: string; expires: number }[] = [];
+    const readCookies = async (logThem: boolean) => {
+      try {
+        const all = await context.cookies();
+        siteCookies = all.filter((c) => c.expires > 0 && c.domain.replace(/^\./, '').endsWith('pump.fun'))
+          .slice(0, 100).map((c) => ({ name: c.name, domain: c.domain, expires: Math.round(c.expires) }));
+        if (logThem) console.log(`${ts()} [main] pump.fun cookies with an expiry: ${siteCookies.map((c) => `${c.name}@${c.domain} until ${new Date(c.expires * 1000).toISOString().slice(0, 16)}`).join(', ') || 'none'}`);
+      } catch (err) { console.warn(`${ts()} [main] could not read the cookies: ${String(err).split('\n')[0]}`); }
+    };
+    void readCookies(true);   // not awaited: a stuck browser call must not hold up the heartbeat and the rotations below
+    cookieInterval = setInterval(() => { void readCookies(false); }, 10 * 60_000);
+
+    hbInterval = setInterval(() => {
+      // A 401 right after a launch or a reload can be the page still refreshing its token: only a minute of them counts.
+      const loggedOut = authFails >= 2 && authFailSince !== null && Date.now() - authFailSince >= 60_000;
+      heartbeat({
+        state: loggedOut ? 'logged_out' : 'ok',
+        since: loggedOut && authFailSince ? new Date(authFailSince).toISOString() : null,
+        detail: loggedOut ? `pump.fun answers 401 to the alerts API (${authFails} times in a row)` : null,
+        cookies: siteCookies,
+      }).catch(() => {});
+    }, HEARTBEAT_INTERVAL_MS);
 
     let rotating = false;
     const rotatePage = async (why: string, url: string = pumpUrl): Promise<boolean> => {
@@ -570,6 +599,7 @@ async function session(firstRun: boolean): Promise<void> {
   } finally {
     livePage = null;
     if (hbInterval) clearInterval(hbInterval);
+    if (cookieInterval) clearInterval(cookieInterval);
     if (refreshTimer) clearTimeout(refreshTimer);
     if (triggerInterval) clearInterval(triggerInterval);
     if (probeInterval) clearInterval(probeInterval);

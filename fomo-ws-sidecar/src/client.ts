@@ -23,10 +23,24 @@ export async function postStructured(req: StructuredNotificationRequest): Promis
   }
 }
 
-export async function heartbeat(): Promise<void> {
+// What the sidecar says about itself with each heartbeat, for the backend's watchdog. A sidecar whose page lost its login keeps
+// sending heartbeats all the same: on 2026-11-18 that went unseen for 10 hours, so the heartbeat now says whether the page is live.
+export interface SidecarStatus {
+  state: 'ok' | 'no_connection';
+  since?: string | null;       // when the current problem began (ISO), null while all is well
+  detail?: string | null;
+  // The site's cookies that have an expiry: name, domain and expiry only, never the value. The backend finds the login cookie
+  // among them and warns a few days before it runs out.
+  cookies?: { name: string; domain: string; expires: number }[];
+}
+
+export async function heartbeat(status?: SidecarStatus): Promise<void> {
   const url = `${BACKEND_URL}/api/sidecar/heartbeat`;
   try {
-    await fetch(url, { method: 'POST' });
+    await fetch(url, {
+      method: 'POST',
+      ...(status ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(status) } : {}),
+    });
   } catch {
     console.warn(`${ts()} [client] ❌ heartbeat POST failed — backend unreachable?`);
   }

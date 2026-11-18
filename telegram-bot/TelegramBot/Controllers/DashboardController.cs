@@ -18,6 +18,7 @@ public class DashboardController : ControllerBase
     private readonly MonitorStore _monitor;
     private readonly UserActivityService _activity;
     private readonly FeedService _feed;
+    private readonly SourceWatchService _watch;
 
     public DashboardController(
         AppDbContext dbContext,
@@ -26,8 +27,10 @@ public class DashboardController : ControllerBase
         AppConfigService appConfig,
         MonitorStore monitor,
         UserActivityService activity,
-        FeedService feed)
+        FeedService feed,
+        SourceWatchService watch)
     {
+        _watch = watch;
         _activity = activity;
         _feed = feed;
         _dbContext = dbContext;
@@ -49,6 +52,21 @@ public class DashboardController : ControllerBase
     }
 
     private static object Tile(string label, string value) => new { l = label, v = value };
+
+    // The first Id of the rows that came in after `since`, in a table whose Ids grow with ReceivedAt: bisection on the primary key.
+    // receivedAtFrom(id) = ReceivedAt of the first row with Id >= id (null past the end). Returns maxId + 1 when no row is that recent.
+    private static async Task<int> FirstIdAfterAsync(Func<int, Task<DateTime?>> receivedAtFrom, int? minId, int? maxId, DateTime since)
+    {
+        if (minId == null || maxId == null) return 0;
+        int lo = minId.Value, hi = maxId.Value + 1;
+        while (lo < hi)
+        {
+            var mid = lo + (hi - lo) / 2;
+            var at = await receivedAtFrom(mid);
+            if (at == null || at.Value > since) hi = mid; else lo = mid + 1;
+        }
+        return lo;
+    }
 
     // ---- Accumulation tab: tokens the tracked traders keep buying over several days (not only on launch day). ----
     // Tickers of majors and tokenized assets that are not memecoins: hidden only when the token is old (or its age is unknown),
@@ -301,43 +319,55 @@ public class DashboardController : ControllerBase
         var hourAgo = now.AddHours(-1);
         var upSec = (now - _monitor.StartedAt).TotalSeconds;
 
-        var ws = await _dbContext.WsEvents.AsNoTracking().Where(e => e.ReceivedAt > hourAgo)
+        // The event tables have no index on ReceivedAt, so "the last hour" was a full scan (1-20 s, every 30 s while the dashboard
+        // was open). Their Ids grow with time: the window's first Id is found by bisection on the primary key (~20 point lookups).
+        var wsFrom = await FirstIdAfterAsync(
+            id => _dbContext.WsEvents.AsNoTracking().Where(e => e.Id >= id).OrderBy(e => e.Id).Select(e => (DateTime?)e.ReceivedAt).FirstOrDefaultAsync(),
+            await _dbContext.WsEvents.MinAsync(e => (int?)e.Id), await _dbContext.WsEvents.MaxAsync(e => (int?)e.Id), hourAgo);
+        var pumpFrom = await FirstIdAfterAsync(
+            id => _dbContext.PumpEvents.AsNoTracking().Where(e => e.Id >= id).OrderBy(e => e.Id).Select(e => (DateTime?)e.ReceivedAt).FirstOrDefaultAsync(),
+            await _dbContext.PumpEvents.MinAsync(e => (int?)e.Id), await _dbContext.PumpEvents.MaxAsync(e => (int?)e.Id), hourAgo);
+        var ws = await _dbContext.WsEvents.AsNoTracking().Where(e => e.Id >= wsFrom && e.ReceivedAt > hourAgo)
             .Select(e => new { e.ReceivedAt, e.CreatedAt }).ToListAsync();
-        var pump = await _dbContext.PumpEvents.AsNoTracking().Where(e => e.ReceivedAt > hourAgo)
+        var pump = await _dbContext.PumpEvents.AsNoTracking().Where(e => e.Id >= pumpFrom && e.ReceivedAt > hourAgo)
             .Select(e => new { e.ReceivedAt, e.CreatedAt, e.Kind }).ToListAsync();
-        var lastWs = await _dbContext.WsEvents.AsNoTracking().OrderByDescending(e => e.Id).Select(e => (DateTime?)e.ReceivedAt).FirstOrDefaultAsync();
-        var lastPump = await _dbContext.PumpEvents.AsNoTracking().OrderByDescending(e => e.Id).Select(e => (DateTime?)e.ReceivedAt).FirstOrDefaultAsync();
+        var verdicts = (await _watch.EvaluateAsync(HttpContext.RequestAborted)).ToDictionary(v => v.Name);
 
         var components = new List<object>();
 
-        object Sidecar(string name, string label, string source, int events, List<double> lags, DateTime? lastEvent, params object[] extraTiles)
+        // A sidecar's card: the watchdog's verdict (heartbeat, login, silence), then its numbers.
+        object Sidecar(string name, string label, int events, List<double> lags, params object[] extraTiles)
         {
-            var beat = _monitor.GetBeat(source);
-            double? age = beat.HasValue ? (now - beat.Value.Last).TotalSeconds : null;
-            var state = age == null ? (upSec < 120 ? "idle" : "down") : age <= 90 ? "ok" : age <= 180 ? "degraded" : "down";
-            var summary = age == null ? "no heartbeat since the backend started" : state == "ok" ? $"alive · last heartbeat {age:0}s ago" : $"heartbeat is stale: {age:0}s ago";
+            var v = verdicts[name];
+            double? age = v.LastBeat is DateTime lb ? (now - lb).TotalSeconds : null;
+            var summary = v.Problem != null
+                ? $"{v.Problem}" + (v.ProblemSince is DateTime ps ? $" · since {DateTime.SpecifyKind(ps, DateTimeKind.Utc).ToLocalTime():d MMM HH:mm}" : "")
+                : age == null ? "waiting for the first heartbeat" : $"alive · last heartbeat {age:0}s ago";
             var med = Pctl(lags, 0.5);
             var p95 = Pctl(lags, 0.95);
             var tiles = new List<object>
             {
-                Tile("Last heartbeat", age == null ? "—" : $"{age:0}s ago"),
+                Tile("Last event", v.LastEvent == null ? "—" : Ago(now - v.LastEvent.Value)),
                 Tile("Events (1 h)", events.ToString()),
                 Tile("Median delay", med == null ? "—" : $"{med / 1000.0:0.0} s"),
                 Tile("Slowest 5%", p95 == null ? "—" : $"{p95 / 1000.0:0.0} s"),
-                Tile("Last event", lastEvent == null ? "—" : Ago(now - lastEvent.Value)),
+                Tile(v.LoginEstimated ? "Login runs out (est.)" : "Login runs out", v.LoginExpiresAt is DateTime exp
+                    ? exp <= now ? "already" : $"in {SourceWatchService.Left(exp - now)}" : "—"),
+                Tile("Last heartbeat", age == null ? "—" : $"{age:0}s ago"),
             };
             tiles.AddRange(extraTiles);
-            return new { name, label, state, summary, tiles, recent = Array.Empty<object>(), info = new Dictionary<string, string>() };
+            var info = new Dictionary<string, string>();
+            if (v.LoginExpiresAt is DateTime e)
+                info["Login"] = (v.LoginCookie != null ? $"cookie {v.LoginCookie}" : "30 days after the last login seen") + $" · until {DateTime.SpecifyKind(e, DateTimeKind.Utc).ToLocalTime():d MMM HH:mm}";
+            return new { name, label, state = v.State, summary, fix = v.Fix, tiles, recent = Array.Empty<object>(), info };
         }
 
         static List<double> Lags(IEnumerable<(DateTime rec, DateTime? cr)> xs) =>
             xs.Where(x => x.cr.HasValue).Select(x => Math.Max(0, (x.rec - x.cr!.Value).TotalMilliseconds)).ToList();
 
-        components.Add(Sidecar("fomo", "👀 FOMO sidecar (account 2)", "fomo-ws-sidecar", ws.Count,
-            Lags(ws.Select(e => (e.ReceivedAt, e.CreatedAt))), lastWs));
+        components.Add(Sidecar("fomo", "👀 FOMO sidecar (account 2)", ws.Count, Lags(ws.Select(e => (e.ReceivedAt, e.CreatedAt)))));
         var pumpTrades = pump.Count(e => e.Kind == "trade");
-        components.Add(Sidecar("pump", "💊 Pump sidecar (live stream + safety poll)", "pump-ws-sidecar", pump.Count,
-            Lags(pump.Select(e => (e.ReceivedAt, e.CreatedAt))), lastPump,
+        components.Add(Sidecar("pump", "💊 Pump sidecar", pump.Count, Lags(pump.Select(e => (e.ReceivedAt, e.CreatedAt))),
             Tile("Pump trades (1 h)", pumpTrades.ToString())));
 
         // Telegram delivery

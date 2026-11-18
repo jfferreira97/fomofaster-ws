@@ -58,6 +58,7 @@ async function session(firstRun: boolean): Promise<void> {
   }
 
   let hbInterval: NodeJS.Timeout | undefined;
+  let cookieInterval: NodeJS.Timeout | undefined;
   let probeInterval: NodeJS.Timeout | undefined;
   let refreshTimer: NodeJS.Timeout | undefined;
   let triggerInterval: NodeJS.Timeout | undefined;
@@ -70,7 +71,15 @@ async function session(firstRun: boolean): Promise<void> {
     const firstPage = page;
 
     let recovering = false;
-    let openTaps = 0;
+    // Open fomo.family sockets, counted per page. Closing a page does not fire its sockets' close events (no "WebSocket closed" ever
+    // follows a rotation's "old page closed" in the log), so one global counter only grew; a closed page simply stops counting here.
+    const taps = new Map<import('playwright').Page, number>();
+    const tapOpened = (p: import('playwright').Page) => { taps.set(p, (taps.get(p) ?? 0) + 1); };
+    const tapClosed = (p: import('playwright').Page) => { taps.set(p, Math.max(0, (taps.get(p) ?? 0) - 1)); };
+    const liveTaps = () => { let n = 0; for (const [p, c] of taps) { if (p.isClosed()) taps.delete(p); else n += c; } return n; };
+    // Since when no page has had a fomo.family socket open (null while one has). A page whose login ran out opens none: on 2026-11-18
+    // every socket closed at once and none came back for 10 hours, while the heartbeats kept saying all was well.
+    let noTapSince: number | null = null;
 
     let endSession!: (reason: string) => void;
     const sessionEnded = new Promise<string>((resolve) => { endSession = resolve; });
@@ -79,12 +88,12 @@ async function session(firstRun: boolean): Promise<void> {
     attachWsInterceptor(page, postStructured, {
       onSeen: (id) => seenBy(firstPage, id),
       onTapOpen: () => {
-        openTaps++;
-        console.log(`${ts()} [main] tap WS open (${openTaps} active)`);
+        tapOpened(firstPage);
+        console.log(`${ts()} [main] tap WS open (${liveTaps()} active)`);
       },
       onTapClose: () => {
-        openTaps = Math.max(0, openTaps - 1);
-        console.warn(`${ts()} [main] tap WS closed (${openTaps} active) — page should reconnect on its own`);
+        tapClosed(firstPage);
+        console.warn(`${ts()} [main] tap WS closed (${liveTaps()} active) — page should reconnect on its own`);
       },
     });
 
@@ -104,7 +113,7 @@ async function session(firstRun: boolean): Promise<void> {
       const deadline = Date.now() + 300_000;
       let loggedIn = false;
       while (Date.now() < deadline && !loggedIn) {
-        loggedIn = openTaps > 0 || await page.locator('text=/following|alerts|feed/i').first().isVisible().catch(() => false);
+        loggedIn = liveTaps() > 0 || await page.locator('text=/following|alerts|feed/i').first().isVisible().catch(() => false);
         if (!loggedIn) await sleep(2_000);
       }
       if (!loggedIn) console.warn(`${ts()} [main] ⚠️ login not confirmed after 5 minutes, carrying on anyway`);
@@ -134,7 +143,31 @@ async function session(firstRun: boolean): Promise<void> {
     watch(page);
     context.on('close', () => endSession('browser closed'));
 
-    hbInterval = setInterval(() => { heartbeat().catch(() => {}); }, HEARTBEAT_INTERVAL_MS);
+    // The site's cookies that carry an expiry (name, domain, expiry: never the value), re-read every 10 minutes for the heartbeat.
+    // Privy (FOMO's login provider) may keep its own on privy.io, so those count too.
+    let siteCookies: { name: string; domain: string; expires: number }[] = [];
+    const readCookies = async (logThem: boolean) => {
+      try {
+        const all = await context.cookies();
+        siteCookies = all.filter((c) => { const d = c.domain.replace(/^\./, ''); return c.expires > 0 && (d.endsWith('fomo.family') || d.endsWith('privy.io')); })
+          .slice(0, 100).map((c) => ({ name: c.name, domain: c.domain, expires: Math.round(c.expires) }));
+        if (logThem) console.log(`${ts()} [main] fomo.family cookies with an expiry: ${siteCookies.map((c) => `${c.name}@${c.domain} until ${new Date(c.expires * 1000).toISOString().slice(0, 16)}`).join(', ') || 'none'}`);
+      } catch (err) { console.warn(`${ts()} [main] could not read the cookies: ${String(err).split('\n')[0]}`); }
+    };
+    void readCookies(true);   // not awaited: a stuck browser call must not hold up the heartbeat and the rotations below
+    cookieInterval = setInterval(() => { void readCookies(false); }, 10 * 60_000);
+
+    hbInterval = setInterval(() => {
+      // Two minutes without any fomo.family socket on a live page: a page that lost its login (a short reconnect never takes that long).
+      if (liveTaps() > 0) noTapSince = null; else noTapSince ??= Date.now();
+      const dead = noTapSince !== null && Date.now() - noTapSince >= 120_000;
+      heartbeat({
+        state: dead ? 'no_connection' : 'ok',
+        since: dead ? new Date(noTapSince!).toISOString() : null,
+        detail: dead ? 'the page has no live connection to fomo.family (usually the login ran out)' : null,
+        cookies: siteCookies,
+      }).catch(() => {});
+    }, HEARTBEAT_INTERVAL_MS);
 
     // Health check — backstop in case the crash event never fires
     let probeFailures = 0;
@@ -187,8 +220,8 @@ async function session(firstRun: boolean): Promise<void> {
         watch(fresh);
         attachWsInterceptor(fresh, postStructured, {
           onSeen: (id) => seenBy(freshPage, id),
-          onTapOpen: () => { freshTaps++; openTaps++; console.log(`${ts()} [rotate] new page: tap WS open`); },
-          onTapClose: () => { freshTaps = Math.max(0, freshTaps - 1); openTaps = Math.max(0, openTaps - 1); console.warn(`${ts()} [rotate] new page: tap WS closed`); },
+          onTapOpen: () => { freshTaps++; tapOpened(freshPage); console.log(`${ts()} [rotate] new page: tap WS open`); },
+          onTapClose: () => { freshTaps = Math.max(0, freshTaps - 1); tapClosed(freshPage); console.warn(`${ts()} [rotate] new page: tap WS closed`); },
         });
         await fresh.goto(FOMO_URL, { waitUntil: 'domcontentloaded' });
         // The new page must really be receiving trades before the old one is touched: some trades on it, and it keeps up with the old page.
@@ -245,6 +278,7 @@ async function session(firstRun: boolean): Promise<void> {
   } finally {
     livePage = null;
     if (hbInterval) clearInterval(hbInterval);
+    if (cookieInterval) clearInterval(cookieInterval);
     if (probeInterval) clearInterval(probeInterval);
     if (refreshTimer) clearTimeout(refreshTimer);
     if (triggerInterval) clearInterval(triggerInterval);
