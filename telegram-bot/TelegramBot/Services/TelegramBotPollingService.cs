@@ -20,6 +20,29 @@ public class TelegramBotPollingService : BackgroundService
     // "Updates ...: our X account" with the link from configuration, or nothing when no link is configured.
     private string XLine(string lead) => string.IsNullOrWhiteSpace(_settings.XUrl) ? "" : $"\n\n{lead} [our X account]({_settings.XUrl.Trim()})";
 
+    // /help's push for the live feed on the website, or nothing when no site is configured (Telegram:SiteUrl).
+    private string FeedLine()
+    {
+        var site = _settings.SiteUrl?.Trim().TrimEnd('/');
+        if (string.IsNullOrEmpty(site)) return "";
+        var shown = site.Replace("https://", "").Replace("http://", "");
+        return $"\n\n💻 *Best way to watch: the live feed.* Every alert you get here, in your browser the moment we have it, before the Telegram messages go out. Filters, timed mutes and a card for every trader, where you can follow, unfollow and set their minimums. Log in once with /manage in that browser, then open [{shown}/feed]({site}/feed)";
+    }
+
+    private string HelpText(string price) => $@"📚 GROUPCHAT
+
+/manage - traders, categories, alert types, chains: all on one page{FeedLine()}
+
+/top - top tokens (e.g. /top 1h, /top sol 1d)
+/subscribe - full alerts: ticker, size, contract ({price} SOL / 30 days)
+
+Reply to any alert:
+unfollow - stop alerts from that trader
+setmin 50k - only alert on their trades of $50K or more (setmin off to clear)
+setmc 100k - only alert on their coins at $100K market cap or more (setmc off to clear){XLine("Updates and new features:")}
+
+GROUPCHAT is not affiliated with FOMO or Pump.fun.";
+
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<TelegramBotPollingService> _logger;
     private readonly IHubContext<DashboardHub> _hubContext;
@@ -206,8 +229,8 @@ public class TelegramBotPollingService : BackgroundService
         }
     }
 
-    // Lets a user unfollow a trader, or set that trader's per-trader alert floor, by simply
-    // replying "unfollow" / "setmin <amount>" (with or without a leading slash) to one of
+    // Lets a user unfollow a trader, or set that trader's per-trader alert floors, by simply
+    // replying "unfollow" / "setmin <amount>" / "setmc <market cap>" (with or without a leading slash) to one of
     // that trader's notifications — no need to know or type the handle. Only intercepts
     // replies to a notification that actually has a Trader attached (Buy/Sell/Thesis/
     // Callout/Repost/Reply); Trending alerts have Trader=null (they're cross-platform, not
@@ -223,7 +246,8 @@ public class TelegramBotPollingService : BackgroundService
 
         var isUnfollow = word == "unfollow";
         var isSetMin = word == "setmin";
-        if (!isUnfollow && !isSetMin) return false;
+        var isSetMc = word == "setmc";
+        if (!isUnfollow && !isSetMin && !isSetMc) return false;
 
         var chatId = message.Chat.Id;
         var repliedMessageId = message.ReplyToMessage!.MessageId;
@@ -264,8 +288,32 @@ public class TelegramBotPollingService : BackgroundService
             return true;
         }
 
-        // setmin
         var arg = spaceIdx < 0 ? "" : normalized[(spaceIdx + 1)..].Trim();
+
+        // setmc: the market cap floor (the same one as the "Min MCap" box on /manage and the feed's trader card)
+        if (isSetMc)
+        {
+            if (arg.Length == 0 || !TryParseMarketCapArg(arg, out var minCap))
+            {
+                await _botClient.SendTextMessageAsync(
+                    chatId,
+                    "❌ Reply with setmc <market cap>, e.g. \"setmc 100k\", \"setmc 1.2m\", or \"setmc off\" to clear it."
+                );
+                return true;
+            }
+            minCap = minCap is decimal c && Math.Round(c) > 0 ? Math.Round(c) : null;
+            if (!await traderService.SetMinMarketCapAsync(user.Id, trader.Id, minCap))
+            {
+                await _botClient.SendTextMessageAsync(chatId, $"❌ You're not following {trader.Handle}, so there's no minimum to set. Follow them on /manage first.");
+                return true;
+            }
+            await _botClient.SendTextMessageAsync(chatId, minCap.HasValue
+                ? $"✅ Minimum market cap for {trader.Handle} set to ${minCap.Value:N0}: their alerts on smaller coins won't reach you"
+                : $"✅ Minimum market cap for {trader.Handle} cleared (alerts on every coin)");
+            return true;
+        }
+
+        // setmin
         if (arg.Length == 0 || !TryParseMarketCapArg(arg, out var minValue))
         {
             await _botClient.SendTextMessageAsync(
@@ -484,18 +532,7 @@ Tap *Open Manage Page* below to adjust who you follow.";
                 var helpPrice = PriceText(await scope.ServiceProvider.GetRequiredService<AppConfigService>().GetSubscriptionPriceSolAsync());
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
-                    text: $@"📚 GROUPCHAT
-
-/manage - traders, categories, alert types, chains: all on one page
-
-/top - top tokens (e.g. /top 1h, /top sol 1d)
-/subscribe - full alerts: ticker, size, contract ({helpPrice} SOL / 30 days)
-
-Reply to any alert:
-unfollow - stop alerts from that trader
-setmin 50k - only alert on their trades above $50K (setmin off to clear){XLine("Updates and new features:")}
-
-GROUPCHAT is not affiliated with FOMO or Pump.fun.",
+                    text: HelpText(helpPrice),
                     parseMode: ParseMode.Markdown,
                     disableWebPagePreview: true
                 );
@@ -522,7 +559,7 @@ GROUPCHAT is not affiliated with FOMO or Pump.fun.",
             case "/chains":
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
-                    text: "That's on the manage page now: follow traders and categories, alert types, chains and repeat alerts, all in one place.\n\nTip: reply \"unfollow\" or \"setmin 50k\" to any alert to act on that trader.",
+                    text: "That's on the manage page now: follow traders and categories, alert types, chains and repeat alerts, all in one place.\n\nTip: reply \"unfollow\", \"setmin 50k\" or \"setmc 100k\" to any alert to act on that trader.",
                     replyMarkup: await BuildManageButtonAsync(chatId),
                     disableWebPagePreview: true
                 );
@@ -738,30 +775,30 @@ GROUPCHAT is not affiliated with FOMO or Pump.fun.",
         }
     }
 
-    // "off"/"none" clear the floor (value = null, returns true). Otherwise parses a plain
-    // or k/m/b-suffixed number (e.g. "50k", "1.2m") into a dollar amount.
+    // "off"/"none"/"clear" (or 0) clear the floor (value = null, returns true). Otherwise reads a plain or k/m/b-suffixed
+    // dollar amount, the way the website's boxes do: "50k", "1.2m", "$250,000", "1,5m" (a decimal comma). "250.000" without
+    // a suffix could be 250 or 250,000, so it is refused, as is anything over $1T.
     private static bool TryParseMarketCapArg(string input, out decimal? value)
     {
-        var s = input.Trim().ToLowerInvariant();
-        if (s is "off" or "none" or "clear")
-        {
-            value = null;
-            return true;
-        }
+        value = null;
+        var s = input.Trim().ToLowerInvariant().Replace("$", "").Replace(" ", "").Replace("_", "");
+        if (s is "off" or "none" or "clear") return true;
 
         var multiplier = 1m;
         if (s.EndsWith("k")) { multiplier = 1_000m; s = s[..^1]; }
         else if (s.EndsWith("m")) { multiplier = 1_000_000m; s = s[..^1]; }
         else if (s.EndsWith("b")) { multiplier = 1_000_000_000m; s = s[..^1]; }
 
-        if (decimal.TryParse(s, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var num) && num >= 0)
-        {
-            value = num * multiplier;
-            return true;
-        }
+        if (System.Text.RegularExpressions.Regex.IsMatch(s, @"^\d{1,3}(,\d{3})+(\.\d+)?$")) s = s.Replace(",", "");   // 250,000
+        else if (System.Text.RegularExpressions.Regex.IsMatch(s, @"^\d+,\d{1,2}$")) s = s.Replace(',', '.');          // 1,5m
+        else if (s.Contains(',')) return false;
+        if (multiplier == 1m && System.Text.RegularExpressions.Regex.IsMatch(s, @"^\d+\.\d{3}$")) return false;      // 250.000: unclear
+        if (!System.Text.RegularExpressions.Regex.IsMatch(s, @"^(\d+(\.\d*)?|\.\d+)$")) return false;
 
-        value = null;
-        return false;
+        var num = decimal.Parse(s, System.Globalization.NumberStyles.AllowDecimalPoint, System.Globalization.CultureInfo.InvariantCulture) * multiplier;
+        if (num > 1_000_000_000_000m) return false;
+        value = num > 0 ? num : null;   // 0 = no minimum
+        return true;
     }
 
 }
