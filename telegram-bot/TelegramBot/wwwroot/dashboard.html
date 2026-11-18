@@ -132,6 +132,7 @@
         .tab.active::after { transform: scaleX(1); }
         .tab:focus-visible { outline-offset: -4px; border-radius: 10px; }
 
+        .tab-sep { flex: none; align-self: center; width: 1px; height: 18px; margin: 0 6px; background: var(--line-2); }
         .tab-content { display: none; flex: 1; min-height: 0; overflow: hidden; }
         .tab-content.active { display: flex; flex-direction: column; }
 
@@ -222,6 +223,7 @@
         .badge-gray { background: rgba(138, 150, 160, .1); color: var(--text-3); border-color: rgba(138, 150, 160, .25); }
 
         .row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+        @media (min-width: 701px) { #usersTable td .row-actions, #paymentsTable td .row-actions { flex-wrap: nowrap; } td.nowrap-date { white-space: nowrap; } }
         .muted { color: var(--text-3); }
         .pos { color: var(--green); }
         .neg { color: var(--red); }
@@ -424,6 +426,7 @@
         .mon-head .st.degraded { background: var(--amber-soft); color: var(--amber); border-color: var(--amber-line); }
         .mon-head .st.down { background: var(--red-soft); color: var(--red); border-color: var(--red-line); }
         .mon-sum { margin: 6px 0 12px; color: var(--text-3); font-size: 13px; }
+        .mon-fix { margin: -4px 0 12px; padding: 8px 10px; border-radius: 8px; font-size: 12.5px; line-height: 1.45; color: var(--amber); background: var(--amber-soft); border: 1px solid var(--amber-line); }
         .mon-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 8px; }
         .mon-tile { background: var(--inset); border: 1px solid var(--line); border-radius: var(--r-md); padding: 9px 11px; }
         .mon-tile .v { font-size: var(--fs-md); font-weight: 700; line-height: 1.25; }
@@ -479,6 +482,7 @@
         .kpi .l { color: var(--text-3); font-size: var(--fs-sm); line-height: 1.35; }
         .kpi .v { font-size: var(--fs-2xl); font-weight: 750; line-height: 1.15; margin-top: 4px; letter-spacing: -.01em; }
         .kpi .s { color: var(--text-3); font-size: var(--fs-xs); margin-top: 3px; line-height: 1.4; }
+        .act-last { display: inline-block; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
         .funnel-row { display: grid; grid-template-columns: minmax(150px, 230px) 1fr minmax(120px, 170px); gap: 10px; align-items: center; margin: 8px 0; }
         .funnel-row .fl { font-size: 13px; }
         .funnel-row .fbar { background: var(--inset); border: 1px solid var(--line); border-radius: 6px; height: 20px; overflow: hidden; }
@@ -488,6 +492,10 @@
         .spark { display: flex; align-items: flex-end; height: 90px; border-bottom: 1px solid var(--line-2); padding-bottom: 2px; }
         .spark > div { flex: 1; min-width: 2px; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; height: 100%; }
         .spark > div > div { background: var(--accent-2); border-radius: 2px 2px 0 0; opacity: .9; }
+        .spark { height: 110px; }
+        .spark-n { font-size: 11px; color: var(--text-2); text-align: center; margin-bottom: 3px; font-variant-numeric: tabular-nums; }
+        .spark-days { position: relative; height: 16px; margin-top: 5px; }
+        .spark-days > span { position: absolute; top: 0; font-size: 10.5px; color: var(--text-3); white-space: nowrap; }
         .web-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 22px; margin-top: 14px; }
         .web-box-title { font-size: 13px; font-weight: 650; color: var(--text-2); margin-bottom: 2px; }
         details { margin-bottom: 10px; }
@@ -501,6 +509,7 @@
 
         /* ---------- Accumulation + Activity ---------- */
         .filters { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; align-items: end; margin-bottom: var(--s4); }
+        @media (min-width: 701px) { #accFilters { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); } }
         .filters label { display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-xs); font-weight: 550; color: var(--text-3); }
         .filters select { width: 100%; height: 36px; font-size: var(--fs-sm); color: var(--text); }
         .filters .meta { grid-column: 1 / -1; font-size: var(--fs-xs); color: var(--text-3); }
@@ -660,18 +669,22 @@
 
         <!-- Tabs -->
         <div class="tabs-wrap"><div class="tabs" role="tablist">
-            <button type="button" class="tab active" role="tab" onclick="switchTab('notifications')">Notifications</button>
-            <button type="button" class="tab" role="tab" onclick="switchTab('queue')">Queue</button>
-            <button type="button" class="tab" role="tab" onclick="switchTab('monitoring')">Monitoring<span class="mon-dot idle" id="monDot" title="App health"></span></button>
-            <button type="button" class="tab" role="tab" onclick="switchTab('users')">Users</button>
-            <button type="button" class="tab" role="tab" onclick="switchTab('accumulation')">Accumulation</button>
-            <button type="button" class="tab" role="tab" onclick="switchTab('activity')">Site activity</button>
-            <button type="button" class="tab" role="tab" onclick="switchTab('categories')">Categories</button>
-            <button type="button" class="tab" role="tab" onclick="switchTab('payments')">Payments</button>
-            <button type="button" class="tab" role="tab" onclick="switchTab('referrals')">Referrals</button>
-            <button type="button" class="tab" role="tab" onclick="switchTab('website')">Website</button>
-            <button type="button" class="tab" role="tab" onclick="switchTab('config')">Config</button>
-            <button type="button" class="tab" role="tab" onclick="switchTab('settings')">Settings</button>
+            <button type="button" class="tab active" role="tab" data-tab="notifications" onclick="switchTab('notifications')">Notifications</button>
+            <button type="button" class="tab" role="tab" data-tab="queue" onclick="switchTab('queue')">Queue</button>
+            <button type="button" class="tab" role="tab" data-tab="monitoring" onclick="switchTab('monitoring')">Monitoring<span class="mon-dot idle" id="monDot" title="App health"></span></button>
+            <span class="tab-sep" aria-hidden="true"></span>
+            <button type="button" class="tab" role="tab" data-tab="users" onclick="switchTab('users')">Users</button>
+            <button type="button" class="tab" role="tab" data-tab="payments" onclick="switchTab('payments')">Payments</button>
+            <button type="button" class="tab" role="tab" data-tab="referrals" onclick="switchTab('referrals')">Referrals</button>
+            <span class="tab-sep" aria-hidden="true"></span>
+            <button type="button" class="tab" role="tab" data-tab="activity" onclick="switchTab('activity')">Site activity</button>
+            <button type="button" class="tab" role="tab" data-tab="website" onclick="switchTab('website')">Website</button>
+            <span class="tab-sep" aria-hidden="true"></span>
+            <button type="button" class="tab" role="tab" data-tab="categories" onclick="switchTab('categories')">Categories</button>
+            <button type="button" class="tab" role="tab" data-tab="accumulation" onclick="switchTab('accumulation')">Accumulation</button>
+            <button type="button" class="tab" role="tab" data-tab="settings" onclick="switchTab('settings')">Add traders</button>
+            <span class="tab-sep" aria-hidden="true"></span>
+            <button type="button" class="tab" role="tab" data-tab="config" onclick="switchTab('config')">Config</button>
         </div></div>
 
         <!-- Notifications Tab -->
@@ -741,19 +754,17 @@
                         <table id="usersTable">
                             <thead>
                                 <tr>
-                                    <th>Chat ID</th>
-                                    <th>Username</th>
-                                    <th>First Name</th>
-                                    <th>Traders Tracking</th>
-                                    <th>Auto-Follow New</th>
+                                    <th>User</th>
+                                    <th>Following</th>
+                                    <th>Auto-follow new</th>
                                     <th>Active</th>
                                     <th>Bot</th>
-                                    <th>Joined At</th>
+                                    <th>Joined</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="usersTableBody">
-                                <tr><td colspan="9" style="text-align: center; color: #8a96a0;">Loading...</td></tr>
+                                <tr><td colspan="7" style="text-align: center; color: #8a96a0;">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -1312,7 +1323,9 @@
             const m = d.monitor;
             const up = m.uptimeSec < 3600 ? Math.round(m.uptimeSec / 60) + ' min' : (m.uptimeSec / 3600).toFixed(1) + ' h';
             let h = '<div class="mon-banner ' + m.overall.state + '"><span class="mon-state-dot ' + m.overall.state + '"></span><span>' + monEsc(m.overall.text) + '</span><span class="sub">backend up ' + up + '</span></div>';
-            h += '<div class="mon-grid">' + m.components.map(c => {
+            const rank = st => st === 'down' ? 0 : st === 'degraded' ? 1 : 2;
+            const comps = m.components.map((c, i) => [c, i]).sort((a, b) => rank(a[0].state) - rank(b[0].state) || a[1] - b[1]).map(x => x[0]);
+            h += '<div class="mon-grid">' + comps.map(c => {
                 const tiles = c.tiles.map(t => '<div class="mon-tile"><div class="v">' + monEsc(t.v) + '</div><div class="l">' + monEsc(t.l) + '</div></div>').join('');
                 const strip = c.recent && c.recent.length
                     ? '<div class="mon-strip" title="Last checks, newest on the right">' + Array.from({ length: 60 }, (_, i) => {
@@ -1323,7 +1336,7 @@
                     }).join('') + '</div>' : '';
                 const info = Object.entries(c.info || {}).map(([k, v]) => '<span class="mon-chip"><span>' + monEsc(k) + '</span> ' + monEsc(v) + '</span>').join('');
                 return '<div class="mon-card"><div class="mon-head"><span class="mon-state-dot ' + c.state + '"></span>' + monEsc(c.label) + '<span class="st ' + c.state + '">' + MON_STATE[c.state] + '</span></div>' +
-                    '<div class="mon-sum">' + monEsc(c.summary) + '</div><div class="mon-tiles">' + tiles + '</div>' + strip + info + '</div>';
+                    '<div class="mon-sum">' + monEsc(c.summary) + '</div>' + (c.fix ? '<div class="mon-fix"><b>What to do:</b> ' + monEsc(c.fix) + '</div>' : '') + '<div class="mon-tiles">' + tiles + '</div>' + strip + info + '</div>';
             }).join('') + '</div>';
 
             // How fast alerts really go out, stage by stage (stamps taken at every step; see the notes under each row).
@@ -1699,6 +1712,13 @@
             const d = r.detail ? ' <span style="color:#8a96a0">' + monEsc(r.detail.replace(/[{}"]/g, '').slice(0, 160)) + '</span>' : '';
             return '<b>' + monEsc(k.replace(/_/g, ' ')) + '</b>' + nm + d;
         }
+        function actBrief(a) {
+            const d = (a.detail || '').replace(/[{}"]/g, '').replace(/^request:/, '');
+            const id = (d.match(/traderId:(\d+)/) || [])[1];
+            const what = /^(click:|nav:)/.test(a.kind) ? actKind({ kind: a.kind }) : '<b>' + monEsc(a.kind.replace(/_/g, ' ')) + '</b>';
+            return '<span class="act-last" title="' + monEsc(a.kind + (d ? ': ' + d : '')) + '">' + what + (id ? ' <span class="muted">trader #' + id + '</span>' : '') +
+                ' <span class="muted">' + actAgo(a.at) + '</span></span>';
+        }
         async function loadActivity() {
             try {
                 const days = document.getElementById('actDays').value;
@@ -1708,7 +1728,7 @@
                 let h = '<div style="margin-bottom:12px"><b>On the feed now:</b> ' + (d.onFeedNow.length ? d.onFeedNow.map(x => actName(x.who) + ' (' + actPlan(x.who.plan) + ', ' + actDur(x.sinceSec) + ')').join(' · ') : '<span style="color:#8a96a0">nobody</span>') + '</div>';
                 if (!d.users.length) h += '<div class="empty">Nothing recorded yet. People show up here from the moment they use the feed or the manage page (it records from the start of this feature, not before).</div>';
                 else h += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13.5px;"><thead><tr><th style="text-align:left">Person</th><th style="text-align:left">Plan</th><th style="text-align:left">Last seen</th><th style="text-align:right">Feed visits</th><th style="text-align:right">Time on feed</th><th style="text-align:right">Manage visits</th><th style="text-align:right">Changes</th><th style="text-align:left">Last change</th></tr></thead><tbody>' +
-                    d.users.map(u => '<tr style="cursor:pointer" onclick="loadUserActivity(' + u.who.chatId + ')"><td>' + actName(u.who) + '</td><td>' + actPlan(u.who.plan) + '</td><td>' + actAgo(u.lastSeen) + '</td><td style="text-align:right">' + u.feedOpens + '</td><td style="text-align:right">' + actDur(u.feedSeconds) + '</td><td style="text-align:right">' + u.manageOpens + '</td><td style="text-align:right">' + u.actions + '</td><td>' + (u.lastAction ? actKind({ kind: u.lastAction.kind, detail: u.lastAction.detail }) + ' <span style="color:#8a96a0">' + actAgo(u.lastAction.at) + '</span>' : '<span style="color:#8a96a0">-</span>') + '</td></tr>').join('') + '</tbody></table></div><div id="actDetail" style="margin-top:16px"></div>';
+                    d.users.map(u => '<tr style="cursor:pointer" onclick="loadUserActivity(' + u.who.chatId + ')"><td>' + actName(u.who) + '</td><td>' + actPlan(u.who.plan) + '</td><td>' + actAgo(u.lastSeen) + '</td><td style="text-align:right">' + u.feedOpens + '</td><td style="text-align:right">' + actDur(u.feedSeconds) + '</td><td style="text-align:right">' + u.manageOpens + '</td><td style="text-align:right">' + u.actions + '</td><td>' + (u.lastAction ? actBrief(u.lastAction) : '<span style="color:#8a96a0">-</span>') + '</td></tr>').join('') + '</tbody></table></div><div id="actDetail" style="margin-top:16px"></div>';
                 document.getElementById('actBody').innerHTML = h;
                 document.getElementById('actUpdated').textContent = 'click a person to see everything they did';
             } catch (e) {
@@ -1768,9 +1788,12 @@
 
         // Tab switching
         function switchTab(tabName) {
+            const btn = document.querySelector('.tab[data-tab="' + tabName + '"]');
+            if (!btn || !document.getElementById(tabName + '-tab')) return;
             // Update tab buttons
             document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
-            (event.currentTarget || event.target).classList.add('active');
+            btn.classList.add('active');
+            try { history.replaceState(null, '', tabName === 'notifications' ? location.pathname + location.search : '#' + tabName); } catch (e) { }
 
             // Update tab content
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
@@ -1861,19 +1884,20 @@
 
             if (usersData.length === 0) {
                 badge.textContent = 'No active users';
-                tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #8a96a0;">No users found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #8a96a0;">No users found</td></tr>';
                 return;
             }
 
             badge.textContent = `Showing ${rows.length} of ${usersData.length} user${usersData.length !== 1 ? 's' : ''}`;
 
             if (rows.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #8a96a0;">No users match this filter</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #8a96a0;">No users match this filter</td></tr>';
                 return;
             }
 
             tbody.innerHTML = rows.map(user => {
-                const joinedDate = new Date(user.joinedAt).toLocaleString();
+                const joined = new Date(user.joinedAt);
+                const joinedDate = '<span title="' + joined.toLocaleString() + '">' + joined.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) + '</span>';
                 const displayName = user.username || user.firstName || 'Unknown';
                 const tradersTracking = `${user.trackingCount}/${user.totalTraders}`;
                 const isActiveDisplay = user.isActive
@@ -1885,18 +1909,16 @@
                 const autoFollowCheckbox = `<input type="checkbox" class="switch" aria-label="Auto-follow new traders" ${user.autoFollowNewTraders ? 'checked' : ''} onchange="toggleAutoFollow(${user.chatId}, this.checked)">`;
                 return `
                     <tr>
-                        <td>${user.chatId}</td>
-                        <td>${user.username || 'N/A'}</td>
-                        <td>${user.firstName || 'N/A'}</td>
+                        <td>${user.username ? '@' + monEsc(user.username) : monEsc(user.firstName || 'Unknown')}${user.username && user.firstName ? ' <span class="muted">· ' + monEsc(user.firstName) + '</span>' : ''}<br><span class="muted" style="font-size:11.5px;">${user.chatId}</span></td>
                         <td>${tradersTracking}</td>
                         <td>${autoFollowCheckbox}</td>
                         <td>${isActiveDisplay}</td>
                         <td>${botDisplay}</td>
-                        <td>${joinedDate}</td>
+                        <td class="nowrap-date">${joinedDate}</td>
                         <td><div class="row-actions">
-                            <button class="btn btn-secondary btn-sm" onclick="showSendMessageModal(${user.chatId}, '${displayName}')">Send Message</button>
-                            <button class="btn btn-primary btn-sm" onclick="followAllPublicTraders(${user.chatId}, '${displayName}')">Follow All</button>
-                            <button class="btn btn-danger btn-sm btn-push" onclick="unfollowAllTraders(${user.chatId}, '${displayName}')">Unfollow All</button>
+                            <button class="btn btn-secondary btn-sm" onclick="showSendMessageModal(${user.chatId}, ${monEsc(JSON.stringify(displayName))})">Message</button>
+                            <button class="btn btn-primary btn-sm" onclick="followAllPublicTraders(${user.chatId}, ${monEsc(JSON.stringify(displayName))})">Follow all</button>
+                            <button class="btn btn-danger btn-sm btn-push" onclick="unfollowAllTraders(${user.chatId}, ${monEsc(JSON.stringify(displayName))})">Unfollow all</button>
                         </div></td>
                     </tr>
                 `;
@@ -2083,6 +2105,7 @@
         async function jumpToNotification() {
             const id = document.getElementById('notifIdInput').value.trim();
             if (!id) return;
+            switchTab('notifications');
 
             try {
                 const response = await fetch(`${API_BASE}/api/dashboard/notifications?id=${id}`);
@@ -2148,9 +2171,9 @@
                     <td>${solFmt(r.paid)}</td>
                     <td style="font-weight:700;color:${r.owed > 0.00005 ? '#e8ac3f' : '#7c8aa0'};">${solFmt(r.owed)}</td>
                     <td class="nw"><div class="row-actions">
-                        <button class="btn btn-secondary btn-sm" onclick="copyText('${refEsc(r.botLink)}', this)">Telegram</button>
-                        <button class="btn btn-secondary btn-sm" onclick="copyText('${refEsc(r.siteLink)}', this)">Site</button>
-                        <button class="btn btn-secondary btn-sm" onclick="copyText('${refEsc(r.statsLink)}', this)">Stats page</button>
+                        <button class="btn btn-secondary btn-sm" onclick="copyText(${monEsc(JSON.stringify(r.botLink || ''))}, this)">Telegram</button>
+                        <button class="btn btn-secondary btn-sm" onclick="copyText(${monEsc(JSON.stringify(r.siteLink || ''))}, this)">Site</button>
+                        <button class="btn btn-secondary btn-sm" onclick="copyText(${monEsc(JSON.stringify(r.statsLink || ''))}, this)">Stats page</button>
                     </div></td>
                     <td><button class="btn btn-sm ${r.active ? 'btn-secondary' : 'btn-danger'}" onclick="setReferralActive(${r.id}, ${!r.active})">${r.active ? 'Active' : 'Off'}</button></td>
                     <td><button class="btn btn-secondary btn-sm" onclick="toggleBooks(${r.id})">Books</button></td>
@@ -2304,8 +2327,8 @@
                     <td>${p.rnExpiresAt ? fmt(p.rnExpiresAt) : (p.expiresAt ? fmt(p.expiresAt) : '—')}</td>
                     <td>
                         <div class="row-actions">
-                            <button onclick="grantAccess(${p.chatId},false)" class="btn btn-secondary btn-sm">Grant RN (30d)</button>
-                            <button onclick="grantAccess(${p.chatId},true)" class="btn btn-primary btn-sm">Grant RN4L</button>
+                            <button onclick="grantAccess(${p.chatId},false)" class="btn btn-secondary btn-sm" title="Grant 30 days of RN">RN 30d</button>
+                            <button onclick="grantAccess(${p.chatId},true)" class="btn btn-primary btn-sm" title="Grant lifetime access (RN4L)">RN4L</button>
                             <button onclick="revokeAccess(${p.chatId})" class="btn btn-danger btn-sm btn-push">Revoke</button>
                         </div>
                     </td>
@@ -2432,8 +2455,16 @@
                     step('Became paying', f.webPaid, f.startToPaidPct + ' of those who started', 100 * f.webPaid / top) +
                     '<div style="color:#8a96a0;font-size:12px;margin-top:6px;">Visitor to started: <b>' + f.visitorToStartPct + '%</b>. Bot starts that did not come from a website button: ' + webNum(d.allBotStarts - f.webStarts) + ' (found the bot another way).</div>';
                 const maxV = Math.max(1, ...d.series.map(x => x.visitors));
+                const every = Math.ceil(d.series.length / (innerWidth <= 700 ? 5 : 12));   // at most ~12 day labels under the bars (5 on a phone)
+                const dayLbl = day => new Date(day + 'T12:00:00Z').toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
                 document.getElementById('webDaily').innerHTML = '<div class="spark" style="gap:' + (d.series.length > 40 ? 2 : 6) + 'px;">' +
-                    d.series.map(x => '<div title="' + x.day + ': ' + x.visitors + ' visitors, ' + x.clicks + ' clicks, ' + x.starts + ' starts" ><div style="height:' + (100 * x.visitors / maxV) + '%;min-height:' + (x.visitors ? 2 : 0) + 'px;"></div></div>').join('') + '</div>' +
+                    d.series.map(x => '<div title="' + x.day + ': ' + x.visitors + ' visitors, ' + x.clicks + ' clicks, ' + x.starts + ' starts" >' + (d.series.length <= 14 && x.visitors ? '<span class="spark-n">' + x.visitors + '</span>' : '') + '<div style="height:' + (100 * x.visitors / maxV) + '%;min-height:' + (x.visitors ? 2 : 0) + 'px;"></div></div>').join('') + '</div>' +
+                    '<div class="spark-days">' + d.series.map((x, i) => {
+                        const n = d.series.length;
+                        if ((n - 1 - i) % every !== 0) return '';
+                        const pct = (i + 0.5) / n * 100, last = i === n - 1;
+                        return '<span style="left:' + (last ? 100 : pct) + '%;transform:translateX(' + (last ? '-100%' : pct < 8 && n > 20 ? '0' : '-50%') + ')">' + dayLbl(x.day) + '</span>';
+                    }).join('') + '</div>' +
                     '<div style="overflow-x:auto;margin-top:8px;">' + webTable(
                         [{ h: 'Day' }, { h: 'Visited', r: 1 }, { h: 'Page views', r: 1 }, { h: 'Clicked Telegram', r: 1 }, { h: 'Pressed Start', r: 1 }],
                         [...d.series].reverse().slice(0, 14).map(x => [x.day, webNum(x.visitors), webNum(x.views), webNum(x.clicks), webNum(x.starts)])) + '</div>';
@@ -2500,21 +2531,24 @@
                 const tbody = document.getElementById('configTableBody');
                 const fmt = d => d ? new Date(d).toISOString().slice(0, 16).replace('T', ' ') : '—';
 
+                const secret = k => /secret|token|password|passwd|apikey|api_key|privatekey|signingkey|webhook|seed|mnemonic/i.test(k);
                 tbody.innerHTML = data.configs.map(c => `
                     <tr id="config-row-${c.id}">
-                        <td class="mono">${c.key}</td>
+                        <td class="mono">${monEsc(c.key)}</td>
                         <td>
-                            <span id="config-val-${c.id}">${c.value || '<span style="color:#6c7883;">not set</span>'}</span>
-                            <input id="config-input-${c.id}" type="text" value="${c.value || ''}"
+                            <span id="config-val-${c.id}">${!c.value ? '<span style="color:#6c7883;">not set</span>'
+                                : secret(c.key) ? '<span class="muted">•••••••• hidden</span> <button type="button" class="btn btn-ghost btn-sm" onclick="this.parentElement.textContent=this.dataset.v" data-v="' + monEsc(c.value) + '">Show</button>'
+                                : monEsc(c.value)}</span>
+                            <input id="config-input-${c.id}" type="${secret(c.key) ? 'password' : 'text'}" autocomplete="off" value="${monEsc(c.value || '')}"
                                 style="display:none;width:100%;">
                         </td>
-                        <td style="color:#8a96a0;font-size:13px;">${c.description || '—'}</td>
+                        <td style="color:#8a96a0;font-size:13px;">${monEsc(c.description || '—')}</td>
                         <td style="font-size:12px;color:#6c7883;">${fmt(c.updatedAt)}</td>
                         <td>
                             <div class="row-actions">
-                                <button onclick="editConfig(${c.id},'${c.key}')" id="config-edit-btn-${c.id}" class="btn btn-secondary btn-sm">Edit</button>
+                                <button onclick="editConfig(${c.id})" id="config-edit-btn-${c.id}" class="btn btn-secondary btn-sm">Edit</button>
                                 <button onclick="saveConfig(${c.id},'${c.key}')" id="config-save-btn-${c.id}" class="btn btn-primary btn-sm" style="display:none;">Save</button>
-                                <button onclick="cancelConfig(${c.id},'${c.value||''}')" id="config-cancel-btn-${c.id}" class="btn btn-secondary btn-sm" style="display:none;">Cancel</button>
+                                <button onclick="cancelConfig(${c.id})" id="config-cancel-btn-${c.id}" class="btn btn-secondary btn-sm" style="display:none;">Cancel</button>
                             </div>
                         </td>
                     </tr>`).join('');
@@ -2531,8 +2565,9 @@
             document.getElementById(`config-cancel-btn-${id}`).style.display = 'inline-block';
         }
 
-        function cancelConfig(id, originalValue) {
-            document.getElementById(`config-input-${id}`).value = originalValue;
+        function cancelConfig(id) {
+            const input = document.getElementById(`config-input-${id}`);
+            input.value = input.defaultValue;
             document.getElementById(`config-val-${id}`).style.display = 'inline';
             document.getElementById(`config-input-${id}`).style.display = 'none';
             document.getElementById(`config-edit-btn-${id}`).style.display = 'inline-block';
@@ -2595,6 +2630,9 @@
             await loadInitialNotifications();
             await startSignalR();
         })();
+        // Open the tab named in the address (#monitoring, #users, ...) once the whole script has run.
+        window.addEventListener('DOMContentLoaded', () => { const t = location.hash.slice(1); if (t && t !== 'notifications') switchTab(t); });
+        window.addEventListener('hashchange', () => { const t = location.hash.slice(1) || 'notifications'; if (!document.getElementById(t + '-tab')?.classList.contains('active')) switchTab(t); });
         // ---------- Categories board ----------
         let cbData = null, cbPoll = null;
 
@@ -2729,7 +2767,7 @@
         // (max-width 700px) does the rest, so the desktop look is not touched.
         (function () {
             // which column becomes the card's title line: the first of these that has something in it (default: the first column)
-            var LEAD = { usersTable: [1, 2, 0] };
+            var LEAD = { usersTable: [0] };
             function stackTables() {
                 document.querySelectorAll('table').forEach(function (t) {
                     if (t.closest('#accChart')) return;
